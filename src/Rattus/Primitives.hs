@@ -5,7 +5,7 @@
 --  adheres to these stricter typing rules, use the plugin in
 --  "Rattus.Plugin" so that GHC will check these stricter typing
 --  rules.
-
+{-# LANGUAGE TypeOperators #-}
 module Rattus.Primitives where
 {-module Rattus.Primitives
   (O
@@ -25,6 +25,7 @@ module Rattus.Primitives where
 import Data.Set (Set)
 
 
+
 -- | A type is @Stable@ if it is a strict type and the later modality
 -- @O@ and function types only occur under @Box@.
 --
@@ -36,6 +37,8 @@ import Data.Set (Set)
 -- Int@, @Str Int@.
 
 class  Stable a  where
+
+--data Select a b = Left !a !(O b) | Right !(O a :* b) | Both !(a :* b)
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
@@ -90,8 +93,8 @@ extractClock (Delay cl f) = cl
 adv :: O a -> a
 adv (Delay cl f) = undefined
 
-adv' :: InputValue -> O a -> a
-adv' inputValue (Delay cl f) = f inputValue
+adv' :: O a -> InputValue -> a
+adv' (Delay cl f) inputValue = f inputValue
 
 -- | This is the constructor for the "stable" modality 'Box':
 --
@@ -105,6 +108,16 @@ adv' inputValue (Delay cl f) = f inputValue
 {-# INLINE [1] box #-}
 box :: a -> Box a
 box x = Box x
+
+{-select' :: InputValue -> O a -> O b -> Select a b
+select' (chId, value) a@(Delay clA inpFA) b@(Delay clB inpFB)  
+  | chId `elem` clA && chId `elem` clB = Both (inpFA value :* inpFB value)
+  | chId `elem` clA = Left (inpFA value :* b)
+  | chId `elem` clB = Right (a :* inpFB value)
+  | otherwise = error "Tick did not come on correct input channels"
+
+select :: O a -> O b -> Select a b
+select = select' undefined-}
 
 
 

@@ -8,7 +8,9 @@ module Rattus.ToHaskell
   (runTransducer,
    runSF,
    fromStr,
+   fromStr',
    toStr,
+   toStr',
    Trans(..)
   ) where
 
@@ -18,6 +20,8 @@ import Rattus.Primitives
 import Rattus.Stream
 import Rattus.Yampa
 import Rattus.Strict
+import qualified Data.Set as Set
+
 
 
 -- | A state machine that takes inputs of type @a@ and produces output
@@ -51,6 +55,15 @@ toStr :: [a] -> Str a
 toStr (x : xs) = x ::: delay (toStr xs)
 toStr _ = error "toStr: input terminated"
 
+
+toStr' :: [a] -> Str a
+toStr' (x : xs) = x ::: delay' undefined (toStr' xs)
+
+
 -- | Turns a stream into a lazy infinite list.
 fromStr :: Str a -> [a]
 fromStr (x ::: xs) = x : fromStr (adv xs)
+
+
+fromStr' :: Str a -> [a]
+fromStr' (x ::: xs) = x : fromStr' (adv' xs undefined)
