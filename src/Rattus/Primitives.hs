@@ -38,7 +38,7 @@ import Data.Set (Set)
 
 class  Stable a  where
 
---data Select a b = Left !a !(O b) | Right !(O a :* b) | Both !(a :* b)
+data Select a b = Left !a !(O b) | Right !(O a) !b | Both !a !b
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
@@ -46,7 +46,7 @@ type InputChannelIdentifier = Int
 type Clock = Set InputChannelIdentifier
 
 -- A value that arrives on an input channel
-data Value = IntValue Int | CharValue Char | BoolValue Bool
+data Value = IntValue Int | CharValue Char | BoolValue Bool 
 
 type InputValue = (InputChannelIdentifier, Value)
 
@@ -73,12 +73,6 @@ delay x = Delay undefined (const x)
 
 delay' :: Clock -> a -> O a
 delay' cl a = Delay cl (const a)
-
-delayCustom :: Clock -> (InputValue -> a) -> O a
-delayCustom = Delay
-
-extractF :: O a -> (InputValue -> a)
-extractF (Delay cl f) = f
 
 extractClock :: O a -> Clock
 extractClock (Delay cl f) = cl
@@ -108,17 +102,6 @@ adv' (Delay cl f) inputValue = f inputValue
 {-# INLINE [1] box #-}
 box :: a -> Box a
 box x = Box x
-
-{-select' :: InputValue -> O a -> O b -> Select a b
-select' (chId, value) a@(Delay clA inpFA) b@(Delay clB inpFB)  
-  | chId `elem` clA && chId `elem` clB = Both (inpFA value :* inpFB value)
-  | chId `elem` clA = Left (inpFA value :* b)
-  | chId `elem` clB = Right (a :* inpFB value)
-  | otherwise = error "Tick did not come on correct input channels"
-
-select :: O a -> O b -> Select a b
-select = select' undefined-}
-
 
 
 -- | This is the eliminator for the "stable" modality  'Box':
