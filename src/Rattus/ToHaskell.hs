@@ -6,6 +6,7 @@
 
 module Rattus.ToHaskell
   (runTransducer,
+   runInputTransducer,
    runSF,
    fromStr,
    fromStr',
@@ -43,6 +44,22 @@ runTransducer tr = Trans run
           writeIORef asR (a ::: delay as')
           let b ::: bs' = bs
           return (b, Trans (run' (adv bs') asR'))
+
+-- | Turn a stream function into a state machine.
+runInputTransducer :: (Str InputValue -> Str a) -> Trans InputValue a
+runInputTransducer tr = Trans run
+  where run inp = unsafePerformIO $ do
+          inpsR <- newIORef undefined
+          inps <- unsafeInterleaveIO $ readIORef inpsR
+          let a ::: as = tr (inp ::: Delay (Set.singleton 3) (\_ -> inps))
+          return (a, Trans (run' (adv' as inp) inpsR))
+        run' as inpsR inp = unsafePerformIO $ do
+          inpsR' <- newIORef undefined
+          inps' <- unsafeInterleaveIO $ readIORef inpsR'
+          writeIORef inpsR (inp ::: Delay (Set.singleton 3) (\_ -> inps'))
+          let a ::: as' = as
+          return (a, Trans (run' (adv' as' inp) inpsR'))
+
 
 -- | Turn a signal function into a state machine from inputs of type
 -- @a@ and time (since last input) to output of type @b@.
