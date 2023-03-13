@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 -- Input Channels
 
 mkChannel :: Int -> (InputValue -> a) -> O a
-mkChannel id f = Delay (Set.singleton id) f 
+mkChannel id = Delay (Set.singleton id)
 
 keyboard :: O Char
 keyboard = mkChannel 1 (\(1, CharValue c) -> c)
@@ -26,11 +26,11 @@ reset = mkChannel 2 (\(2, BoolValue b) -> b)
 
 -- Streams based on input channels
 kbStr :: O (Str Char)
-kbStr = Delay cl ((\inputValue -> adv' keyboard inputValue ::: Delay cl (\inputValue2 -> adv' kbStr inputValue2)))
+kbStr = Delay cl (\inputValue -> adv' keyboard inputValue ::: Delay cl (adv' kbStr))
     where cl = extractClock keyboard
 
 resetStr :: O (Str Bool)
-resetStr = Delay cl ((\inputValue -> adv' reset inputValue ::: Delay cl (\inputValue2 -> adv' resetStr inputValue2)))
+resetStr = Delay cl (\inputValue -> adv' reset inputValue ::: Delay cl (adv' resetStr))
     where cl = extractClock reset
 -----
 
@@ -60,13 +60,13 @@ textStr accStr@(Delay clAcc inpFA) resetStr@(Delay clReset inpFR) = Delay (clAcc
 
 -- New functions 
 
-scan :: Box (b -> a -> b) -> b -> Str a -> Str b 
-scan f acc (a ::: as) = acc' ::: Delay cl (\inputValue -> scan f acc' (adv' as inputValue))
+scan :: Box (b -> a -> b) -> b -> Str a -> Str b
+scan f acc (a ::: as) = acc' ::: Delay cl (scan f acc' . adv' as)
     where acc' = unbox f acc a
           cl = extractClock as
 
 scanAwait :: Box (b -> a -> b) -> b -> O (Str a) -> Str b
-scanAwait f acc as = acc ::: Delay cl (\inputValue -> scan f acc (adv' as inputValue))
+scanAwait f acc as = acc ::: Delay cl (scan f acc . adv' as)
     where cl = extractClock as
 
 select :: InputValue -> O a -> O b -> Select a b
@@ -82,7 +82,5 @@ mapL :: Box (a -> b) -> O a -> O b
 mapL f (Delay cl inpF) = Delay cl (unbox f . inpF)
 
 mapS :: Box (a -> b) -> Str a -> Str b
-mapS f (a ::: as@(Delay cl inpF)) = unbox f a ::: Delay cl (\inp -> mapS f (adv' as inp))
-
-
+mapS f (a ::: as@(Delay cl inpF)) = unbox f a ::: Delay cl (mapS f . adv' as)
 
