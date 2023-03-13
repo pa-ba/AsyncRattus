@@ -51,12 +51,12 @@ runInputTransducer tr = Trans run
   where run inp = unsafePerformIO $ do
           inpsR <- newIORef undefined
           inps <- unsafeInterleaveIO $ readIORef inpsR
-          let a ::: as = tr (inp ::: Delay (Set.singleton 3) (\_ -> inps))
+          let a ::: as = tr (inp ::: delay inps)
           return (a, Trans (run' (adv' as inp) inpsR))
         run' as inpsR inp = unsafePerformIO $ do
           inpsR' <- newIORef undefined
           inps' <- unsafeInterleaveIO $ readIORef inpsR'
-          writeIORef inpsR (inp ::: Delay (Set.singleton 3) (\_ -> inps'))
+          writeIORef inpsR (inp ::: delay inps')
           let a ::: as' = as
           return (a, Trans (run' (adv' as' inp) inpsR'))
 
