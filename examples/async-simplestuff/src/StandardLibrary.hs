@@ -36,9 +36,8 @@ resetStr = Delay cl (\inputValue -> adv' reset inputValue ::: Delay cl (adv' res
 -----
 
 -- Output Channel
-
 accumulatorStr :: O (Str Char) -> O (Str String)
-accumulatorStr str@(Delay cl inpF) = Delay cl (\inputValue@(_, CharValue value) -> scanAwait (box (\acc char -> acc ++ [char])) [value] str)
+accumulatorStr str@(Delay cl inpF) = mapL (box (\(c ::: cs) -> (scanAwait (box (\acc char -> acc ++ [char])) [c] cs))) str
 
 textStr :: O (Str String) -> O (Str Bool) -> O (Str String)
 textStr accStr@(Delay clAcc inpFA) resetStr@(Delay clReset inpFR) = Delay (clAcc `Set.union` clReset) (\inputValue ->
