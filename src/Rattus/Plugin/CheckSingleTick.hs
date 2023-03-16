@@ -29,6 +29,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Applicative
 import Data.Foldable
+import Data.Maybe (isJust)
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -52,10 +53,10 @@ data Ctx = Ctx
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
     primAlias :: Map Var Prim,
-    -- number of ticks (for recursive calls). This is to allow
-    -- recursive definitions of the form @f = delay (delay (adv f))@.
-    ticks :: Int,
     allowRecursion :: Bool} 
+
+hasTick :: Ctx -> Bool
+hasTick = isJust . earlier
 
 primMap :: Map FastString Prim
 primMap = Map.fromList
@@ -80,8 +81,8 @@ stabilize :: HiddenReason -> Ctx -> Ctx
 stabilize hr c = c
   {current = Set.empty,
    earlier = Nothing,
-   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid,
-   ticks = 0}
+   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid
+  }
   where ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
 
 
@@ -90,7 +91,7 @@ data Scope = Hidden SDoc | Visible
 getScope  :: Ctx -> Var -> Scope
 getScope c v =
     if v `Set.member` recDef c then
-      if ticks c > 0 || allowRecursion c then Visible
+      if hasTick c || allowRecursion c then Visible
       else Hidden ("(Mutually) recursive call to " <> ppr v <> " must occur under delay")
     else case Map.lookup v (hidden c) of
       Just reason ->
@@ -136,7 +137,6 @@ emptyCtx c =
         recDef = recursiveSet c,
         primAlias = Map.empty,
         stableTypes = Set.empty,
-        ticks = 0,
         allowRecursion = allowRecExp c}
 
 
@@ -209,10 +209,10 @@ checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} (App e1 e2) =
       Delay -> case earl of
         Just earl' ->
           checkExpr' c{current = Set.empty, earlier = Just cur,
-                      ticks = ticks c + 1, hidden = hidden c `Map.union` Map.fromSet (const DelayApp) earl'} e2
-        Nothing -> checkExpr' c{current = Set.empty, earlier = Just cur, ticks = ticks c + 1} e2
+                      hidden = hidden c `Map.union` Map.fromSet (const DelayApp) earl'} e2
+        Nothing -> checkExpr' c{current = Set.empty, earlier = Just cur} e2
       Adv -> case earl of
-        Just er -> checkExpr' c{earlier = Nothing, current = er, ticks = ticks c - 1,
+        Just er -> checkExpr' c{earlier = Nothing, current = er,
                                hidden = hid `Map.union` Map.fromSet (const AdvApp) cur} e2
         Nothing -> typeError c v (text "can only advance under delay")
     _ -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' c e2)
