@@ -71,13 +71,13 @@ strictify opts guts b@(Rec bs) = do
   if tr then do
     let vs = map fst bs
     es' <- mapM (\ (v,e) -> do
-                    e' <- toSingleTick e
-                    lazy <- allowLazyData guts v
-                    allowRec <- allowRecursion guts v
-                    e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy))e'
+                    --e' <- toSingleTick e
+                    --lazy <- allowLazyData guts v
+                    --allowRec <- allowRecursion guts v
+                    e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) True)e
                     checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
                                          fatalError = False, verbose = debugMode opts,
-                                         allowRecExp = allowRec} e''
+                                         allowRecExp = False} e''
                     return e'') bs
     return (Rec (zip vs es'))
   else return b

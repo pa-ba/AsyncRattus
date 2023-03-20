@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Rattus.Plugin.Utils (
   printMessage,
@@ -20,6 +21,7 @@ module Rattus.Plugin.Utils (
   noLocationInfo,
   mkAlt,
   getAlt,
+  showTree,
   splitForAllTys')
   where
 #if __GLASGOW_HASKELL__ >= 906
@@ -335,3 +337,41 @@ getAlt (Alt c args e) = (c, args, e)
 mkAlt c args e = (c, args, e)
 getAlt alt = alt
 #endif
+
+
+showOutputable :: (Outputable a) => a -> String
+showOutputable = showSDocUnsafe . ppr
+
+indent :: Int -> String -> String
+indent i s = replicate (2 * i) ' ' ++ s
+
+showTree :: Expr Var -> String
+showTree = showTree' 0
+
+showTree' :: Int -> Expr Var -> String
+showTree' i (Var id) = indent i "Var {" ++ showOutputable (varName id) ++ "}"
+showTree' i (Lit literal) = indent i "Literal {" ++ showOutputable literal ++ "}"
+showTree' i (App e e') = indent i "App {\n(" ++ showTree' (i+1) e ++ ")\n(" ++ showTree' (i+1) e' ++ "\n" ++ indent i ")}"
+showTree' i (Lam b e) = indent i "Lam {\n" ++ showVar (i+1) b ++ "\n" ++ showTree' (i+1) e ++ "\n" ++ indent i "}"
+showTree' i (Let b e) = indent i "Let {\n" ++ showBindVar (i+1) b ++ "\n" ++ showTree' (i+1) e ++ "\n" ++ indent i "}"
+showTree' i (Case e b t as) = indent i "Case {\n" ++ showTree' (i+1) e ++ "\n" ++ showVar (i+1) b ++ "\n" ++ showType (i+1) t ++ "\n" ++ indent i "AltList {\n" ++ showAltList (i+1) as ++ indent i "}"
+showTree' _ e = showOutputable e
+
+showAltList :: Int -> [Alt Var] -> String
+showAltList i = foldl (\s a -> indent i s ++ "\n" ++ showAlt (i+1) a) ""
+
+showList2 :: (Show a) => [a] -> String
+showList2 = foldl (\s a -> s ++ show a) ""
+
+showAlt :: Int -> Alt Var -> String
+showAlt i (Alt con bindings rhs) = "Alt {(" ++ showOutputable con ++ ") (BINDINGS) (" ++ showTree' (i+1) rhs ++ ")}"
+
+showVar :: Int -> Var -> String
+showVar i = indent i . getOccString
+
+showBindVar :: Int -> Bind Var -> String
+showBindVar i (NonRec b e) = indent i "NonRec {(" ++ showVar (i+1) b ++ indent i ") (" ++ showTree' (i+1) e ++ indent i ")}"
+showBindVar i (Rec bindings) = indent i "Rec {" ++ foldl (\s (b, e) -> s ++ ("(" ++ showVar (i+1) b ++ ") (" ++ showTree' (i+1) e ++ ")")) "" bindings ++ indent i "}"
+
+showType :: Int -> Type -> String
+showType i = indent i . showSDocUnsafe . ppr
