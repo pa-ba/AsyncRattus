@@ -12,7 +12,6 @@ module Rattus.Plugin.CheckSingleTick
 import GHC.Types.Tickish
 #endif
 
-
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
 #else
@@ -30,6 +29,7 @@ import qualified Data.Map as Map
 import Control.Applicative
 import Data.Foldable
 import Data.Maybe (isJust)
+import Rattus.Primitives (Clock)
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -105,7 +105,7 @@ getScope c v =
           BoxApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope:" $$
                        "It occurs under " <> keyword "box" $$ "and is of type " <> ppr (varType v) <> ", which is not stable.")
           AdvApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under adv.")
-        
+
           FunDef -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs in a function that is defined under a delay, is a of a non-stable type " <> ppr (varType v) <> ", and is bound outside delay")
           DelayApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under two occurrences of delay and is a of a non-stable type " <> ppr (varType v))
       Nothing
@@ -124,9 +124,11 @@ pickFirst _ s = s
 
 
 typeError :: Ctx -> Var -> SDoc -> CoreM (Maybe TypeError)
-typeError cxt var doc =
-  return (Just (TypeError (pickFirst (srcLoc cxt) (nameSrcSpan (varName var))) doc))
+typeError ctx var doc =
+  return (Just (mkTypeError ctx var doc))
 
+mkTypeError :: Ctx -> Var -> SDoc -> TypeError
+mkTypeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
 
 emptyCtx :: CheckExpr -> Ctx
 emptyCtx c =
@@ -155,10 +157,10 @@ stabilizeLater c =
   case earlier c of
     Just earl -> c {earlier = Nothing,
                     hidden = hidden c `Map.union` Map.fromSet (const FunDef) earl}
-    Nothing -> c 
+    Nothing -> c
 
 isStableConstr :: Type -> CoreM (Maybe Var)
-isStableConstr t = 
+isStableConstr t =
   case splitTyConApp_maybe t of
     Just (con,[args]) ->
       case getNameModule con of
@@ -166,7 +168,7 @@ isStableConstr t =
           if isRattModule mod && name == "Stable"
           then return (getTyVar_maybe args)
           else return Nothing
-        _ -> return Nothing                           
+        _ -> return Nothing
     _ ->  return Nothing
 
 
@@ -181,6 +183,8 @@ data CheckExpr = CheckExpr{
 checkExpr :: CheckExpr -> Expr Var -> CoreM ()
 checkExpr c e = do
   res <- checkExpr' (emptyCtx c) e
+  putMsgS (showTree e)
+  putMsg (ppr e)
   case res of
     Nothing -> return ()
     Just (TypeError src doc) ->
@@ -243,7 +247,7 @@ checkExpr' _ (Let (Rec ([])) _) = return Nothing
 checkExpr' c (Let (Rec binds) e2) = do
     r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
     r2 <- checkExpr' (addVars vs c) e2
-    return (foldl' (<|>) Nothing r1 <|> r2)  
+    return (foldl' (<|>) Nothing r1 <|> r2)
   where vs = map fst binds
         ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
         c' v = c {current = Set.empty,
@@ -261,3 +265,60 @@ checkExpr' c  (Var v)
 
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
+
+data ClockCheck = NoClock | Error TypeError | Clock Clock
+{-
+findSingleClock :: Ctx -> Expr Var -> CoreM ClockCheck
+findSingleClock c (App e e') =
+  case isPrimExpr e of
+    Just (p, v) -> case p of
+      Delay -> return $ Error $ mkTypeError c v (text "Cannot delay inside a delay")
+      --Adv -> return extractClock e'
+      --Select -> -}
+    {-
+checkExpr' c (Case e v _ alts) =
+    liftM2 (<|>) (checkExpr' c e) (liftM (foldl' (<|>) Nothing)
+                                   (mapM ((\ (_,vs,e)-> checkExpr' (addVars vs c') e) . getAlt) alts))
+  where c' = addVars [v] c
+checkExpr' c (Lam v e)
+  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = do
+      is <- isStableConstr (varType v)
+      let c' = case is of
+            Nothing -> c
+            Just t -> c{stableTypes = Set.insert t (stableTypes c)}
+      checkExpr' c' e
+  | otherwise = checkExpr' (addVars [v] (stabilizeLater c)) e
+findSingleClock _ (Type _)  = Nothing
+findSingleClock _ (Lit _)  = Nothing
+findSingleClock _ (Coercion _)  = Nothing
+findSingleClock c (Tick (SourceNote span _name) e) =
+  findSingleClock c{srcLoc = fromRealSrcSpan span} e
+findSingleClock c (Tick _ e) = findSingleClock c e
+findSingleClock c (Cast e _) = findSingleClock c e
+checkExpr' c (Let (NonRec v e1) e2) =
+  case isPrimExpr c e1 of
+    Just (p,_) -> (checkExpr' (c{primAlias = Map.insert v p (primAlias c)}) e2)
+    Nothing -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' (addVars [v] c) e2)
+checkExpr' _ (Let (Rec ([])) _) = return Nothing
+checkExpr' c (Let (Rec binds) e2) = do
+    r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
+    r2 <- checkExpr' (addVars vs c) e2
+    return (foldl' (<|>) Nothing r1 <|> r2)  
+  where vs = map fst binds
+        ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
+        c' v = c {current = Set.empty,
+                  earlier = Nothing,
+                  hidden =  hidden c `Map.union`
+                   (Map.fromSet (const (NestedRec v)) ctxHid),
+                  recDef = recDef c `Set.union` Set.fromList vs }
+checkExpr' c  (Var v)
+  | tcIsLiftedTypeKind $ typeKind $ varType v =  case getScope c v of
+             Hidden reason -> typeError c v reason
+             Visible -> return Nothing
+  | otherwise = return Nothing
+-}
+--findSingleClock _ _ = undefined
+
+-- accepts the subtree upon which a delay has been applied
+--checkAndRewriteDelay :: Ctx -> Expr Var -> CoreM (Either TypeError (Expr Var))
+--checkAndRewriteDelay c arg = undefined
