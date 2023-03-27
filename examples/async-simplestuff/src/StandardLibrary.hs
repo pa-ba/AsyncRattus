@@ -46,7 +46,7 @@ textStr accStr@(Delay clAcc inpFA) resetStr@(Delay clReset inpFR) = Delay (clAcc
             Left (a ::: as) b -> a ::: textStr as b
             Right a (b ::: bs) -> "" ::: textStr (accumulatorStr kbStr) bs
         )
-    where sel inp = select inp accStr resetStr
+    where sel inp = select' inp accStr resetStr
 
 
 textStr' :: O (Str String)
@@ -72,13 +72,6 @@ scan f acc (a ::: as) = acc' ::: Delay cl (scan f acc' . adv' as)
 scanAwait :: Box (b -> a -> b) -> b -> O (Str a) -> Str b
 scanAwait f acc as = acc ::: Delay cl (scan f acc . adv' as)
     where cl = extractClock as
-
-select :: InputValue -> O a -> O b -> Select a b
-select inputValue@(chId, value) a@(Delay clA inpFA) b@(Delay clB inpFB)
-  | chId `elem` clA && chId `elem` clB = Both (inpFA inputValue) (inpFB inputValue)
-  | chId `elem` clA = Left (inpFA inputValue) b
-  | chId `elem` clB = Right a (inpFB inputValue)
-  | otherwise = error "Tick did not come on correct input channels"
 
 ----
 

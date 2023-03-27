@@ -14,6 +14,7 @@ module Rattus.Plugin.Utils (
   isStrict,
   isTemporal,
   userFunction,
+  isVar,
   isType,
   mkSysLocalFromVar,
   mkSysLocalFromExpr,
@@ -53,6 +54,15 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Char
 import Data.Maybe
+
+isVar :: CoreExpr -> Bool
+isVar (App e e')
+  | isType e' || not  (tcIsLiftedTypeKind(typeKind (exprType e'))) = isVar e
+  | otherwise = False
+isVar (Cast e _) = isVar e
+isVar (Tick _ e) = isVar e
+isVar (Var _) = True
+isVar _ = False
 
 isType Type {} = True
 isType (App e _) = isType e

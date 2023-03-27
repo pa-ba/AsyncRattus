@@ -30,21 +30,23 @@ import Control.Applicative
 import Data.Foldable
 import Data.Maybe (isJust)
 import Rattus.Primitives (Clock)
+import qualified Debug.Trace as D
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
 type Hidden = Map Var HiddenReason
 
-data Prim = Delay | Adv | Box | Arr
+data Prim = Delay | Adv | Box | Arr | Select (Expr Var)
 
 data TypeError = TypeError SrcSpan SDoc
 
 instance Outputable Prim where
   ppr Delay = "delay"
   ppr Adv = "adv"
+  ppr (Select _) = "select"
   ppr Box = "box"
   ppr Arr = "arr"
-  
+
 data Ctx = Ctx
   { current :: LCtx,
     hidden :: Hidden,
@@ -53,7 +55,10 @@ data Ctx = Ctx
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
     primAlias :: Map Var Prim,
-    allowRecursion :: Bool} 
+    allowRecursion :: Bool,
+    inDelay :: Bool,
+    hasSeenAdvSelect :: Bool
+    }
 
 hasTick :: Ctx -> Bool
 hasTick = isJust . earlier
@@ -62,6 +67,7 @@ primMap :: Map FastString Prim
 primMap = Map.fromList
   [("delay", Delay),
    ("adv", Adv),
+   ("select", Select undefined),
    ("box", Box),
    ("arr", Arr)
    ]
@@ -139,10 +145,17 @@ emptyCtx c =
         recDef = recursiveSet c,
         primAlias = Map.empty,
         stableTypes = Set.empty,
-        allowRecursion = allowRecExp c}
+        allowRecursion = allowRecExp c,
+        inDelay = False,
+        hasSeenAdvSelect = False
+        }
 
 
 isPrimExpr :: Ctx -> Expr Var -> Maybe (Prim,Var)
+isPrimExpr c (App inner@(App _ arg1) arg2) =
+  case isPrimExpr c inner of
+    Just (Select _, v) -> Just (Select arg2, v)
+    x -> x
 isPrimExpr c (App e (Type _)) = isPrimExpr c e
 isPrimExpr c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = isPrimExpr c e
 isPrimExpr c (Var v) = fmap (,v) (isPrim c v)
@@ -172,6 +185,10 @@ isStableConstr t =
     _ ->  return Nothing
 
 
+data CheckResult = CheckResult{
+  advSelect :: Bool
+}
+
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
   oldExpr :: Expr Var,
@@ -182,9 +199,13 @@ data CheckExpr = CheckExpr{
 
 checkExpr :: CheckExpr -> Expr Var -> CoreM ()
 checkExpr c e = do
-  res <- checkExpr' (emptyCtx c) e
-  putMsgS (showTree e)
+  let check = countAdvSelect' (emptyCtx c) e
+  case check of
+    Left s -> putMsgS s
+    Right result -> putMsgS "Success"
   putMsg (ppr e)
+{-
+  --res <- checkExpr' (emptyCtx c) e
   case res of
     Nothing -> return ()
     Just (TypeError src doc) ->
@@ -198,7 +219,7 @@ checkExpr c e = do
          else
         printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
                              "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
-
+-}
 checkExpr' :: Ctx -> Expr Var -> CoreM (Maybe TypeError)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
@@ -210,15 +231,22 @@ checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} (App e1 e2) =
       Arr -> do
         checkExpr' (stabilize BoxApp c) e2
 
-      Delay -> case earl of
-        Just earl' ->
-          checkExpr' c{current = Set.empty, earlier = Just cur,
-                      hidden = hidden c `Map.union` Map.fromSet (const DelayApp) earl'} e2
-        Nothing -> checkExpr' c{current = Set.empty, earlier = Just cur} e2
+      Delay -> (if inDelay c then typeError c v (text "Nested delays not allowed")
+                else checkExpr' c{current = Set.empty, earlier = Just cur, inDelay = True} e2)
       Adv -> case earl of
-        Just er -> checkExpr' c{earlier = Nothing, current = er,
-                               hidden = hid `Map.union` Map.fromSet (const AdvApp) cur} e2
+        Just er -> if hasSeenAdvSelect c then typeError c v (text "Only one adv/select allowed in a delay")
+                   else
+                    D.trace ("ADV arg: " ++ showSDocUnsafe (ppr e1)) $
+                    if isVar e2
+                    then return Nothing
+                    else typeError c v (text "can only advance on a variable")
+
         Nothing -> typeError c v (text "can only advance under delay")
+      Select arg2 -> case earl of
+        Just er | hasSeenAdvSelect c -> typeError c v (text "Only one adv/select allowed in a delay")
+                | isVar e2 && isVar arg2 -> return Nothing
+                | otherwise -> typeError c v (text "can only advance on a variable")
+        Nothing -> typeError c v (text "Can only select under delay")
     _ -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' c e2)
 checkExpr' c (Case e v _ alts) =
     liftM2 (<|>) (checkExpr' c e) (liftM (foldl' (<|>) Nothing)
@@ -265,6 +293,48 @@ checkExpr' c  (Var v)
 
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
+
+emptyCheckResult :: CheckResult
+emptyCheckResult = CheckResult {advSelect = False}
+
+updateCtxFromResult :: Ctx -> CheckResult -> Ctx
+updateCtxFromResult c r = c {hasSeenAdvSelect = advSelect r}
+
+-- called on the subtree to which a delay is applied
+countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
+countAdvSelect' ctx (App e e') = case chk of
+  Left s -> Left s
+  Right res -> countAdvSelect' (updateCtxFromResult ctx res) e'
+  where
+    chk = case isPrimExpr ctx e of
+      Just (p, _) -> case p of
+        Adv | not (isVar e) -> Left "Can only adv on variables"
+            | hasSeenAdvSelect ctx -> Left "Only one adv/select allowed in a delay"
+            | otherwise -> Right CheckResult { advSelect = True }
+        Select arg2 | not $ isVar e' && isVar arg2 -> Left "Can only select on variables"
+                    | hasSeenAdvSelect ctx -> Left "Only one adv/select allowed in a delay"
+                    | otherwise -> Right CheckResult { advSelect = True }
+        Delay | inDelay ctx -> Left "Nested delays not allowed"
+              | otherwise -> countAdvSelect' (ctx {inDelay = True}) e'
+        _ -> countAdvSelect' ctx e'   -- what about box/unbox?
+      _ -> case fmap (updateCtxFromResult ctx) (countAdvSelect' ctx e) of
+        Left s -> Left s
+        Right ctx' -> countAdvSelect' ctx' e'
+countAdvSelect' ctx (Lam _ rhs) = countAdvSelect' ctx rhs
+countAdvSelect' ctx (Let (NonRec _ e') e) =
+  case fmap (updateCtxFromResult ctx) (countAdvSelect' ctx e) of
+        Left s -> Left s
+        Right ctx' -> countAdvSelect' ctx' e'
+countAdvSelect' ctx (Case e _ _ alts) = case countAdvSelect' ctx e of
+  Left s -> Left s
+  Right res -> snd <$> foldM (\(c, r) (Alt _ _ e') -> 
+    case countAdvSelect' c e' of
+      Left s -> Left s
+      Right r' | advSelect r && advSelect r' -> Left "Only one adv/select allowed in a delay"
+      Right r' -> Right (updateCtxFromResult c r', r')) (updateCtxFromResult ctx res, res) alts
+countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
+countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
+countAdvSelect' _ _ = Right emptyCheckResult
 
 data ClockCheck = NoClock | Error TypeError | Clock Clock
 {-

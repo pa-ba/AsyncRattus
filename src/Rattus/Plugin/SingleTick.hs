@@ -65,16 +65,6 @@ foldLets ls e = foldl' (\e' (x,b) -> Let (NonRec x b) e') e ls
 foldLets' :: [(Id,CoreExpr,CoreExpr)] -> CoreExpr -> CoreExpr
 foldLets' ls e = foldl' (\e' (x,a,b) -> Let (NonRec x (App a b)) e') e ls
 
-isVar :: CoreExpr -> Bool
-isVar (App e e')
-  | isType e' || not  (tcIsLiftedTypeKind(typeKind (exprType e'))) = isVar e
-  | otherwise = False
-isVar (Cast e _) = isVar e
-isVar (Tick _ e) = isVar e
-isVar (Var _) = True
-isVar _ = False
-
-
 extractAdvApp :: CoreExpr -> CoreExpr -> WriterT [(Id,CoreExpr)] CoreM CoreExpr
 extractAdvApp e1 e2
   | isVar e2 = return (App e1 e2)

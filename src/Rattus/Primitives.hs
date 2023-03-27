@@ -22,6 +22,7 @@ module Rattus.Primitives where
   ,unbox
   ,Stable
   ) where -}
+import Prelude hiding (Left, Right)
 import Data.Set (Set)
 
 
@@ -89,6 +90,17 @@ adv (Delay cl f) = undefined
 
 adv' :: O a -> InputValue -> a
 adv' (Delay cl f) inputValue = f inputValue
+
+
+select :: O a -> O b -> Select a b
+select = select' undefined
+
+select' :: InputValue -> O a -> O b -> Select a b
+select' inputValue@(chId, _) a@(Delay clA inpFA) b@(Delay clB inpFB)
+  | chId `elem` clA && chId `elem` clB = Both (inpFA inputValue) (inpFB inputValue)
+  | chId `elem` clA = Left (inpFA inputValue) b
+  | chId `elem` clB = Right a (inpFB inputValue)
+  | otherwise = error "Tick did not come on correct input channels"
 
 -- | This is the constructor for the "stable" modality 'Box':
 --
