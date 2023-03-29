@@ -187,7 +187,7 @@ isStableConstr t =
 
 data CheckResult = CheckResult{
   advSelect :: Bool
-}
+} deriving Show
 
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
@@ -298,17 +298,16 @@ emptyCheckResult :: CheckResult
 emptyCheckResult = CheckResult {advSelect = False}
 
 updateCtxFromResult :: Ctx -> CheckResult -> Ctx
-updateCtxFromResult c r = c {hasSeenAdvSelect = advSelect r}
+updateCtxFromResult c r = if advSelect r then c {hasSeenAdvSelect = advSelect r} else c
+
+checkAndUpdate :: Ctx -> Expr Var -> Either String Ctx
+checkAndUpdate c e = fmap (updateCtxFromResult c) (countAdvSelect' c e)
 
 -- called on the subtree to which a delay is applied
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
-countAdvSelect' ctx (App e e') = case chk of
-  Left s -> Left s
-  Right res -> countAdvSelect' (updateCtxFromResult ctx res) e'
-  where
-    chk = case isPrimExpr ctx e of
-      Just (p, _) -> case p of
-        Adv | not (isVar e) -> Left "Can only adv on variables"
+countAdvSelect' ctx (App e e') = case isPrimExpr ctx e of
+      Just (p, _) -> case D.trace ("we have met a prim: " ++ showSDocUnsafe (ppr p)) p of
+        Adv | not (isVar e') -> Left "Can only adv on variables"
             | hasSeenAdvSelect ctx -> Left "Only one adv/select allowed in a delay"
             | otherwise -> Right CheckResult { advSelect = True }
         Select arg2 | not $ isVar e' && isVar arg2 -> Left "Can only select on variables"
@@ -316,10 +315,10 @@ countAdvSelect' ctx (App e e') = case chk of
                     | otherwise -> Right CheckResult { advSelect = True }
         Delay | inDelay ctx -> Left "Nested delays not allowed"
               | otherwise -> countAdvSelect' (ctx {inDelay = True}) e'
-        _ -> countAdvSelect' ctx e'   -- what about box/unbox?
-      _ -> case fmap (updateCtxFromResult ctx) (countAdvSelect' ctx e) of
-        Left s -> Left s
-        Right ctx' -> countAdvSelect' ctx' e'
+        _ -> Right emptyCheckResult   -- what about box/unbox?
+      _ -> case checkAndUpdate ctx e of
+          Left s -> Left s
+          Right ctx' -> countAdvSelect' ctx' e'
 countAdvSelect' ctx (Lam _ rhs) = countAdvSelect' ctx rhs
 countAdvSelect' ctx (Let (NonRec _ e') e) =
   case fmap (updateCtxFromResult ctx) (countAdvSelect' ctx e) of
