@@ -7,28 +7,6 @@ import Graphics.Gloss.Interface.Pure.Game
 import Rattus.Stream
 import Debug.Trace
 
--- Transducer attempt
-{-
-type State = (Maybe InputValue, String, Trans InputValue Text) 
-
-initial :: State
-initial = (Nothing, "", runTransducer ....)  
-
-render :: State -> Picture
-render (_, text, _) = Text text
-
-handleEvent :: Event -> State -> State
-handleEvent (EventKey (Char c) Down _ _) (_, text, trans) = (Just (1, CharValue c), text, trans)
-handleEvent (EventKey (SpecialKey KeyF1) Down _ _) (_, trans) = (Just (2, BoolValue True), text, trans)
-handleEvent _ state = state
-
-step :: Float -> State -> State
-step _ (Just input, _, Trans st) = (Nothing, text, st')
-    where (text, st') = st (input)
-step _ state = state
--}
----
-
 type World = (Maybe InputValue, String, O(Str String))
 
 initial' :: World
@@ -51,7 +29,6 @@ step' _ world = world
 -- Sizes
 sizex = 1512 
 sizey = 982 
----
 
 main :: IO ()
 main = play
