@@ -3,12 +3,11 @@
 module StandardLibrary where
 
 import Rattus
-import Rattus.Stream (Str(..))
+import Rattus.Stream hiding (scan)
 import Rattus.ToHaskell
 import Rattus.Primitives
-import Prelude hiding (Left, Right, map)
+import Prelude hiding (Left, Right)
 import qualified Data.Set as Set
-import Rattus (extractClock)
 
 
 -- Input Channels
@@ -41,24 +40,19 @@ accumulatorStr str@(Delay cl inpF) = mapL (box (\(c ::: cs) -> (scanAwait (box (
 
 textStr :: O (Str String) -> O (Str Bool) -> O (Str String)
 textStr accStr@(Delay clAcc inpFA) resetStr@(Delay clReset inpFR) = Delay (clAcc `Set.union` clReset) (\inputValue ->
-        case sel inputValue of
+        case sel inputValue of 
             Both a b -> error "Not happening atm."
-            Left (a ::: as) b -> a ::: textStr as b
+            Left (a ::: as) b -> a ::: textStr as b 
             Right a (b ::: bs) -> "" ::: textStr (accumulatorStr kbStr) bs
         )
     where sel inp = select' inp accStr resetStr
 
 
-textStr' :: O (Str String)
-textStr' = textStr (accumulatorStr kbStr) resetStr
+-- Transducer function
 
-
---Transducer function
-
-textEditor :: O (Str String) -> Str InputValue -> Str String
-textEditor (Delay cl f) inputStr@(inp ::: inps) = text ::: Delay cl (\newInp -> textEditor moreTexts (adv' inps newInp))
-    where (text ::: moreTexts) = f inp
-
+--textEditor :: Str InputValue -> Str String
+--textEditor inputs =  
+--    where text = textStr (accumulatorStr kbStr) resetStr 
 ----------------
 
 
