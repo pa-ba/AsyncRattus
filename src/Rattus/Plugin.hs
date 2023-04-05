@@ -38,7 +38,7 @@ plugin :: Plugin
 plugin = defaultPlugin {
   installCoreToDos = install,
   pluginRecompile = purePlugin,
-  typeCheckResultAction = typechecked,
+  --typeCheckResultAction = typechecked,
   tcPlugin = tcStable
   }
 
@@ -86,16 +86,16 @@ strictify opts guts b@(NonRec v e) = do
     if tr then do
       -- liftIO $ putStrLn "-------- old --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e))
-      e' <- toSingleTick e
+      --e' <- toSingleTick e
       -- liftIO $ putStrLn "-------- new --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e'))
-      lazy <- allowLazyData guts v
-      allowRec <- allowRecursion guts v
-      e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
+      --lazy <- allowLazyData guts v
+      --allowRec <- allowRecursion guts v
+      --e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
       checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
                            fatalError = False, verbose = debugMode opts,
-                           allowRecExp = allowRec } e''
-      return (NonRec v e'')
+                           allowRecExp = False } e
+      return (NonRec v e)
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]

@@ -14,6 +14,9 @@ module Rattus.Plugin.Utils (
   isStrict,
   isTemporal,
   userFunction,
+  getVar,
+  getMaybeVar,
+  getModuleFS,
   isVar,
   isType,
   mkSysLocalFromVar,
@@ -55,14 +58,20 @@ import qualified Data.Set as Set
 import Data.Char
 import Data.Maybe
 
+getMaybeVar :: CoreExpr -> Maybe Var
+getMaybeVar (App e e')
+  | isType e' || not  (tcIsLiftedTypeKind(typeKind (exprType e'))) = getMaybeVar e
+  | otherwise = Nothing
+getMaybeVar (Cast e _) = getMaybeVar e
+getMaybeVar (Tick _ e) = getMaybeVar e
+getMaybeVar (Var v) = Just v
+getMaybeVar _ = Nothing
+
+getVar :: CoreExpr -> Var
+getVar = fromJust . getMaybeVar
+
 isVar :: CoreExpr -> Bool
-isVar (App e e')
-  | isType e' || not  (tcIsLiftedTypeKind(typeKind (exprType e'))) = isVar e
-  | otherwise = False
-isVar (Cast e _) = isVar e
-isVar (Tick _ e) = isVar e
-isVar (Var _) = True
-isVar _ = False
+isVar = isJust . getMaybeVar
 
 isType Type {} = True
 isType (App e _) = isType e
@@ -117,6 +126,9 @@ instance Ord FastString where
 rattModules :: Set FastString
 rattModules = Set.fromList ["Rattus.Internal","Rattus.Primitives"
                            ,"Rattus.Stable", "Rattus.Arrow"]
+
+getModuleFS :: Module -> FastString
+getModuleFS = moduleNameFS . moduleName
 
 isRattModule :: FastString -> Bool
 isRattModule = (`Set.member` rattModules)
