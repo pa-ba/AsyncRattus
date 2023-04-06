@@ -287,13 +287,15 @@ checkExpr c e = do
   let check = countAdvSelect' (emptyCtx c) e
   av <- adv'Var
   putMsg $ text "checkExpr, adv' Var:" <> ppr av
+  e' <- transform (emptyCtx c) e
   --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
   --case name of
   --  _ -> putMsgS ("Case stmt" ++ showSDocUnsafe (ppr name))
   case check of
     Left s -> putMsgS s
     Right result -> putMsgS "Success"
-  putMsg (ppr e)
+  putMsgS "NEW AST"
+  putMsg (ppr e')
 {-
   --res <- checkExpr' (emptyCtx c) e
   case res of
@@ -428,3 +430,46 @@ countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
 countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
 countAdvSelect' _ _ = Right emptyCheckResult
 
+
+transformAdv :: Ctx -> Expr Var -> CoreM (Maybe (Expr Var))
+transformAdv ctx (App e _) = case isPrimExpr ctx e of
+  Just (p, _, [arg]) -> case p of 
+    Adv -> do
+      putMsgS "I HIT TRANSFORM"
+      varAdv' <- adv'Var
+      return (Just (App (Var varAdv') arg))
+    _ -> do
+        fatalErrorMsgS "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT" 
+        return Nothing
+  _ -> do
+        fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
+        return Nothing
+transformAdv _ _ = do 
+  fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
+  return Nothing
+
+transform :: Ctx -> Expr Var -> CoreM (Expr Var)
+transform ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr e)) isPrimExpr ctx e of 
+  Just (p, var, [arg]) -> case p of 
+    Adv -> do
+        putMsg $ text "Adv Expr before - " <> ppr e
+        newExpr <- transformAdv ctx expr
+        putMsg $ text "Adv Expr after - " <> ppr newExpr
+        return $ fromJust newExpr
+    _ -> transform ctx e'
+  _ -> do
+    expr <- transform ctx e
+    expr' <- transform ctx e'
+    return $ App expr expr'
+transform ctx (Lam b rhs) = transform ctx rhs >>= (return . Lam b)  
+transform ctx (Let (NonRec b e') e) = do 
+    nonRecExpr <- transform ctx e'
+    letBodyExpr <- transform ctx e
+    return $ Let (NonRec b nonRecExpr) letBodyExpr
+transform ctx (Case e b t alts) = do
+    expr <- transform ctx e
+    alts' <- mapM (\(Alt con binds expr) -> transform ctx expr >>= (return . Alt con binds)) alts
+    return $ Case expr b t alts'
+transform ctx (Cast e _) = transform ctx e
+transform ctx (Tick _ e) = transform ctx e
+transform _ e = return e
