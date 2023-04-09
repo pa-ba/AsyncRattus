@@ -8,6 +8,12 @@ import qualified Data.Set as Set
 import Prelude hiding (Left, Right)
 
 {-# ANN module Rattus #-}
+data Test a = IntTest Int a
+type Input2Test = (Int, Value)
+
+--Constant
+test :: Test Bool
+test = IntTest 1 True
 
 -- should work
 id3 :: O a -> O a
