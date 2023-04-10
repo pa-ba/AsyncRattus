@@ -109,7 +109,7 @@ nameToVar mod n = do
   maybeHomeTyEnv <- getHomeTyEnv mod
 
   case maybeHomeTyEnv of
-    Just homeTyEnv -> D.trace (showPprUnsafe (ppr homeTyEnv)) return (tyThingId <$> lookupNameEnv homeTyEnv n)
+    Just homeTyEnv -> return (tyThingId <$> lookupNameEnv homeTyEnv n)
     Nothing -> return (tyThingId <$> lookupNameEnv extTyEnv n)
 
 
@@ -147,6 +147,16 @@ inputValueVar = do
   lookupTyCon name
   --maybeId <- nameToVar mod name
   --return $ fromJust maybeId
+
+extractClockVar :: CoreM Var
+extractClockVar = do
+  rattusMods <- rattusModules
+  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
+  putMsg $ text "adv'Var: mod " <> ppr mod
+  let occName = mkOccName Occurrence.varName "extractClock"
+  name <- findName occName mod
+  maybeId <- nameToVar mod name
+  return $ fromJust maybeId
 
 
 rattusModules :: CoreM (ModuleEnv (OccEnv Name))
@@ -294,7 +304,7 @@ data CheckExpr = CheckExpr{
   allowRecExp :: Bool
   }
 
-checkExpr :: CheckExpr -> Expr Var -> CoreM ()
+checkExpr :: CheckExpr -> Expr Var -> CoreM (CoreExpr)
 checkExpr c e = do
   let check = countAdvSelect' (emptyCtx c) e
   putMsgS (showTree e)
@@ -312,6 +322,9 @@ checkExpr c e = do
   putMsg (ppr e)
   putMsgS "NEW AST"
   putMsg (ppr e')
+  putMsgS "NEW TREE SHOW"
+  putMsgS (showTree e')
+  return e'
 {-
   --res <- checkExpr' (emptyCtx c) e
   case res of
@@ -449,61 +462,108 @@ countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
 countAdvSelect' _ _ = Right emptyCheckResult
 
 
-transformAdv :: Ctx -> Expr Var -> CoreM (Maybe (Expr Var))
+replaceVar :: Var -> Var -> Expr Var ->  Expr Var
+replaceVar match rep (Var v) = if v == match then D.trace ("RREPLACING MATCH WITH REP: " ++ showPprUnsafe (ppr (Var rep :: Expr Var)) ++ " REPLACED: " ++ showPprUnsafe (ppr (Var v :: Expr Var))) Var rep else Var v
+replaceVar match rep (App e e') = App (replaceVar match rep e) (replaceVar match rep e')
+replaceVar match rep (Tick _ e) = replaceVar match rep e
+replaceVar match rep (Lam v e) = Lam (if v == match then rep else v) (replaceVar match rep e) 
+replaceVar match rep (Let (NonRec b e') e) = 
+  Let (NonRec newB (replaceVar  match rep e')) (replaceVar match rep e)
+  where newB = if b == match then rep else b
+replaceVar match rep (Cast e _) = replaceVar match rep e
+replaceVar match rep (Case e b t alts) = 
+  Case newExpr newB t (map (\(Alt con binds expr) -> Alt con (map (\v -> if v == match then rep else v) binds) (replaceVar match rep expr)) alts)
+  where newExpr = replaceVar match rep e
+        newB = if b == match then rep else b
+replaceVar _ _ e = e
+
+findAdvType :: Expr Var -> Maybe Type
+findAdvType (App e (Type t)) = Just t
+findAdvType (App e e') = findAdvType e
+findAdvType (Tick _ e) = findAdvType e
+findAdvType (Cast e _) = findAdvType e
+findAdvType _          = Nothing
+
+
+
+transformAdv :: Ctx -> Expr Var -> CoreM ((Expr Var, Var, Maybe Type))
 transformAdv ctx (App e e') = case isPrimExpr ctx e of
   Just (p, v) -> case p of 
     Adv -> do
       putMsgS "I HIT TRANSFORM"
       varAdv' <- adv'Var
-      return (Just (App (App (Var varAdv') e') (Var (fromJust $ fresh ctx))))
+      let typeAdv = let r = findAdvType e in D.trace ("FIND TYPE: " ++ showPprUnsafe (ppr e) ++ " TYPE: " ++ showPprUnsafe (ppr r)) r
+      let newE = replaceVar v varAdv' e
+      let place = D.trace ("THIS IS THE VAR TO ADV:" ++ showPprUnsafe (ppr e') ++ " THIS IS THE CLOCK: " ++ showPprUnsafe (ppr (getVar e'))) ((App (App newE e') (Var (fromJust $ fresh ctx))), getVar e', typeAdv)
+      return place
     _ -> do
-        fatalErrorMsgS "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT" 
-        return Nothing
+        --fatalErrorMsgS "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT" 
+        error "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT"
   _ -> do
-        fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        return Nothing
+        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
+        error "CANNOT TRANSFORM NON PRIMITIVES"
 transformAdv _ _ = do 
-  fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-  return Nothing
+  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
+  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
 
 transform :: Ctx -> Expr Var -> CoreM (Expr Var)
-transform ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr e)) isPrimExpr ctx e of 
+transform ctx e = do
+  (e', _, _) <- transform' ctx e
+  return e'
+
+hdd :: (a, b, c) -> a
+hdd (a, b, c) = a
+
+transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe Var, Maybe Type))
+transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr e)) isPrimExpr ctx e of 
   Just (p, var) -> case p of 
     Adv -> do
         putMsg $ text "Adv Expr before - " <> ppr e
-        newExpr <- transformAdv ctx expr
+        (newExpr, cl, typeAdv) <- transformAdv ctx expr
         putMsg $ text "Adv Expr after - " <> ppr newExpr
-        return $ fromJust newExpr
+        return $ (newExpr, Just cl, typeAdv)
     Delay -> do
       bigDelayVar <- bigDelay
       inputValueV <- inputValueVar
+      extractClock <- extractClockVar
       putMsg $ text "VALUEEEE - " <> ppr inputValueV
       let inputValueType = mkTyConTy inputValueV --Change name of variable
       inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
-      clockVar <- mkSysLocalM (fsLit "clock") inputValueType inputValueType -- Delete this and replace with real value
-      putMsg $ text "FRESHVAR - " <> ppr inpVar
-      let ctx' = ctx {fresh = Just inpVar}
-      newExpr <- transform ctx' e'
-      let lambdaExpr = Lam inpVar newExpr
-      putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
-      --lambdaVar <- fail "hello"
-      return $ (App (App (Var bigDelayVar) (Var clockVar)) lambdaExpr) --App e e'
+      let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
+      putMsg $ text "FRESHVAR - " <> ppr inpVarR
+      let ctx' = ctx {fresh = Just inpVarR}
+      (newExpr, mCl, typeAdv) <- transform' ctx' e'
+      case mCl of 
+        Just clVar -> do
+          let lambdaExpr = Lam inpVarR newExpr
+          putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
+          --lambdaVar <- fail "hello"
+          return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (fromJust $ typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
+        Nothing -> error "NO CLOCK PRESENT"
     _ -> do
-        newExpr <- transform ctx e'
-        return $ App e newExpr
+        (newExpr, cl, typeAdv) <- transform' ctx e'
+        return $ (App e newExpr, cl, typeAdv)
   _ -> do
-    expr <- transform ctx e
-    expr' <- transform ctx e'
-    return $ App expr expr'
-transform ctx (Lam b rhs) = transform ctx rhs >>= (return . Lam b)  
-transform ctx (Let (NonRec b e') e) = do 
-    nonRecExpr <- transform ctx e'
-    letBodyExpr <- transform ctx e
-    return $ Let (NonRec b nonRecExpr) letBodyExpr
-transform ctx (Case e b t alts) = do
-    expr <- transform ctx e
-    alts' <- mapM (\(Alt con binds expr) -> transform ctx expr >>= (return . Alt con binds)) alts
-    return $ Case expr b t alts'
-transform ctx (Cast e _) = transform ctx e
-transform ctx (Tick _ e) = transform ctx e
-transform _ e = return e
+    (expr, cl, typeAdv) <- transform' ctx e
+    (expr', cl', typeAdv') <- transform' ctx e'
+    case (cl, cl') of 
+      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
+      (Just c1, Nothing) -> return (App expr expr', Just c1, typeAdv)
+      (Nothing, Just c2) -> return (App expr expr', Just c2, typeAdv')
+      (Nothing, Nothing) -> return (App expr expr', Nothing, Nothing)
+transform' ctx (Lam b rhs) = transform' ctx rhs >>= \(expr, cl, typeAdv) -> return (Lam b expr, cl, typeAdv)  
+transform' ctx (Let (NonRec b e') e) = do 
+    (nonRecExpr, cl, typeAdv) <- transform' ctx e'
+    (letBodyExpr, cl',typeAdv') <- transform' ctx e
+    case (cl, cl') of 
+      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
+      (Just c1, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c1, typeAdv)
+      (Nothing, Just c2) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c2, typeAdv')
+      (Nothing, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Nothing, Nothing)
+transform' ctx (Case e b t alts) = do
+    (expr, cl, typeAdv) <- transform' ctx e
+    alts' <- mapM (\(Alt con binds expr) -> transform' ctx expr >>= (return . Alt con binds . hdd)) alts
+    return $ D.trace ("CLOCKEXTRACT: " ++ showPprUnsafe (ppr cl))(Case expr b t alts', cl, typeAdv)
+transform' ctx (Cast e _) = transform' ctx e
+transform' ctx (Tick _ e) = transform' ctx e
+transform' _ e = return (e, Nothing, Nothing)

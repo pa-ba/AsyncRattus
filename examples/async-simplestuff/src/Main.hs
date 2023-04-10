@@ -5,7 +5,9 @@ import Rattus.ToHaskell
 import Rattus.Primitives
 import Graphics.Gloss.Interface.Pure.Game
 import Rattus.Stream
-import Debug.Trace
+import Debug.Trace as D
+import qualified Data.Set as Set
+import Simple
 
 type World = (Maybe InputValue, String, O(Str String))
 
@@ -31,6 +33,13 @@ sizex = 1512
 sizey = 982 
 
 main :: IO ()
+main = do
+    print "THIS IS BEFORE"
+    let a = addOne (Delay (Set.singleton 1) (\(1, IntValue i) -> D.trace ("LATER RETURNING: " ++ show i) i))
+    print "THIS IS AFTER A IS DEFINED"
+    let i = adv' a (1, IntValue 400)
+    print i
+{-
 main = play
        (InWindow "text writer 9000" (sizex, sizey) (0,0))
        white
@@ -39,3 +48,4 @@ main = play
        render'
        handleEvent'
        step'
+-}

@@ -75,10 +75,10 @@ strictify opts guts b@(Rec bs) = do
                     --lazy <- allowLazyData guts v
                     --allowRec <- allowRecursion guts v
                     --e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) True)e
-                    checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
+                    e' <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
                                          fatalError = False, verbose = debugMode opts,
                                          allowRecExp = False} e
-                    return e) bs
+                    return e') bs
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
@@ -92,10 +92,10 @@ strictify opts guts b@(NonRec v e) = do
       --lazy <- allowLazyData guts v
       --allowRec <- allowRecursion guts v
       --e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
-      checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
+      e' <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
                            fatalError = False, verbose = debugMode opts,
                            allowRecExp = False } e
-      return (NonRec v e)
+      return (NonRec v e')
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
