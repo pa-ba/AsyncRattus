@@ -21,20 +21,17 @@ import GHC.Plugins
 import Rattus.Plugin.Utils
 
 import Prelude hiding ((<>))
-import Control.Monad
+import Text.Printf
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Applicative
-import Data.Foldable
 import Data.Maybe (isJust, fromJust)
 import qualified Debug.Trace as D
 import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
 import qualified GHC.Types.Name.Occurrence as Occurrence
 import Data.IORef (readIORef)
 import GHC.Unit.External (ExternalPackageState (eps_PTE))
-import GHC.Types.TyThing (tyThingId)
 import GHC.Types.TypeEnv
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Module.ModDetails
@@ -63,6 +60,9 @@ data PrimInfo = PrimInfo {
 }
 
 data TypeError = TypeError SrcSpan SDoc
+
+instance Outputable PartialPrimInfo where
+  ppr (PartialPrimInfo prim f argT argV arg2T arg2V) = text "PartialPrimInfo { prim = " <> ppr prim <> text ", function = " <> ppr f <> text ", argT = " <> ppr argT <> text ", argV = " <> ppr argV <> text ", arg2T = " <> ppr arg2T <> ", arg2V = " <> ppr arg2V
 
 instance Outputable Prim where
   ppr Delay = "delay"
@@ -292,29 +292,16 @@ isPrimExpr _ _ = Nothing
 -}
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
-validatePartialPrimInfo partPrimInfo = 
-  case primPart partPrimInfo of
-    Select | isJust (argTypePart partPrimInfo) && isJust (argVarPart partPrimInfo) && isJust (arg2TypePart partPrimInfo) && isJust (arg2VarPart partPrimInfo) -> 
-      Just PrimInfo {prim = primPart partPrimInfo,
-                function = functionPart partPrimInfo,
-                arg = (fromJust $ argVarPart partPrimInfo, fromJust $ argTypePart partPrimInfo),
-                arg2 = Just (fromJust $ arg2VarPart partPrimInfo, fromJust $ arg2TypePart partPrimInfo)
-               }
-    Select -> D.trace "INCORRECT STRUCTURE FOR SELECT" Nothing -- Make hard error instead
-    _ | isJust (argTypePart partPrimInfo) && isJust (argVarPart partPrimInfo) ->
-      Just PrimInfo {prim = primPart partPrimInfo,
-                function = functionPart partPrimInfo,
-                arg = (fromJust $ argVarPart partPrimInfo, fromJust $ argTypePart partPrimInfo),
-                arg2 = Nothing
-               }
-    p -> D.trace ("INCORRECT STRUCTURE FOR " ++ showPprUnsafe (ppr p)) Nothing 
-
+validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just PrimInfo { prim = Select, function = f, arg = (argV, argT), arg2 = Just (arg2V, arg2T)}
+validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f}) = Just PrimInfo {prim = Delay, function = f}    -- UGLY HACK (connected to the one below)
+validatePartialPrimInfo (PartialPrimInfo p f (Just argT) (Just argV) Nothing Nothing) = Just PrimInfo { prim = p, function = f, arg = (argV, argT), arg2 = Nothing}
+validatePartialPrimInfo pPI@(PartialPrimInfo { primPart = p}) = D.trace ("INCORRECT STRUCTURE FOR " ++ showPprUnsafe (ppr p) ++ ": " ++ showPprUnsafe (ppr pPI)) Nothing 
 
 isPrimExpr :: Ctx -> Expr Var -> Maybe PrimInfo
 isPrimExpr ctx expr = case partPrimInfo of
   Just pPI -> validatePartialPrimInfo pPI
   Nothing -> Nothing
-  where partPrimInfo = isPrimExpr' ctx expr 
+  where partPrimInfo = isPrimExpr' ctx (D.trace ("isPrimExpr called with: " ++ showPprUnsafe (ppr expr)) expr) 
 
 -- App (App (App (App f type) arg) Type2) arg2
 isPrimExpr' :: Ctx -> Expr Var -> Maybe PartialPrimInfo
@@ -326,15 +313,12 @@ isPrimExpr' c (App e (Type t)) = case pPI of
     _ -> Nothing
   Nothing -> Nothing
   where pPI = isPrimExpr' c e
-isPrimExpr' c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = 
-  case pPI of
-    Just partPrimInfo ->
-      case (argVarPart partPrimInfo, arg2VarPart partPrimInfo) of
-        (Just _, Nothing) -> Just partPrimInfo {arg2VarPart = getMaybeVar e'}
-        (Nothing, Nothing) -> Just partPrimInfo {argVarPart = getMaybeVar e'}
-        _ -> Nothing 
-    Nothing -> Nothing
-  where pPI = isPrimExpr' c e
+isPrimExpr' c (App e e') = 
+  case isPrimExpr' c e of
+    Just partPrimInfo@(PartialPrimInfo { primPart = Delay}) -> Just partPrimInfo {argVarPart = Just undefined}    -- UGLY HACK!!! Our data model does not suit delay well.
+    Just partPrimInfo@(PartialPrimInfo { argVarPart = Nothing, arg2VarPart = Nothing}) -> Just partPrimInfo {argVarPart = getMaybeVar e'}
+    Just partPrimInfo@(PartialPrimInfo { argVarPart = Just _, arg2VarPart = Nothing}) -> Just partPrimInfo {arg2VarPart = getMaybeVar e'}
+    _ -> Nothing
 isPrimExpr' c (Var v) = case isPrim c v of
   Just p ->  Just $ createPartialPrimInfo p v
   Nothing -> Nothing 
@@ -559,30 +543,16 @@ replaceVar match rep (Case e b t alts) =
         newB = if b == match then rep else b
 replaceVar _ _ e = e
 
-findAdvType :: Expr Var -> Maybe Type
-findAdvType (App e (Type t)) = Just t
-findAdvType (App e e') = findAdvType e
-findAdvType (Tick _ e) = findAdvType e
-findAdvType (Cast e _) = findAdvType e
-findAdvType _          = Nothing
-
-
-
-transformAdv :: Ctx -> Expr Var -> CoreM ((Expr Var, Var, Maybe Type))
-transformAdv ctx (App e e') = case isPrimExpr ctx e of
-  Just primInfo -> case prim primInfo of 
-    Adv -> do
-      putMsgS "I HIT TRANSFORM"
-      varAdv' <- adv'Var
-      let newE = replaceVar (function primInfo) varAdv' e
-      let place = D.trace ("THIS IS THE VAR TO ADV:" ++ showPprUnsafe (ppr e') ++ " THIS IS THE CLOCK: " ++ showPprUnsafe (ppr (arg primInfo))) ((App (App newE e') (Var (fromJust $ fresh ctx))), (fst $ arg primInfo), (Just $ snd $ arg primInfo))
-      return place
-    _ -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT" 
-        error "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT"
+transformAdv :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type)))
+transformAdv ctx expr@(App e e') = case isPrimExpr ctx expr of
+  Just (PrimInfo {prim = Adv, function = f, arg = arg}) -> do
+    putMsgS "I HIT TRANSFORM"
+    varAdv' <- adv'Var
+    let newE = replaceVar f varAdv' e
+    return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg)
   _ -> do
         --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error "CANNOT TRANSFORM NON PRIMITIVES"
+        error "transformAdv: Can only transform adv"
 transformAdv _ _ = do 
   --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
   error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
@@ -596,35 +566,34 @@ hdd :: (a, b, c) -> a
 hdd (a, b, c) = a
 
 transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe Var, Maybe Type))
-transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr e)) isPrimExpr ctx e of 
-  Just primInfo -> case prim primInfo of 
-    Adv -> do
-        putMsg $ text "Adv Expr before - " <> ppr e
-        (newExpr, cl, typeAdv) <- transformAdv ctx expr
-        putMsg $ text "Adv Expr after - " <> ppr newExpr
-        return $ (newExpr, Just cl, typeAdv)
-    Delay -> do
-      bigDelayVar <- bigDelay
-      inputValueV <- inputValueVar
-      extractClock <- extractClockVar
-      putMsg $ text "VALUEEEE - " <> ppr inputValueV
-      let inputValueType = mkTyConTy inputValueV --Change name of variable
-      inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
-      let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
-      putMsg $ text "FRESHVAR - " <> ppr inpVarR
-      let ctx' = ctx {fresh = Just inpVarR}
-      (newExpr, mCl, typeAdv) <- transform' ctx' e'
-      case mCl of 
-        Just clVar -> do
-          let lambdaExpr = Lam inpVarR newExpr
-          putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
-          --lambdaVar <- fail "hello"
-          return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (fromJust $ typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
-        Nothing -> error "NO CLOCK PRESENT"
-    _ -> do
+transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr expr)) isPrimExpr ctx expr of 
+  Just (PrimInfo {prim = Adv}) -> do
+    putMsg $ text "Adv Expr before - " <> ppr e
+    (newExpr, (cl, typeAdv)) <- transformAdv ctx expr
+    putMsg $ text "Adv Expr after - " <> ppr newExpr
+    return $ (newExpr, Just cl, Just typeAdv)
+  Just (PrimInfo {prim = Delay}) -> do
+    bigDelayVar <- bigDelay
+    inputValueV <- inputValueVar
+    extractClock <- extractClockVar
+    putMsg $ text "VALUEEEE - " <> ppr inputValueV
+    let inputValueType = mkTyConTy inputValueV --Change name of variable
+    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
+    let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
+    putMsg $ text "FRESHVAR - " <> ppr inpVarR
+    let ctx' = ctx {fresh = Just inpVarR}
+    (newExpr, mCl, typeAdv) <- transform' ctx' e'
+    case mCl of 
+      Just clVar -> do
+        let lambdaExpr = Lam inpVarR newExpr
+        putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
+        --lambdaVar <- fail "hello"
+        return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (fromJust $ typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
+      Nothing -> error "NO CLOCK PRESENT"
+  Just _ -> do
         (newExpr, cl, typeAdv) <- transform' ctx e'
         return $ (App e newExpr, cl, typeAdv)
-  _ -> do
+  Nothing -> do
     (expr, cl, typeAdv) <- transform' ctx e
     (expr', cl', typeAdv') <- transform' ctx e'
     case (cl, cl') of 
