@@ -46,6 +46,22 @@ type Hidden = Map Var HiddenReason
 
 data Prim = Delay | Adv | Box | Arr | Select
 
+data PartialPrimInfo = PartialPrimInfo {
+  primPart :: Prim,               
+  functionPart :: Var,
+  argTypePart :: Maybe Type,           
+  argVarPart :: Maybe Var,    
+  arg2TypePart :: Maybe Type,
+  arg2VarPart :: Maybe Var
+}
+
+data PrimInfo = PrimInfo {
+  prim :: Prim,
+  function :: Var,
+  arg :: (Var, Type),
+  arg2 :: Maybe (Var, Type)
+}
+
 data TypeError = TypeError SrcSpan SDoc
 
 instance Outputable Prim where
@@ -253,6 +269,18 @@ emptyCtx c =
         fresh = Nothing
         }
 
+createPartialPrimInfo :: Prim -> Var -> PartialPrimInfo
+createPartialPrimInfo prim function = 
+  PartialPrimInfo {
+    primPart = prim,
+    functionPart = function,
+    argTypePart = Nothing,
+    argVarPart = Nothing,
+    arg2TypePart = Nothing,
+    arg2VarPart = Nothing
+  }
+
+{-
 isPrimExpr :: Ctx -> Expr Var -> Maybe (Prim,Var)
 isPrimExpr c (App e (Type _)) = isPrimExpr c e
 isPrimExpr c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = isPrimExpr c e
@@ -261,7 +289,59 @@ isPrimExpr c (Tick _ e) = isPrimExpr c e
 isPrimExpr c (Lam v e)
   | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr c e
 isPrimExpr _ _ = Nothing
+-}
 
+validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
+validatePartialPrimInfo partPrimInfo = 
+  case primPart partPrimInfo of
+    Select | isJust (argTypePart partPrimInfo) && isJust (argVarPart partPrimInfo) && isJust (arg2TypePart partPrimInfo) && isJust (arg2VarPart partPrimInfo) -> 
+      Just PrimInfo {prim = primPart partPrimInfo,
+                function = functionPart partPrimInfo,
+                arg = (fromJust $ argVarPart partPrimInfo, fromJust $ argTypePart partPrimInfo),
+                arg2 = Just (fromJust $ arg2VarPart partPrimInfo, fromJust $ arg2TypePart partPrimInfo)
+               }
+    Select -> D.trace "INCORRECT STRUCTURE FOR SELECT" Nothing -- Make hard error instead
+    _ | isJust (argTypePart partPrimInfo) && isJust (argVarPart partPrimInfo) ->
+      Just PrimInfo {prim = primPart partPrimInfo,
+                function = functionPart partPrimInfo,
+                arg = (fromJust $ argVarPart partPrimInfo, fromJust $ argTypePart partPrimInfo),
+                arg2 = Nothing
+               }
+    p -> D.trace ("INCORRECT STRUCTURE FOR " ++ showPprUnsafe (ppr p)) Nothing 
+
+
+isPrimExpr :: Ctx -> Expr Var -> Maybe PrimInfo
+isPrimExpr ctx expr = case partPrimInfo of
+  Just pPI -> validatePartialPrimInfo pPI
+  Nothing -> Nothing
+  where partPrimInfo = isPrimExpr' ctx expr 
+
+-- App (App (App (App f type) arg) Type2) arg2
+isPrimExpr' :: Ctx -> Expr Var -> Maybe PartialPrimInfo
+isPrimExpr' c (App e (Type t)) = case pPI of
+  Just partPrimInfo ->
+    case (argTypePart partPrimInfo, arg2TypePart partPrimInfo) of
+    (Just _, Nothing) -> Just partPrimInfo {arg2TypePart = Just t}
+    (Nothing, Nothing) -> Just partPrimInfo {argTypePart = Just t}
+    _ -> Nothing
+  Nothing -> Nothing
+  where pPI = isPrimExpr' c e
+isPrimExpr' c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = 
+  case pPI of
+    Just partPrimInfo ->
+      case (argVarPart partPrimInfo, arg2VarPart partPrimInfo) of
+        (Just _, Nothing) -> Just partPrimInfo {arg2VarPart = getMaybeVar e'}
+        (Nothing, Nothing) -> Just partPrimInfo {argVarPart = getMaybeVar e'}
+        _ -> Nothing 
+    Nothing -> Nothing
+  where pPI = isPrimExpr' c e
+isPrimExpr' c (Var v) = case isPrim c v of
+  Just p ->  Just $ createPartialPrimInfo p v
+  Nothing -> Nothing 
+isPrimExpr' c (Tick _ e) = isPrimExpr' c e
+isPrimExpr' c (Lam v e)
+  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr' c e
+isPrimExpr' _ _ = Nothing
 
 stabilizeLater :: Ctx -> Ctx
 stabilizeLater c =
@@ -306,7 +386,7 @@ data CheckExpr = CheckExpr{
 
 checkExpr :: CheckExpr -> Expr Var -> CoreM (CoreExpr)
 checkExpr c e = do
-  let check = countAdvSelect' (emptyCtx c) e
+  --let check = countAdvSelect' (emptyCtx c) e
   putMsgS (showTree e)
   av <- adv'Var
   bigDelayVar <- bigDelay
@@ -315,9 +395,9 @@ checkExpr c e = do
   --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
   --case name of
   --  _ -> putMsgS ("Case stmt" ++ showSDocUnsafe (ppr name))
-  case check of
-    Left s -> putMsgS s
-    Right result -> putMsgS "Success"
+  -- case check of
+  --  Left s -> putMsgS s
+  --  Right result -> putMsgS "Success"
   putMsgS "OLD AST"
   putMsg (ppr e)
   putMsgS "NEW AST"
@@ -341,6 +421,7 @@ checkExpr c e = do
         printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
                              "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
 -}
+{-
 checkExpr' :: Ctx -> Expr Var -> CoreM (Maybe TypeError)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
@@ -410,7 +491,7 @@ checkExpr' c  (Var v)
              Hidden reason -> typeError c v reason
              Visible -> return Nothing
   | otherwise = return Nothing
-
+-}
 
 
 addVars :: [Var] -> Ctx -> Ctx
@@ -422,9 +503,10 @@ emptyCheckResult = CheckResult {foundClock = Nothing}
 updateCtxFromResult :: Ctx -> CheckResult -> Ctx
 updateCtxFromResult c r = if advSelect r then c {hasSeenAdvSelect = advSelect r} else c
 
-checkAndUpdate :: Ctx -> Expr Var -> Either String Ctx
-checkAndUpdate c e = fmap (updateCtxFromResult c) (countAdvSelect' c e)
+--checkAndUpdate :: Ctx -> Expr Var -> Either String Ctx
+--checkAndUpdate c e = fmap (updateCtxFromResult c) (countAdvSelect' c e)
 
+{-
 -- called on the subtree to which a delay is applied
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
 countAdvSelect' ctx (App e e') = case isPrimExpr ctx e of
@@ -460,7 +542,7 @@ countAdvSelect' ctx (Case e _ _ alts) = case countAdvSelect' ctx e of
 countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
 countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
 countAdvSelect' _ _ = Right emptyCheckResult
-
+-}
 
 replaceVar :: Var -> Var -> Expr Var ->  Expr Var
 replaceVar match rep (Var v) = if v == match then D.trace ("RREPLACING MATCH WITH REP: " ++ showPprUnsafe (ppr (Var rep :: Expr Var)) ++ " REPLACED: " ++ showPprUnsafe (ppr (Var v :: Expr Var))) Var rep else Var v
@@ -488,13 +570,12 @@ findAdvType _          = Nothing
 
 transformAdv :: Ctx -> Expr Var -> CoreM ((Expr Var, Var, Maybe Type))
 transformAdv ctx (App e e') = case isPrimExpr ctx e of
-  Just (p, v) -> case p of 
+  Just primInfo -> case prim primInfo of 
     Adv -> do
       putMsgS "I HIT TRANSFORM"
       varAdv' <- adv'Var
-      let typeAdv = let r = findAdvType e in D.trace ("FIND TYPE: " ++ showPprUnsafe (ppr e) ++ " TYPE: " ++ showPprUnsafe (ppr r)) r
-      let newE = replaceVar v varAdv' e
-      let place = D.trace ("THIS IS THE VAR TO ADV:" ++ showPprUnsafe (ppr e') ++ " THIS IS THE CLOCK: " ++ showPprUnsafe (ppr (getVar e'))) ((App (App newE e') (Var (fromJust $ fresh ctx))), getVar e', typeAdv)
+      let newE = replaceVar (function primInfo) varAdv' e
+      let place = D.trace ("THIS IS THE VAR TO ADV:" ++ showPprUnsafe (ppr e') ++ " THIS IS THE CLOCK: " ++ showPprUnsafe (ppr (arg primInfo))) ((App (App newE e') (Var (fromJust $ fresh ctx))), (fst $ arg primInfo), (Just $ snd $ arg primInfo))
       return place
     _ -> do
         --fatalErrorMsgS "CANNOT TRANSFORM OTHER PRIMITIVES THAN ADV/SELECT" 
@@ -516,7 +597,7 @@ hdd (a, b, c) = a
 
 transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe Var, Maybe Type))
 transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr e)) isPrimExpr ctx e of 
-  Just (p, var) -> case p of 
+  Just primInfo -> case prim primInfo of 
     Adv -> do
         putMsg $ text "Adv Expr before - " <> ppr e
         (newExpr, cl, typeAdv) <- transformAdv ctx expr
