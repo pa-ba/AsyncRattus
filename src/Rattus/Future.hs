@@ -28,7 +28,7 @@ import Prelude hiding (map)
 data Future a = Now !a | Wait !(O (Future a))
 
 -- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 
 -- | Apply a function to the value of the future (if it ever occurs).
 {-# NOINLINE [1] map #-}

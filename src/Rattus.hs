@@ -27,7 +27,7 @@ import Rattus.Strict
 import Rattus.Primitives
 
 -- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 
 
 -- | Applicative operator for 'O'.

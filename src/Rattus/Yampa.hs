@@ -39,7 +39,7 @@ import Prelude hiding (id)
 import Data.VectorSpace
 
 -- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 
 type DTime = Double 
 

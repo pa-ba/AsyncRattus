@@ -36,7 +36,7 @@ infixr 8 :!
 data List a = Nil | !a :! !(List a)
 
 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 -- All recursive functions in this module are defined by structural
 -- induction on a strict type.
 {-# ANN module AllowRecursion #-}

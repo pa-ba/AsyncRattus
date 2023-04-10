@@ -28,7 +28,7 @@ import Prelude hiding (map,zipWith)
 type Event a = Str (Maybe' a)
 
 -- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 
 -- | Apply a function to the values of the event (every time it occurs).
 {-# NOINLINE [1] map #-}

@@ -33,7 +33,7 @@ import Data.VectorSpace
 data Str a = !a ::: !(O (Str a))
 
 -- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+--{-# ANN module Rattus #-}
 
 -- | Get the first element (= head) of a stream.
 hd :: Str a -> a
