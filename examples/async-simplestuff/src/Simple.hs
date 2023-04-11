@@ -16,6 +16,8 @@ type Input2Test = (Int, Value)
 test :: Test Bool
 test = IntTest 1 True
 
+test2 :: Set.Set Int
+test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 -- should work
 id3 :: O a -> O a
 id3 a = delay (adv a)
@@ -44,7 +46,7 @@ addOne li = delay (adv li + 22)
 --naiveIf :: Bool -> O a -> O a -> O (Bool, a)
 --naiveIf b x y = delay (b, adv (if b then x else y))
 
-{- 
+ 
 -- Fungerer ikke endnu, fordi select-primitiven ikke er implementeret.
 -- Skal komme til at fungere
 describe :: O a -> O b -> O String
@@ -52,7 +54,7 @@ describe a b = delay (case select a b of
             Both _ _ -> "Both"
             Left _ _ -> "Left"
             Right _ _ -> "Right")
--}
+
 
 -- invalid. We do not support nested delays
 --stutter :: Int -> Str Int

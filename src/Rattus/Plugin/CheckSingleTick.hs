@@ -36,6 +36,7 @@ import GHC.Types.TypeEnv
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Module.ModDetails
 import GHC.Types.TyThing
+import GHC.Builtin.Types
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -123,6 +124,7 @@ nameToVar mod n = do
   putMsg $ text "nameToVar, name: " <> ppr n <> text " | mod: " <> ppr mod
   extTyEnv <- getExtTyEnv
   maybeHomeTyEnv <- getHomeTyEnv mod
+  --putMsg $ text "THIS IS A TEST HOME " <> ppr maybeHomeTyEnv <> text " | EXTERNAL : " <> ppr extTyEnv
 
   case maybeHomeTyEnv of
     Just homeTyEnv -> return (tyThingId <$> lookupNameEnv homeTyEnv n)
@@ -133,7 +135,7 @@ findName :: OccName -> Module -> CoreM Name
 findName occName mod = do
   putMsg $ text "findName " <> ppr occName <> text " | " <> ppr mod
   onc <- origNameCache
-  return $ fromJust $ lookupOrigNameCache onc mod occName
+  return $ fromJust $ lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
 
 adv'Var :: CoreM Var
 adv'Var = do
@@ -141,6 +143,16 @@ adv'Var = do
   let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
   putMsg $ text "adv'Var: mod " <> ppr mod
   let occName = mkOccName Occurrence.varName "adv'"
+  name <- findName occName mod
+  maybeId <- nameToVar mod name
+  return $ fromJust maybeId
+
+select'Var :: CoreM Var
+select'Var = do
+  rattusMods <- rattusModules
+  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
+  putMsg $ text "select'Var: mod " <> ppr mod
+  let occName = mkOccName Occurrence.varName "select'"
   name <- findName occName mod
   maybeId <- nameToVar mod name
   return $ fromJust maybeId
@@ -163,6 +175,22 @@ inputValueVar = do
   lookupTyCon name
   --maybeId <- nameToVar mod name
   --return $ fromJust maybeId
+
+ordIntClass :: CoreM Var
+ordIntClass = do
+  origNameCache <- origNameCache
+  let [mod] = filter (("GHC.Classes" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
+  let occName = mkOccName Occurrence.varName "$fOrdInt"
+  name <- findName occName mod
+  lookupId name
+
+unionVar :: CoreM Var
+unionVar = do
+  origNameCache <- origNameCache
+  let [mod] = filter (("Data.Set.Internal" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
+  let occName = mkOccName Occurrence.varName "union"
+  name <- findName occName mod
+  lookupId name
 
 extractClockVar :: CoreM Var
 extractClockVar = do
@@ -374,7 +402,9 @@ checkExpr c e = do
   putMsgS (showTree e)
   av <- adv'Var
   bigDelayVar <- bigDelay
-  putMsg $ text "checkExpr, adv' Var:" <> ppr av <> text " Delay: " <> ppr bigDelayVar 
+  unionV <- unionVar
+  putMsg $ text "checkExpr, adv' Var:" <> ppr av <> text " Delay: " <> ppr bigDelayVar <> text "ORD CLASS : " <> ppr unionV
+
   e' <- transform (emptyCtx c) e
   --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
   --case name of
@@ -557,6 +587,20 @@ transformAdv _ _ = do
   --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
   error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
 
+transformSelect :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type), (Var, Type)))
+transformSelect ctx expr@(App e e') = case isPrimExpr ctx expr of
+  Just (PrimInfo {prim = Select, function = f, arg = arg, arg2 = Just arg2}) -> do
+    putMsgS ("I HIT TRANSFORM SELECT " ++ (showTree expr) ++ "THIS IS ARGS FOR SELECT" ++showSDocUnsafe (ppr arg <> text " | " <>ppr arg2)) 
+    varSelect' <- select'Var
+    let newE = replaceVar f varSelect' e
+    return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg, arg2)
+  _ -> do
+        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
+        error "transformAdv: Can only transform select"
+transformSelect _ _ = do 
+  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
+  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
+
 transform :: Ctx -> Expr Var -> CoreM (Expr Var)
 transform ctx e = do
   (e', _, _) <- transform' ctx e
@@ -565,13 +609,53 @@ transform ctx e = do
 hdd :: (a, b, c) -> a
 hdd (a, b, c) = a
 
-transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe Var, Maybe Type))
+
+clockUnion :: Var -> Var -> Var -> (Var,Type) -> (Var, Type) -> Expr Var
+clockUnion unionVar ordInt extractClock (arg1Var, arg1Type) (arg2Var, arg2Type) = 
+  App 
+  (
+    App 
+    (
+      App 
+      (
+        App (Var unionVar) (Type intTy)
+      )
+      (
+        Var ordInt
+      )
+    )
+    (
+      App 
+      (
+        App (Var extractClock) (Type arg1Type)
+      )
+      (
+        Var arg1Var
+      )
+    )
+  )
+  (
+    App 
+    (
+      App (Var extractClock) (Type arg2Type)
+    )
+    (
+      Var arg2Var
+    )
+  )
+
+transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe (Var, Type), Maybe (Var, Type)))
 transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr expr)) isPrimExpr ctx expr of 
   Just (PrimInfo {prim = Adv}) -> do
     putMsg $ text "Adv Expr before - " <> ppr e
-    (newExpr, (cl, typeAdv)) <- transformAdv ctx expr
+    (newExpr, arg) <- transformAdv ctx expr
     putMsg $ text "Adv Expr after - " <> ppr newExpr
-    return $ (newExpr, Just cl, Just typeAdv)
+    return $ (newExpr, Just (arg), Nothing)
+  Just (PrimInfo {prim = Select}) -> do 
+    putMsg $ text "Select Expr before - " <> ppr e
+    (newExpr, arg, arg2) <- transformSelect ctx expr
+    putMsg $ text "Select Expr after - " <> ppr newExpr
+    return $ (newExpr, Just arg, Just arg2)
   Just (PrimInfo {prim = Delay}) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
@@ -582,14 +666,22 @@ transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (sh
     let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
     putMsg $ text "FRESHVAR - " <> ppr inpVarR
     let ctx' = ctx {fresh = Just inpVarR}
-    (newExpr, mCl, typeAdv) <- transform' ctx' e'
-    case mCl of 
-      Just clVar -> do
+    (newExpr, arg, arg2) <- transform' ctx' e'
+    case (arg, arg2) of 
+      (Just (clVar, typeAdv), Nothing) -> do
         let lambdaExpr = Lam inpVarR newExpr
         putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
         --lambdaVar <- fail "hello"
-        return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (fromJust $ typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
-      Nothing -> error "NO CLOCK PRESENT"
+        return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
+      (Just (clVar, typeAdv), Just (clVar2, typeAdv2)) -> do
+        let lambdaExpr = Lam inpVarR newExpr
+        ordInt <- ordIntClass
+        unionV <- unionVar
+        putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
+        --lambdaVar <- fail "hello"
+        return $ ((App (App (Var bigDelayVar) (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))) lambdaExpr), Nothing, Nothing) --App e e'
+      (Nothing, Nothing) -> error "NO CLOCK PRESENT"
+      (_,_) -> error "INCORRECT STRUCTURE (CANNOT HAPPEN I THINK)"
   Just _ -> do
         (newExpr, cl, typeAdv) <- transform' ctx e'
         return $ (App e newExpr, cl, typeAdv)

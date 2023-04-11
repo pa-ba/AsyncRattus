@@ -39,6 +39,18 @@ main = do
     print "THIS IS AFTER A IS DEFINED"
     let i = adv' a (1, IntValue 400)
     print i
+
+    let q = Delay (Set.singleton 3) (\(3, IntValue i) -> D.trace ("Q LATER RETURNING: " ++ show i) i)
+    let p = Delay (Set.singleton 4) (\(4, IntValue i) -> D.trace ("P LATER RETURNING: " ++ show i) i)
+
+    let s = describe q p
+
+    let k = adv' s (3, IntValue 400)
+    let j = adv' s (4, IntValue 400)
+    print j
+    print k
+
+
 {-
 main = play
        (InWindow "text writer 9000" (sizex, sizey) (0,0))
