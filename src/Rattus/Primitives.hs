@@ -24,6 +24,7 @@ module Rattus.Primitives where
   ) where -}
 import Prelude hiding (Left, Right)
 import Data.Set (Set)
+import Debug.Trace as D
 
 
 
@@ -47,14 +48,17 @@ type InputChannelIdentifier = Int
 type Clock = Set InputChannelIdentifier
 
 -- A value that arrives on an input channel
-data Value = IntValue Int | CharValue Char | BoolValue Bool 
+data Value = IntValue Int | CharValue Char | BoolValue Bool deriving (Show)
 
-type InputValue = (InputChannelIdentifier, Value)
+type InputValue = (InputChannelIdentifier, Value) 
 
 -- | The "later" type modality. A value of type @O a@ is a computation
 -- that produces a value of type @a@ in the next time step. Use
 -- 'delay' and 'adv' to construct and consume 'O'-types.
 data O a = Delay Clock (InputValue -> a)
+
+instance Show (O a) where
+  show (Delay cl lam) = "Delay CL: " ++ show cl ++ " Lam" 
 
 -- | The "stable" type modality. A value of type @Box a@ is a
 -- time-independent computation that produces a value of type @a@.
@@ -89,18 +93,18 @@ adv :: O a -> a
 adv (Delay cl f) = undefined
 
 adv' :: O a -> InputValue -> a
-adv' (Delay cl f) inputValue = f inputValue
+adv' a@(Delay cl f) inputValue = D.trace (show a) f inputValue
 
 
 select :: O a -> O b -> Select a b
-select = select' undefined
+select a b = D.trace "I HIT SOMEWHERE I SHOULDNT" (select' a b undefined)
 
-select' :: InputValue -> O a -> O b -> Select a b
-select' inputValue@(chId, _) a@(Delay clA inpFA) b@(Delay clB inpFB)
-  | chId `elem` clA && chId `elem` clB = Both (inpFA inputValue) (inpFB inputValue)
-  | chId `elem` clA = Left (inpFA inputValue) b
-  | chId `elem` clB = Right a (inpFB inputValue)
-  | otherwise = error "Tick did not come on correct input channels"
+select' :: O a -> O b -> InputValue -> Select a b
+select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
+  | D.trace ("BThis is chID: " ++ show chId ++ " cl-A: " ++ " clB: ") chId `elem` clA && chId `elem` clB = D.trace (" BOTH This is a: " ++ show a ++ " This is b " ++ show b) $ Both (inpFA inputValue) (inpFB inputValue)
+  | D.trace ("LThis is chID: " ++ show inputValue ++ " cl-A: " ++ " clB: ") chId `elem` clA = D.trace (" LEFT This is a: " ++ show a ++ " This is b " ++ show b) $ Left (inpFA inputValue) b
+  | D.trace ("RThis is chID: " ++ show inputValue ++ " cl-A: " ++ " clB: ") chId `elem` clB = D.trace (" RIGHT This is a: " ++ show a ++ " This is b " ++ show b) $ Right a (inpFB inputValue)
+  | otherwise = D.trace "I AM IN ERROR" $ error "Tick did not come on correct input channels"
 
 -- | This is the constructor for the "stable" modality 'Box':
 --

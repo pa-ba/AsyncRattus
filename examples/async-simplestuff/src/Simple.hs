@@ -49,11 +49,11 @@ addOne li = delay (adv li + 22)
  
 -- Fungerer ikke endnu, fordi select-primitiven ikke er implementeret.
 -- Skal komme til at fungere
-describe :: O a -> O b -> O String
-describe a b = delay (case select a b of
-            Both _ _ -> "Both"
-            Left _ _ -> "Left"
-            Right _ _ -> "Right")
+describe :: O a -> O b -> O Int
+describe a b = delay (case D.trace ("DESCRIBE a: " ++ show a ++ " b: " ++ show b) (select a b) of
+            Both _ _ -> 1
+            Left _ _ -> 2
+            Right _ _ -> 3)
 
 
 -- invalid. We do not support nested delays

@@ -45,7 +45,7 @@ textStr accStr@(Delay clAcc inpFA) resetStr@(Delay clReset inpFR) = Delay (clAcc
             Left (a ::: as) b -> a ::: textStr as b 
             Right a (b ::: bs) -> "" ::: textStr (accumulatorStr kbStr) bs
         )
-    where sel inp = select' inp accStr resetStr
+    where sel inp = select' accStr resetStr inp
 
 
 -- Transducer function

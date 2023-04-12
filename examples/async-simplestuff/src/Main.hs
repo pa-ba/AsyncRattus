@@ -40,15 +40,28 @@ main = do
     let i = adv' a (1, IntValue 400)
     print i
 
+    print "THIS IS BEFORE Q P"
     let q = Delay (Set.singleton 3) (\(3, IntValue i) -> D.trace ("Q LATER RETURNING: " ++ show i) i)
     let p = Delay (Set.singleton 4) (\(4, IntValue i) -> D.trace ("P LATER RETURNING: " ++ show i) i)
 
+    let y = Delay (Set.singleton 5) (\(5, IntValue i) -> D.trace ("P LATER RETURNING: " ++ show i) i)
+    
+    print "THIS IS BEFORE S"
     let s = describe q p
+    let z = describe q q
 
-    let k = adv' s (3, IntValue 400)
+    print "TRY TO ADV S ON CHANEL 3"
+    let k = adv' s (3, IntValue 300)
+    print "TRY TO ADV S ON CHANEL 4"
     let j = adv' s (4, IntValue 400)
+    print "RESULTS"
     print j
+    print "AFTER J"
     print k
+
+    print "BOTH"
+    let o = adv' z (3, IntValue 3)
+    print o
 
 
 {-

@@ -135,7 +135,7 @@ findName :: OccName -> Module -> CoreM Name
 findName occName mod = do
   putMsg $ text "findName " <> ppr occName <> text " | " <> ppr mod
   onc <- origNameCache
-  return $ fromJust $ lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
+  return $ fromJust $ D.trace (showPprUnsafe (ppr (moduleEnvToList onc))) lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
 
 adv'Var :: CoreM Var
 adv'Var = do
@@ -321,7 +321,7 @@ isPrimExpr _ _ = Nothing
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
 validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just PrimInfo { prim = Select, function = f, arg = (argV, argT), arg2 = Just (arg2V, arg2T)}
-validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f}) = Just PrimInfo {prim = Delay, function = f}    -- UGLY HACK (connected to the one below)
+validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f, argTypePart = Just typ}) = Just PrimInfo {prim = Delay, function = f, arg = (undefined, typ), arg2 = Nothing}    -- UGLY HACK (connected to the one below)
 validatePartialPrimInfo (PartialPrimInfo p f (Just argT) (Just argV) Nothing Nothing) = Just PrimInfo { prim = p, function = f, arg = (argV, argT), arg2 = Nothing}
 validatePartialPrimInfo pPI@(PartialPrimInfo { primPart = p}) = D.trace ("INCORRECT STRUCTURE FOR " ++ showPprUnsafe (ppr p) ++ ": " ++ showPprUnsafe (ppr pPI)) Nothing 
 
@@ -412,7 +412,7 @@ checkExpr c e = do
   -- case check of
   --  Left s -> putMsgS s
   --  Right result -> putMsgS "Success"
-  putMsgS "OLD AST"
+  putMsgS "OLD-AST"
   putMsg (ppr e)
   putMsgS "NEW AST"
   putMsg (ppr e')
@@ -590,7 +590,7 @@ transformAdv _ _ = do
 transformSelect :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type), (Var, Type)))
 transformSelect ctx expr@(App e e') = case isPrimExpr ctx expr of
   Just (PrimInfo {prim = Select, function = f, arg = arg, arg2 = Just arg2}) -> do
-    putMsgS ("I HIT TRANSFORM SELECT " ++ (showTree expr) ++ "THIS IS ARGS FOR SELECT" ++showSDocUnsafe (ppr arg <> text " | " <>ppr arg2)) 
+    putMsgS ("I HIT TRANSFORM SELECT " ++ (showTree expr) ++ "THIS IS ARGS FOR SELECT" ++showSDocUnsafe (ppr arg <> text " | " <> ppr arg2)) 
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
     return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg, arg2)
@@ -656,7 +656,7 @@ transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (sh
     (newExpr, arg, arg2) <- transformSelect ctx expr
     putMsg $ text "Select Expr after - " <> ppr newExpr
     return $ (newExpr, Just arg, Just arg2)
-  Just (PrimInfo {prim = Delay}) -> do
+  Just (PrimInfo {prim = Delay, arg=(_, typ)}) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
     extractClock <- extractClockVar
@@ -679,7 +679,7 @@ transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (sh
         unionV <- unionVar
         putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
         --lambdaVar <- fail "hello"
-        return $ ((App (App (Var bigDelayVar) (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))) lambdaExpr), Nothing, Nothing) --App e e'
+        return $ ((App (App (Var bigDelayVar) (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))) lambdaExpr), Nothing, Nothing) --App e e' (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))
       (Nothing, Nothing) -> error "NO CLOCK PRESENT"
       (_,_) -> error "INCORRECT STRUCTURE (CANNOT HAPPEN I THINK)"
   Just _ -> do
