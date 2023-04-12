@@ -71,14 +71,14 @@ strictify opts guts b@(Rec bs) = do
   if tr then do
     let vs = map fst bs
     es' <- mapM (\ (v,e) -> do
-                    --e' <- toSingleTick e
-                    --lazy <- allowLazyData guts v
+                    e' <- toSingleTick e
+                    lazy <- allowLazyData guts v
                     --allowRec <- allowRecursion guts v
-                    --e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) True)e
-                    e' <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
+                    e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
+                    e''' <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
                                          fatalError = False, verbose = debugMode opts,
-                                         allowRecExp = False} e
-                    return e') bs
+                                         allowRecExp = False} e''
+                    return e''') bs
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
@@ -86,16 +86,16 @@ strictify opts guts b@(NonRec v e) = do
     if tr then do
       -- liftIO $ putStrLn "-------- old --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e))
-      --e' <- toSingleTick e
+      e' <- toSingleTick e
       -- liftIO $ putStrLn "-------- new --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e'))
-      --lazy <- allowLazyData guts v
+      lazy <- allowLazyData guts v
       --allowRec <- allowRecursion guts v
-      --e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
-      e' <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
+      e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
+      e''' <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
                            fatalError = False, verbose = debugMode opts,
-                           allowRecExp = False } e
-      return (NonRec v e')
+                           allowRecExp = False } e''
+      return (NonRec v e''')
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
