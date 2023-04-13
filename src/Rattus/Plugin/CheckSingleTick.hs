@@ -21,22 +21,12 @@ import GHC.Plugins
 import Rattus.Plugin.Utils
 
 import Prelude hiding ((<>))
-import Text.Printf
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust, fromJust)
 import qualified Debug.Trace as D
-import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
-import qualified GHC.Types.Name.Occurrence as Occurrence
-import Data.IORef (readIORef)
-import GHC.Unit.External (ExternalPackageState (eps_PTE))
-import GHC.Types.TypeEnv
-import GHC.Unit.Home.ModInfo
-import GHC.Unit.Module.ModDetails
-import GHC.Types.TyThing
-import GHC.Builtin.Types
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -88,126 +78,6 @@ data Ctx = Ctx
 
 hasTick :: Ctx -> Bool
 hasTick = isJust . earlier
-
-origNameCache :: CoreM OrigNameCache
-origNameCache = do
-  hscEnv <- getHscEnv
-  nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
-  return $ nsNames nameCache
-
-externalPackageState :: CoreM ExternalPackageState
-externalPackageState = do
-  hscEnv <- getHscEnv
-  liftIO $ readIORef $ hsc_EPS hscEnv
-
-homePackageState :: CoreM HomePackageTable
-homePackageState = do
-  hsc_HPT <$> getHscEnv
-
-homeModInfo :: Module -> CoreM (Maybe HomeModInfo)
-homeModInfo mod = do
-  hpt <- homePackageState
-  return $ lookupHptByModule hpt mod
-
-getHomeTyEnv :: Module -> CoreM (Maybe TypeEnv)
-getHomeTyEnv mod = do
-  maybeHmi <- homeModInfo mod
-  let details = fmap hm_details maybeHmi
-  return $ fmap md_types details
-
-getExtTyEnv :: CoreM TypeEnv
-getExtTyEnv = do
-  eps_PTE <$> externalPackageState
-
-nameToVar :: Module -> Name -> CoreM (Maybe Id)
-nameToVar mod n = do
-  putMsg $ text "nameToVar, name: " <> ppr n <> text " | mod: " <> ppr mod
-  extTyEnv <- getExtTyEnv
-  maybeHomeTyEnv <- getHomeTyEnv mod
-  --putMsg $ text "THIS IS A TEST HOME " <> ppr maybeHomeTyEnv <> text " | EXTERNAL : " <> ppr extTyEnv
-
-  case maybeHomeTyEnv of
-    Just homeTyEnv -> return (tyThingId <$> lookupNameEnv homeTyEnv n)
-    Nothing -> return (tyThingId <$> lookupNameEnv extTyEnv n)
-
-
-findName :: OccName -> Module -> CoreM Name
-findName occName mod = do
-  putMsg $ text "findName " <> ppr occName <> text " | " <> ppr mod
-  onc <- origNameCache
-  return $ fromJust $ D.trace (showPprUnsafe (ppr (moduleEnvToList onc))) lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
-
-adv'Var :: CoreM Var
-adv'Var = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "adv'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "adv'"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-select'Var :: CoreM Var
-select'Var = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "select'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "select'"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-bigDelay :: CoreM Var
-bigDelay = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  let occName = mkOccName Occurrence.varName "Delay"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-inputValueVar :: CoreM TyCon
-inputValueVar = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  let occName = mkOccName Occurrence.tcName "InputValue"
-  name <- findName occName mod
-  lookupTyCon name
-  --maybeId <- nameToVar mod name
-  --return $ fromJust maybeId
-
-ordIntClass :: CoreM Var
-ordIntClass = do
-  origNameCache <- origNameCache
-  let [mod] = filter (("GHC.Classes" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let occName = mkOccName Occurrence.varName "$fOrdInt"
-  name <- findName occName mod
-  lookupId name
-
-unionVar :: CoreM Var
-unionVar = do
-  origNameCache <- origNameCache
-  let [mod] = filter (("Data.Set.Internal" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let occName = mkOccName Occurrence.varName "union"
-  name <- findName occName mod
-  lookupId name
-
-extractClockVar :: CoreM Var
-extractClockVar = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "adv'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "extractClock"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-
-rattusModules :: CoreM (ModuleEnv (OccEnv Name))
-rattusModules = do
-  origNameCache <- origNameCache
-  let rattusBindings = filterModuleEnv (\mod _ -> isRattModule (getModuleFS mod)) origNameCache
-  return rattusBindings
 
 primMap :: Map FastString Prim
 primMap = Map.fromList
