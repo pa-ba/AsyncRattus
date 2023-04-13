@@ -48,32 +48,21 @@ import GHC.Utils.Logger
 
 
 import GHC.Plugins
-import GHC.Utils.Error hiding (putMsg)
+import GHC.Utils.Error
 import GHC.Utils.Monad
 
 
 
-
-
-
-import Debug.Trace as D
 import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
 import qualified GHC.Types.Name.Occurrence as Occurrence
 import Data.IORef (readIORef)
-import GHC.Unit.External (ExternalPackageState (eps_PTE))
-import GHC.Types.TypeEnv
-import GHC.Unit.Home.ModInfo
-import GHC.Unit.Module.ModDetails
 import GHC.Types.TyThing
-import GHC.Builtin.Types
 
 import Prelude hiding ((<>))
-
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Char
 import Data.Maybe
-import Control.Monad ((<=<))
 
 getMaybeVar :: CoreExpr -> Maybe Var
 getMaybeVar (App e e')
@@ -109,55 +98,11 @@ origNameCache = do
   nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
   return $ nsNames nameCache
 
-externalPackageState :: CoreM ExternalPackageState
-externalPackageState = do
-  hscEnv <- getHscEnv
-  liftIO $ readIORef $ hsc_EPS hscEnv
-
-homePackageState :: CoreM HomePackageTable
-homePackageState = do
-  hsc_HPT <$> getHscEnv
-
-homeModInfo :: Module -> CoreM (Maybe HomeModInfo)
-homeModInfo mod = do
-  hpt <- homePackageState
-  return $ lookupHptByModule hpt mod
-
-getHomeTyEnv :: Module -> CoreM (Maybe TypeEnv)
-getHomeTyEnv mod = do
-  maybeHmi <- homeModInfo mod
-  let details = fmap hm_details maybeHmi
-  return $ fmap md_types details
-
-getExtTyEnv :: CoreM TypeEnv
-getExtTyEnv = do
-  eps_PTE <$> externalPackageState
-
-nameToVar :: Module -> Name -> CoreM (Maybe Id)
-nameToVar mod n = do
-  putMsg $ text "nameToVar, name: " <> ppr n <> text " | mod: " <> ppr mod
-  extTyEnv <- getExtTyEnv
-  maybeHomeTyEnv <- getHomeTyEnv mod
-  --putMsg $ text "THIS IS A TEST HOME " <> ppr maybeHomeTyEnv <> text " | EXTERNAL : " <> ppr extTyEnv
-
-  case maybeHomeTyEnv of
-    Just homeTyEnv -> return (tyThingId <$> lookupNameEnv homeTyEnv n)
-    Nothing -> return (tyThingId <$> lookupNameEnv extTyEnv n)
-
-
-findName :: OccName -> Module -> CoreM Name
-findName occName mod = do
-  putMsg $ text "findName " <> ppr occName <> text " | " <> ppr mod
-  onc <- origNameCache
-  return $ fromJust $ D.trace (showPprUnsafe (ppr (moduleEnvToList onc))) lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
-
-
-
 getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
 getNamedThingFromModuleAndOccName moduleName occName = do
   origNameCache <- origNameCache
   let [mod] = filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  name <- findName occName mod
+  let name = fromJust $ lookupOrigNameCache origNameCache mod occName
   lookupThing name
 
 getVarFromModule :: String -> String -> CoreM Var
@@ -189,36 +134,10 @@ unionVar = getVarFromModule "Data.Set.Internal" "union"
 
 printMessage :: (HasDynFlags m, MonadIO m, HasLogger m) =>
                 Severity -> SrcSpan -> SDoc -> m ()
-
-
-
-
 printMessage sev loc doc = do
-
-
-
-
-
-
-
-
-
   dflags <- getDynFlags
   logger <- getLogger
   liftIO $ putLogMsg logger dflags NoReason sev loc doc
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 instance Ord FastString where
   compare = uniqCompareFS
@@ -448,19 +367,8 @@ noLocationInfo :: SrcSpan
 
 noLocationInfo = UnhelpfulSpan UnhelpfulNoLocationInfo
 
-
-
-
-
-
-
-mkAlt c args e = Alt c args e
+mkAlt = Alt
 getAlt (Alt c args e) = (c, args, e)
-
-
-
-
-
 
 showOutputable :: (Outputable a) => a -> String
 showOutputable = showSDocUnsafe . ppr
