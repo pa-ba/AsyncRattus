@@ -1,8 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module Rattus.Plugin.Utils (
   printMessage,
@@ -342,20 +339,8 @@ mkSysLocalFromExpr :: MonadUnique m => FastString -> CoreExpr -> m Id
 
 mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
 
-
-
-
-
 fromRealSrcSpan :: RealSrcSpan -> SrcSpan
-
-
-
 fromRealSrcSpan span = RealSrcSpan span Nothing
-
-
-
-
-
 
 instance Ord SrcSpan where
   compare (RealSrcSpan s _) (RealSrcSpan t _) = compare s t
@@ -364,7 +349,6 @@ instance Ord SrcSpan where
 
 
 noLocationInfo :: SrcSpan
-
 noLocationInfo = UnhelpfulSpan UnhelpfulNoLocationInfo
 
 mkAlt = Alt

@@ -9,9 +9,6 @@ module Rattus.Plugin.CheckSingleTick
   (checkExpr, CheckExpr (..)) where
 
 
-import GHC.Types.Tickish
-
-
 
 import GHC.Plugins
 
@@ -19,48 +16,22 @@ import GHC.Plugins
 
 
 import Rattus.Plugin.Utils
+import Rattus.Plugin.PrimExpr
 
 import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (isJust, fromJust)
-import Data.Functor ((<&>))
+import Data.Maybe (isJust)
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
 type Hidden = Map Var HiddenReason
 
-data Prim = Delay | Adv | Box | Arr | Select
-
-data PartialPrimInfo = PartialPrimInfo {
-  primPart :: Prim,
-  functionPart :: Var,
-  argTypePart :: Maybe Type,
-  argVarPart :: Maybe Var,
-  arg2TypePart :: Maybe Type,
-  arg2VarPart :: Maybe Var
-}
-
-data PrimInfo = PrimInfo {
-  prim :: Prim,
-  function :: Var,
-  arg :: (Var, Type),
-  arg2 :: Maybe (Var, Type)
-}
 
 data TypeError = TypeError SrcSpan SDoc
 
-instance Outputable PartialPrimInfo where
-  ppr (PartialPrimInfo prim f argT argV arg2T arg2V) = text "PartialPrimInfo { prim = " <> ppr prim <> text ", function = " <> ppr f <> text ", argT = " <> ppr argT <> text ", argV = " <> ppr argV <> text ", arg2T = " <> ppr arg2T <> ", arg2V = " <> ppr arg2V
-
-instance Outputable Prim where
-  ppr Delay = "delay"
-  ppr Adv = "adv"
-  ppr Select = "select"
-  ppr Box = "box"
-  ppr Arr = "arr"
 
 data Ctx = Ctx
   { current :: LCtx,
@@ -78,25 +49,6 @@ data Ctx = Ctx
 
 hasTick :: Ctx -> Bool
 hasTick = isJust . earlier
-
-primMap :: Map FastString Prim
-primMap = Map.fromList
-  [("delay", Delay),
-   ("adv", Adv),
-   ("select", Select),
-   ("box", Box),
-   ("arr", Arr)
-   ]
-
-
-isPrim :: Ctx -> Var -> Maybe Prim
-isPrim c v
-  | Just p <- Map.lookup v (primAlias c) = Just p
-  | otherwise = do
-  (name,mod) <- getNameModule v
-  if isRattModule mod then Map.lookup name primMap
-  else Nothing
-
 
 
 stabilize :: HiddenReason -> Ctx -> Ctx
@@ -167,60 +119,6 @@ emptyCtx c =
         fresh = Nothing
         }
 
-createPartialPrimInfo :: Prim -> Var -> PartialPrimInfo
-createPartialPrimInfo prim function =
-  PartialPrimInfo {
-    primPart = prim,
-    functionPart = function,
-    argTypePart = Nothing,
-    argVarPart = Nothing,
-    arg2TypePart = Nothing,
-    arg2VarPart = Nothing
-  }
-
-{-
-isPrimExpr :: Ctx -> Expr Var -> Maybe (Prim,Var)
-isPrimExpr c (App e (Type _)) = isPrimExpr c e
-isPrimExpr c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = isPrimExpr c e
-isPrimExpr c (Var v) = fmap (,v) (isPrim c v)
-isPrimExpr c (Tick _ e) = isPrimExpr c e
-isPrimExpr c (Lam v e)
-  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr c e
-isPrimExpr _ _ = Nothing
--}
-
-validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
-validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just PrimInfo { prim = Select, function = f, arg = (argV, argT), arg2 = Just (arg2V, arg2T)}
-validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f, argTypePart = Just typ}) = Just PrimInfo {prim = Delay, function = f, arg = (undefined, typ), arg2 = Nothing}    -- UGLY HACK (connected to the one below)
-validatePartialPrimInfo (PartialPrimInfo p f (Just argT) (Just argV) Nothing Nothing) = Just PrimInfo { prim = p, function = f, arg = (argV, argT), arg2 = Nothing}
-validatePartialPrimInfo pPI@(PartialPrimInfo { primPart = p}) = Nothing
-
-isPrimExpr :: Ctx -> Expr Var -> Maybe PrimInfo
-isPrimExpr ctx expr = isPrimExpr' ctx expr >>= validatePartialPrimInfo
-
--- App (App (App (App f type) arg) Type2) arg2
-isPrimExpr' :: Ctx -> Expr Var -> Maybe PartialPrimInfo
-isPrimExpr' c (App e (Type t)) = case pPI of
-  Just partPrimInfo ->
-    case (argTypePart partPrimInfo, arg2TypePart partPrimInfo) of
-    (Just _, Nothing) -> Just partPrimInfo {arg2TypePart = Just t}
-    (Nothing, Nothing) -> Just partPrimInfo {argTypePart = Just t}
-    _ -> Nothing
-  Nothing -> Nothing
-  where pPI = isPrimExpr' c e
-isPrimExpr' c (App e e') =
-  case isPrimExpr' c e of
-    Just partPrimInfo@(PartialPrimInfo { primPart = Delay}) -> Just partPrimInfo {argVarPart = Just undefined}    -- UGLY HACK!!! Our data model does not suit delay well.
-    Just partPrimInfo@(PartialPrimInfo { argVarPart = Nothing, arg2VarPart = Nothing}) -> Just partPrimInfo {argVarPart = getMaybeVar e'}
-    Just partPrimInfo@(PartialPrimInfo { argVarPart = Just _, arg2VarPart = Nothing}) -> Just partPrimInfo {arg2VarPart = getMaybeVar e'}
-    _ -> Nothing
-isPrimExpr' c (Var v) = case isPrim c v of
-  Just p ->  Just $ createPartialPrimInfo p v
-  Nothing -> Nothing
-isPrimExpr' c (Tick _ e) = isPrimExpr' c e
-isPrimExpr' c (Lam v e)
-  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr' c e
-isPrimExpr' _ _ = Nothing
 
 stabilizeLater :: Ctx -> Ctx
 stabilizeLater c =
@@ -263,23 +161,16 @@ data CheckExpr = CheckExpr{
   allowRecExp :: Bool
   }
 
-checkExpr :: CheckExpr -> Expr Var -> CoreM CoreExpr
+checkExpr :: CheckExpr -> Expr Var -> CoreM ()
 checkExpr c e = do
   --let check = countAdvSelect' (emptyCtx c) e
-  e' <- transform (emptyCtx c) e
   --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
   --case name of
   --  _ -> putMsgS ("Case stmt" ++ showSDocUnsafe (ppr name))
   -- case check of
   --  Left s -> putMsgS s
   --  Right result -> putMsgS "Success"
-  putMsgS "OLD-AST"
-  putMsg (ppr e)
-  putMsgS "NEW AST"
-  putMsg (ppr e')
-  putMsgS "NEW TREE SHOW"
-  putMsgS (showTree e')
-  return e'
+  return ()
 {-
   --res <- checkExpr' (emptyCtx c) e
   case res of
@@ -418,144 +309,3 @@ countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
 countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
 countAdvSelect' _ _ = Right emptyCheckResult
 -}
-
-replaceVar :: Var -> Var -> Expr Var ->  Expr Var
-replaceVar match rep (Var v) = if v == match then Var rep else Var v
-replaceVar match rep (App e e') = App (replaceVar match rep e) (replaceVar match rep e')
-replaceVar match rep (Tick _ e) = replaceVar match rep e
-replaceVar match rep (Lam v e) = Lam (if v == match then rep else v) (replaceVar match rep e)
-replaceVar match rep (Let (NonRec b e') e) =
-  Let (NonRec newB (replaceVar  match rep e')) (replaceVar match rep e)
-  where newB = if b == match then rep else b
-replaceVar match rep (Cast e _) = replaceVar match rep e
-replaceVar match rep (Case e b t alts) =
-  Case newExpr newB t (map (\(Alt con binds expr) -> Alt con (map (\v -> if v == match then rep else v) binds) (replaceVar match rep expr)) alts)
-  where newExpr = replaceVar match rep e
-        newB = if b == match then rep else b
-replaceVar _ _ e = e
-
-transformAdv :: Ctx -> Expr Var -> CoreM (Expr Var, (Var, Type))
-transformAdv ctx expr@(App e e') = case isPrimExpr ctx expr of
-  Just (PrimInfo {prim = Adv, function = f, arg = arg}) -> do
-    varAdv' <- adv'Var
-    let newE = replaceVar f varAdv' e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), arg)
-  _ -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error "transformAdv: Can only transform adv"
-transformAdv _ _ = do
-  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-
-transformSelect :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type), (Var, Type)))
-transformSelect ctx expr@(App e e') = case isPrimExpr ctx expr of
-  Just (PrimInfo {prim = Select, function = f, arg = arg, arg2 = Just arg2}) -> do
-    varSelect' <- select'Var
-    let newE = replaceVar f varSelect' e
-    return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg, arg2)
-  _ -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error "transformAdv: Can only transform select"
-transformSelect _ _ = do
-  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-
-transform :: Ctx -> Expr Var -> CoreM (Expr Var)
-transform ctx e = do
-  (e', _, _) <- transform' ctx e
-  return e'
-
-hdd :: (a, b, c) -> a
-hdd (a, b, c) = a
-
-
-clockUnion :: Var -> Var -> Var -> (Var,Type) -> (Var, Type) -> Expr Var
-clockUnion unionVar ordInt extractClock (arg1Var, arg1Type) (arg2Var, arg2Type) =
-  App
-  (
-    App
-    (
-      App
-      (
-        App (Var unionVar) (Type intTy)
-      )
-      (
-        Var ordInt
-      )
-    )
-    (
-      App
-      (
-        App (Var extractClock) (Type arg1Type)
-      )
-      (
-        Var arg1Var
-      )
-    )
-  )
-  (
-    App
-    (
-      App (Var extractClock) (Type arg2Type)
-    )
-    (
-      Var arg2Var
-    )
-  )
-
-transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe (Var, Type), Maybe (Var, Type)))
-transform' ctx expr@(App e e') = case isPrimExpr ctx expr of
-  Just (PrimInfo {prim = Adv}) -> do
-    (newExpr, arg) <- transformAdv ctx expr
-    return $ (newExpr, Just (arg), Nothing)
-  Just (PrimInfo {prim = Select}) -> do
-    (newExpr, arg, arg2) <- transformSelect ctx expr
-    return $ (newExpr, Just arg, Just arg2)
-  Just (PrimInfo {prim = Delay, arg=(_, typ)}) -> do
-    bigDelayVar <- bigDelay
-    inputValueV <- inputValueVar
-    extractClock <- extractClockVar
-    let inputValueType = mkTyConTy inputValueV --Change name of variable
-    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
-    let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
-    let ctx' = ctx {fresh = Just inpVarR}
-    (newExpr, arg, arg2) <- transform' ctx' e'
-    case (arg, arg2) of
-      (Just (clVar, typeAdv), Nothing) -> do
-        let lambdaExpr = Lam inpVarR newExpr
-        return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
-      (Just (clVar, typeAdv), Just (clVar2, typeAdv2)) -> do
-        let lambdaExpr = Lam inpVarR newExpr
-        ordInt <- ordIntClass
-        unionV <- unionVar
-        --lambdaVar <- fail "hello"
-        return $ ((App (App (Var bigDelayVar) (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))) lambdaExpr), Nothing, Nothing) --App e e' (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))
-      (Nothing, Nothing) -> error "NO CLOCK PRESENT"
-      (_,_) -> error "INCORRECT STRUCTURE (CANNOT HAPPEN I THINK)"
-  Just _ -> do
-        (newExpr, cl, typeAdv) <- transform' ctx e'
-        return $ (App e newExpr, cl, typeAdv)
-  Nothing -> do
-    (expr, cl, typeAdv) <- transform' ctx e
-    (expr', cl', typeAdv') <- transform' ctx e'
-    case (cl, cl') of
-      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
-      (Just c1, Nothing) -> return (App expr expr', Just c1, typeAdv)
-      (Nothing, Just c2) -> return (App expr expr', Just c2, typeAdv')
-      (Nothing, Nothing) -> return (App expr expr', Nothing, Nothing)
-transform' ctx (Lam b rhs) = transform' ctx rhs >>= \(expr, cl, typeAdv) -> return (Lam b expr, cl, typeAdv)
-transform' ctx (Let (NonRec b e') e) = do
-    (nonRecExpr, cl, typeAdv) <- transform' ctx e'
-    (letBodyExpr, cl',typeAdv') <- transform' ctx e
-    case (cl, cl') of
-      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
-      (Just c1, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c1, typeAdv)
-      (Nothing, Just c2) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c2, typeAdv')
-      (Nothing, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Nothing, Nothing)
-transform' ctx (Case e b t alts) = do
-    (expr, cl, typeAdv) <- transform' ctx e
-    alts' <- mapM (\(Alt con binds expr) -> transform' ctx expr <&> (Alt con binds . hdd)) alts
-    return (Case expr b t alts', cl, typeAdv)
-transform' ctx (Cast e _) = transform' ctx e
-transform' ctx (Tick _ e) = transform' ctx e
-transform' _ e = return (e, Nothing, Nothing)
