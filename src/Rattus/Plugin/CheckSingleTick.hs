@@ -24,6 +24,9 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import Control.Monad (foldM)
+import GHC.Types.Tickish
+import Control.Applicative ((<|>))
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -40,9 +43,8 @@ data Ctx = Ctx
     srcLoc :: SrcSpan,
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
-    primAlias :: Map Var Prim,
     allowRecursion :: Bool,
-    inDelay :: Bool,
+    --inDelay :: Bool,
     hasSeenAdvSelect :: Bool,
     fresh :: Maybe Var
     }
@@ -96,13 +98,8 @@ pickFirst :: SrcSpan -> SrcSpan -> SrcSpan
 pickFirst s@RealSrcSpan{} _ = s
 pickFirst _ s = s
 
-
-typeError :: Ctx -> Var -> SDoc -> CoreM (Maybe TypeError)
-typeError ctx var doc =
-  return (Just (mkTypeError ctx var doc))
-
-mkTypeError :: Ctx -> Var -> SDoc -> TypeError
-mkTypeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
+typeError :: Ctx -> Var -> SDoc -> TypeError
+typeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
 
 emptyCtx :: CheckExpr -> Ctx
 emptyCtx c =
@@ -111,14 +108,15 @@ emptyCtx c =
         hidden = Map.empty,
         srcLoc = noLocationInfo,
         recDef = recursiveSet c,
-        primAlias = Map.empty,
         stableTypes = Set.empty,
         allowRecursion = allowRecExp c,
-        inDelay = False,
+        -- inDelay = False,
         hasSeenAdvSelect = False,
         fresh = Nothing
         }
 
+inDelay :: Ctx -> Bool
+inDelay = isJust . earlier
 
 stabilizeLater :: Ctx -> Ctx
 stabilizeLater c =
@@ -146,12 +144,12 @@ instance Show SymbolicClock where
   show (Clock v) = "Clock " ++ (showSDocUnsafe . ppr) v
   show (Union c1 c2) = "Union (" ++ show c1 ++ ") (" ++ show c2 ++ ")"
 
-data CheckResult = CheckResult{
-  foundClock :: Maybe SymbolicClock
-} deriving Show
+newtype CheckResult = CheckResult{
+  advSelect :: Maybe Var
+}
 
-advSelect :: CheckResult -> Bool
-advSelect = isJust . foundClock
+emptyCheckResult :: CheckResult
+emptyCheckResult = CheckResult {advSelect = Nothing}
 
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
@@ -161,21 +159,12 @@ data CheckExpr = CheckExpr{
   allowRecExp :: Bool
   }
 
-checkExpr :: CheckExpr -> Expr Var -> CoreM ()
+checkExpr :: CheckExpr -> Expr Var -> CoreM Bool
 checkExpr c e = do
-  --let check = countAdvSelect' (emptyCtx c) e
-  --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
-  --case name of
-  --  _ -> putMsgS ("Case stmt" ++ showSDocUnsafe (ppr name))
-  -- case check of
-  --  Left s -> putMsgS s
-  --  Right result -> putMsgS "Success"
-  return ()
-{-
-  --res <- checkExpr' (emptyCtx c) e
+  res <- checkExpr' (emptyCtx c) e
   case res of
-    Nothing -> return ()
-    Just (TypeError src doc) ->
+    Right _ -> return True
+    Left (TypeError src doc) ->
       let sev = if fatalError c then SevError else SevWarning
       in if verbose c then do
         printMessage sev src ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
@@ -183,43 +172,39 @@ checkExpr c e = do
         liftIO $ putStrLn (showSDocUnsafe (ppr (oldExpr c)))
         liftIO $ putStrLn "-------- new --------"
         liftIO $ putStrLn (showSDocUnsafe (ppr e))
-         else
+        return $ not (fatalError c)
+         else do
         printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
                              "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
--}
-{-
-checkExpr' :: Ctx -> Expr Var -> CoreM (Maybe TypeError)
+        return $ not (fatalError c)
+        
+
+checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
-checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} (App e1 e2) =
-  case isPrimExpr c e1 of
-    Just (p,v) -> case p of
-      Box -> do
-        checkExpr' (stabilize BoxApp c) e2
-      Arr -> do
-        checkExpr' (stabilize BoxApp c) e2
-
-      Delay -> (if inDelay c then typeError c v (text "Nested delays not allowed")
-                else checkExpr' c{current = Set.empty, earlier = Just cur, inDelay = True} e2)
-      Adv -> case earl of
-        Just er -> if hasSeenAdvSelect c then typeError c v (text "Only one adv/select allowed in a delay")
-                   else
-                    D.trace ("ADV arg: " ++ showSDocUnsafe (ppr e1)) $
-                    if isVar e2
-                    then return Nothing
-                    else typeError c v (text "can only advance on a variable")
-
-        Nothing -> typeError c v (text "can only advance under delay")
-      Select -> typeError c v (text "select not implemented")
-        --case earl of
-        --Just er | hasSeenAdvSelect c -> typeError c v (text "Only one adv/select allowed in a delay")
-        --        | not $ all isVar args -> return Nothing
-        --        | otherwise -> typeError c v (text "can only advance on a variable")
-        --Nothing -> typeError c v (text "Can only select under delay")
-    _ -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' c e2)
-checkExpr' c (Case e v _ alts) =
-    liftM2 (<|>) (checkExpr' c e) (liftM (foldl' (<|>) Nothing)
-                                   (mapM ((\ (_,vs,e)-> checkExpr' (addVars vs c') e) . getAlt) alts))
+checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} expr@(App e e') =
+  case isPrimExpr expr of
+    Just (PrimInfo { prim = Box }) ->
+      checkExpr' (stabilize BoxApp c) e'
+    Just (PrimInfo { prim = Arr }) ->
+      checkExpr' (stabilize BoxApp c) e'
+    Just (PrimInfo { prim = Delay, function = f }) ->
+      if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
+      else checkExpr' c{current = Set.empty, earlier = Just cur} e'
+    Just (PrimInfo { prim = p, function = f }) ->
+      -- We only allow adv/select to be applied to variables.
+      -- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
+      if not $ inDelay c then return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
+      else if hasSeenAdvSelect c then return $ Left $ typeError c f (text "Only one " <> ppr p <> text " allowed in a delay")
+      else return $ Right $ emptyCheckResult {advSelect = Just f}
+    Nothing -> checkBoth c e e'
+checkExpr' c (Case e _ _ [Alt DEFAULT [] rhs]) = checkBoth c e rhs
+checkExpr' c (Case e v _ alts) = do
+    res <- checkExpr' c' e
+    let maybePrimVar = foldl (\acc (Alt _ _ altE) -> acc <|> recursiveIsPrimExpr altE) Nothing alts
+    case maybePrimVar of
+      Just _ -> return $ Left $ typeError c v "Primitives in case expressions are not allowed"
+      Nothing -> return res
   where c' = addVars [v] c
 checkExpr' c (Lam v e)
   | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = do
@@ -229,22 +214,30 @@ checkExpr' c (Lam v e)
             Just t -> c{stableTypes = Set.insert t (stableTypes c)}
       checkExpr' c' e
   | otherwise = checkExpr' (addVars [v] (stabilizeLater c)) e
-checkExpr' _ (Type _)  = return Nothing
-checkExpr' _ (Lit _)  = return Nothing
-checkExpr' _ (Coercion _)  = return Nothing
+checkExpr' _ (Type _)  = return $ Right emptyCheckResult
+checkExpr' _ (Lit _)  = return $ Right emptyCheckResult
+checkExpr' _ (Coercion _)  = return $ Right emptyCheckResult
 checkExpr' c (Tick (SourceNote span _name) e) =
   checkExpr' c{srcLoc = fromRealSrcSpan span} e
 checkExpr' c (Tick _ e) = checkExpr' c e
 checkExpr' c (Cast e _) = checkExpr' c e
-checkExpr' c (Let (NonRec v e1) e2) =
-  case isPrimExpr c e1 of
-    Just (p,_) -> (checkExpr' (c{primAlias = Map.insert v p (primAlias c)}) e2)
-    Nothing -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' (addVars [v] c) e2)
-checkExpr' _ (Let (Rec ([])) _) = return Nothing
+checkExpr' c (Let (NonRec v e1) e2) = do
+  c' <- checkAndUpdate c e1
+  case c' of
+    Left err -> return $ Left err
+    Right ctx -> checkExpr' (addVars [v] ctx) e2
+checkExpr' _ (Let (Rec ([])) _) = return $ Right emptyCheckResult
 checkExpr' c (Let (Rec binds) e2) = do
     r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
-    r2 <- checkExpr' (addVars vs c) e2
-    return (foldl' (<|>) Nothing r1 <|> r2)
+    ctxE <- foldM (\acc r ->
+      case (acc, r) of
+        (_, Left err) -> return $ Left err
+        (Left err, _) -> return $ Left err
+        (Right res, Right res') -> return $ updateCtxFromResult res res'
+        ) (Right c) r1
+    case ctxE of
+      Left err -> return $ Left err
+      Right ctx -> checkExpr' (addVars vs ctx) e2
   where vs = map fst binds
         ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
         c' v = c {current = Set.empty,
@@ -254,26 +247,48 @@ checkExpr' c (Let (Rec binds) e2) = do
                   recDef = recDef c `Set.union` Set.fromList vs }
 checkExpr' c  (Var v)
   | tcIsLiftedTypeKind $ typeKind $ varType v =  case getScope c v of
-             Hidden reason -> typeError c v reason
-             Visible -> return Nothing
-  | otherwise = return Nothing
--}
+             Hidden reason -> return $ Left $ typeError c v reason
+             Visible -> return $ Right emptyCheckResult
+  | otherwise = return $ Right emptyCheckResult
+
+
+recursiveIsPrimExpr :: CoreExpr -> Maybe Var
+recursiveIsPrimExpr expr@(App e e') =
+  case isPrimExpr expr of
+    Just (PrimInfo {function = v}) -> Just v
+    Nothing -> recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
+recursiveIsPrimExpr (Lam _ e) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Tick _ e) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Cast e _) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Let (NonRec _ e) e') = recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
+recursiveIsPrimExpr (Let (Rec binds) e) = foldl (\acc (_, e) -> acc <|> recursiveIsPrimExpr e) Nothing binds
+recursiveIsPrimExpr (Case e _ _ alts) = recursiveIsPrimExpr e <|> foldl (\acc (Alt _ _ e') -> acc <|> recursiveIsPrimExpr e') Nothing alts
+recursiveIsPrimExpr _ = Nothing
+
 
 
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
 
-emptyCheckResult :: CheckResult
-emptyCheckResult = CheckResult {foundClock = Nothing}
+checkBoth :: Ctx -> CoreExpr -> CoreExpr -> CoreM (Either TypeError CheckResult)
+checkBoth c e e' = do
+  c' <- checkAndUpdate c e
+  case c' of
+    Left err -> return $ Left err
+    Right ctx -> checkExpr' ctx e'
 
-updateCtxFromResult :: Ctx -> CheckResult -> Ctx
-updateCtxFromResult c r = if advSelect r then c {hasSeenAdvSelect = advSelect r} else c
+updateCtxFromResult :: Ctx -> CheckResult -> Either TypeError Ctx
+updateCtxFromResult c@(Ctx {hasSeenAdvSelect = True}) (CheckResult {advSelect = Just v}) = Left $ typeError c v "Only one adv/select allowed in a delay"
+updateCtxFromResult c@(Ctx {hasSeenAdvSelect = hasSeen}) r = Right $ c {hasSeenAdvSelect = hasSeen || isJust (advSelect r)}
 
---checkAndUpdate :: Ctx -> Expr Var -> Either String Ctx
---checkAndUpdate c e = fmap (updateCtxFromResult c) (countAdvSelect' c e)
+checkAndUpdate :: Ctx -> Expr Var -> CoreM (Either TypeError Ctx)
+checkAndUpdate c e = do
+  res <- checkExpr' c e
+  case res of
+    Left err -> return $ Left err
+    Right r -> return $ updateCtxFromResult c r
 
 {-
--- called on the subtree to which a delay is applied
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
 countAdvSelect' ctx (App e e') = case isPrimExpr ctx e of
       Just (p, _) -> case D.trace ("we have met a prim: " ++ showSDocUnsafe (ppr p)) p of

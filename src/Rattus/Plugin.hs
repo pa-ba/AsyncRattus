@@ -76,10 +76,12 @@ strictify opts guts b@(Rec bs) = do
                     lazy <- allowLazyData guts v
                     --allowRec <- allowRecursion guts v
                     strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-                    checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
-                                         fatalError = False, verbose = debugMode opts,
+                    ok <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
+                                         fatalError = True, verbose = debugMode opts,
                                          allowRecExp = False} strict
-                    transform strict) bs
+                    if ok
+                      then transform strict
+                      else error "Rattus: Ill-typed program") bs
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
@@ -93,11 +95,15 @@ strictify opts guts b@(NonRec v e) = do
       lazy <- allowLazyData guts v
       --allowRec <- allowRecursion guts v
       strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-      checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
-                           fatalError = False, verbose = debugMode opts,
+      ok <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
+                           fatalError = True, verbose = debugMode opts,
                            allowRecExp = False } strict
-      transformed <- transform strict
-      return $ NonRec v transformed
+      if ok
+      then do
+        transformed <- transform strict
+        return $ NonRec v transformed
+      else
+        error "Rattus: Ill-typed program"
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]

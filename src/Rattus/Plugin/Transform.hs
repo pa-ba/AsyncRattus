@@ -67,7 +67,7 @@ transformPrim _ _ = do
 
 
 transform :: CoreExpr -> CoreM CoreExpr
-transform expr = do 
+transform expr = do
     (newExpr, _) <- transform' emptyCtx expr
     putMsgS "OLD-AST"
     putMsg (ppr expr)
