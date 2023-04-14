@@ -16,8 +16,7 @@ import GHC.Plugins
 
 
 import Rattus.Plugin.Utils
-import Rattus.Plugin.PrimExpr
-
+import qualified Rattus.Plugin.PrimExpr as Prim
 import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -182,21 +181,17 @@ checkExpr c e = do
 checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
-checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} expr@(App e e') =
-  case isPrimExpr expr of
-    Just (PrimInfo { prim = Box }) ->
+checkExpr' c@Ctx{current = cur} expr@(App e e') =
+  case Prim.isPrimExpr expr of
+    Just (Prim.BoxApp _) ->
       checkExpr' (stabilize BoxApp c) e'
-    Just (PrimInfo { prim = Arr }) ->
+    Just (Prim.ArrApp _) ->
       checkExpr' (stabilize BoxApp c) e'
-    Just (PrimInfo { prim = Delay, function = f }) ->
+    Just (Prim.DelayApp f) ->
       if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
       else checkExpr' c{current = Set.empty, earlier = Just cur} e'
-    Just (PrimInfo { prim = p, function = f }) ->
-      -- We only allow adv/select to be applied to variables.
-      -- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
-      if not $ inDelay c then return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
-      else if hasSeenAdvSelect c then return $ Left $ typeError c f (text "Only one " <> ppr p <> text " allowed in a delay")
-      else return $ Right $ emptyCheckResult {advSelect = Just f}
+    Just (Prim.AdvApp f _)  -> checkAdvSelect c Prim.Adv f
+    Just (Prim.SelectApp f _ _)-> checkAdvSelect c Prim.Select f
     Nothing -> checkBoth c e e'
 checkExpr' c (Case e _ _ [Alt DEFAULT [] rhs]) = checkBoth c e rhs
 checkExpr' c (Case e v _ alts) = do
@@ -251,11 +246,20 @@ checkExpr' c  (Var v)
              Visible -> return $ Right emptyCheckResult
   | otherwise = return $ Right emptyCheckResult
 
+-- Assumes that Prim is either adv or select.
+checkAdvSelect :: Ctx ->Prim.Prim -> Var -> CoreM (Either TypeError CheckResult)
+checkAdvSelect c p f =
+  -- We only allow adv/select to be applied to variables.
+  -- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
+  if not $ inDelay c then return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
+  else if hasSeenAdvSelect c then return $ Left $ typeError c f (text "Only one " <> ppr p <> text " allowed in a delay")
+  else return $ Right $ emptyCheckResult {advSelect = Just f}
+
 
 recursiveIsPrimExpr :: CoreExpr -> Maybe Var
 recursiveIsPrimExpr expr@(App e e') =
-  case isPrimExpr expr of
-    Just (PrimInfo {function = v}) -> Just v
+  case Prim.isPrimExpr expr of
+    Just primInfo -> Just $ Prim.function primInfo  
     Nothing -> recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
 recursiveIsPrimExpr (Lam _ e) = recursiveIsPrimExpr e
 recursiveIsPrimExpr (Tick _ e) = recursiveIsPrimExpr e

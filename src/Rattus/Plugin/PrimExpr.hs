@@ -3,6 +3,8 @@
 module Rattus.Plugin.PrimExpr (
     Prim (..),
     PrimInfo (..),
+    function,
+    prim,
     isPrimExpr
 ) where
 
@@ -14,6 +16,10 @@ import Prelude hiding ((<>))
 
 data Prim = Delay | Adv | Box | Arr | Select
 
+data PrimInfo = DelayApp Var | AdvApp Var TypedArg | BoxApp Var | ArrApp Var | SelectApp Var TypedArg TypedArg
+
+type TypedArg = (Var, Type)
+
 data PartialPrimInfo = PartialPrimInfo {
   primPart :: Prim,
   functionPart :: Var,
@@ -21,13 +27,6 @@ data PartialPrimInfo = PartialPrimInfo {
   argVarPart :: Maybe Var,
   arg2TypePart :: Maybe Type,
   arg2VarPart :: Maybe Var
-}
-
-data PrimInfo = PrimInfo {
-  prim :: Prim,
-  function :: Var,
-  arg :: (Var, Type),
-  arg2 :: Maybe (Var, Type)
 }
 
 instance Outputable PartialPrimInfo where
@@ -66,11 +65,26 @@ createPartialPrimInfo prim function =
     arg2VarPart = Nothing
   }
 
+function :: PrimInfo -> Var
+function (DelayApp f ) = f
+function (BoxApp f) = f
+function (ArrApp f) = f
+function (AdvApp f _) = f
+function (SelectApp f _ _) = f
+
+prim :: PrimInfo -> Prim
+prim (DelayApp _ ) = Delay
+prim (BoxApp _) = Box
+prim (ArrApp _) = Arr
+prim (AdvApp _ _) = Adv
+prim (SelectApp _ _ _) = Select
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
-validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just PrimInfo { prim = Select, function = f, arg = (argV, argT), arg2 = Just (arg2V, arg2T)}
-validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f, argTypePart = Just typ}) = Just PrimInfo {prim = Delay, function = f, arg = (undefined, typ), arg2 = Nothing}    -- UGLY HACK (connected to the one below)
-validatePartialPrimInfo (PartialPrimInfo p f (Just argT) (Just argV) Nothing Nothing) = Just PrimInfo { prim = p, function = f, arg = (argV, argT), arg2 = Nothing}
+validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just $ SelectApp f (argV, argT) (arg2V, arg2T)
+validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f}) = Just $ DelayApp f     -- UGLY HACK (connected to the one below)
+validatePartialPrimInfo (PartialPrimInfo {primPart = Box, functionPart = f}) = Just $ BoxApp f     
+validatePartialPrimInfo (PartialPrimInfo {primPart = Arr, functionPart = f}) = Just $ ArrApp f     
+validatePartialPrimInfo (PartialPrimInfo Adv f (Just argT) (Just argV) Nothing Nothing) = Just $ AdvApp f (argV, argT)
 validatePartialPrimInfo _ = Nothing
 
 isPrimExpr :: Expr Var -> Maybe PrimInfo

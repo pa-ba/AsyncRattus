@@ -11,6 +11,7 @@ import Prelude hiding ((<>))
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
 
+
 data Ctx = Ctx {
     fresh :: Maybe Var
 }
@@ -37,15 +38,15 @@ replaceVar _ _ e = e
 
 transformPrim :: Ctx -> Expr Var -> CoreM (Expr Var, PrimInfo)
 transformPrim ctx expr@(App e e') = case isPrimExpr expr of
-  Just primInfo@(PrimInfo {prim = Adv, function = f}) -> do
+  Just primInfo@(AdvApp f _) -> do
     varAdv' <- adv'Var
     let newE = replaceVar f varAdv' e
     return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
-  Just primInfo@(PrimInfo {prim = Select, function = f}) -> do
+  Just primInfo@(SelectApp f _ _) -> do
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
     return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
-  Just (PrimInfo {prim = Delay}) -> do
+  Just (DelayApp _) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
     let inputValueType = mkTyConTy inputValueV --Change name of variable
@@ -57,9 +58,9 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     let lambdaExpr = Lam inpVar newExpr
     clockCode <- constructClockExtractionCode primInfo
     return (App (App (Var bigDelayVar) clockCode) lambdaExpr, primInfo)
-  Just (PrimInfo {prim = p}) -> do
+  Just primInfo -> do
         --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr p
+        error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
   Nothing -> error "Cannot transform non-prim applications"
 transformPrim _ _ = do
   --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
@@ -80,18 +81,15 @@ transform expr = do
 
 transform' :: Ctx -> CoreExpr -> CoreM (CoreExpr, Maybe PrimInfo)
 transform' ctx expr@(App e e') = case isPrimExpr expr of
-    Just (PrimInfo {prim = Adv}) -> do
-        (newExpr, primInfo) <- transformPrim ctx expr
-        return (newExpr, Just primInfo)
-    Just (PrimInfo {prim = Select}) -> do
-        (newExpr, primInfo) <- transformPrim ctx expr
-        return (newExpr, Just primInfo)
-    Just (PrimInfo {prim = Delay}) -> do
-        (newExpr, primInfo) <- transformPrim ctx expr
-        return (newExpr, Just primInfo)
-    Just _ -> do
+    Just (BoxApp _) -> do
         (newExpr, primInfo) <- transform' ctx e'
         return (App e newExpr, primInfo)
+    Just (ArrApp _) -> do
+        (newExpr, primInfo) <- transform' ctx e'
+        return (App e newExpr, primInfo)
+    Just _ -> do
+        (newExpr, primInfo) <- transformPrim ctx expr
+        return (newExpr, Just primInfo)
     Nothing -> do
         (newExpr, primInfo) <- transform' ctx e
         (newExpr', primInfo') <- transform' ctx e'
@@ -114,10 +112,10 @@ transform' ctx (Tick _ e) = transform' ctx e
 transform' _ e = return (e, Nothing)
 
 constructClockExtractionCode :: PrimInfo -> CoreM CoreExpr
-constructClockExtractionCode (PrimInfo { prim = Adv, arg = arg }) = createClockCode arg
-constructClockExtractionCode (PrimInfo { prim = Select, arg = arg, arg2 = Just arg2}) =
+constructClockExtractionCode (AdvApp _ arg) = createClockCode arg
+constructClockExtractionCode (SelectApp _ arg arg2) =
     clockUnion arg arg2
-constructClockExtractionCode (PrimInfo { prim = p }) = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr p)
+constructClockExtractionCode primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
 
 createClockCode :: (Var, Type) -> CoreM CoreExpr
 createClockCode (argV, argT) = do
