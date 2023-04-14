@@ -224,12 +224,7 @@ checkExpr' c (Let (NonRec v e1) e2) = do
 checkExpr' _ (Let (Rec ([])) _) = return $ Right emptyCheckResult
 checkExpr' c (Let (Rec binds) e2) = do
     r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
-    ctxE <- foldM (\acc r ->
-      case (acc, r) of
-        (_, Left err) -> return $ Left err
-        (Left err, _) -> return $ Left err
-        (Right res, Right res') -> return $ updateCtxFromResult res res'
-        ) (Right c) r1
+    let ctxE = foldl updateContextFromEithers (Right c) r1
     case ctxE of
       Left err -> return $ Left err
       Right ctx -> checkExpr' (addVars vs ctx) e2
@@ -285,12 +280,22 @@ updateCtxFromResult :: Ctx -> CheckResult -> Either TypeError Ctx
 updateCtxFromResult c@(Ctx {hasSeenAdvSelect = True}) (CheckResult {advSelect = Just v}) = Left $ typeError c v "Only one adv/select allowed in a delay"
 updateCtxFromResult c@(Ctx {hasSeenAdvSelect = hasSeen}) r = Right $ c {hasSeenAdvSelect = hasSeen || isJust (advSelect r)}
 
+updateCtxFromResult' :: Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
+updateCtxFromResult' c e = do
+  res <- e
+  updateCtxFromResult c res
+
 checkAndUpdate :: Ctx -> Expr Var -> CoreM (Either TypeError Ctx)
 checkAndUpdate c e = do
   res <- checkExpr' c e
   case res of
     Left err -> return $ Left err
     Right r -> return $ updateCtxFromResult c r
+
+updateContextFromEithers :: Either TypeError Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
+updateContextFromEithers c r = do
+  ctx <- c
+  updateCtxFromResult' ctx r
 
 {-
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
