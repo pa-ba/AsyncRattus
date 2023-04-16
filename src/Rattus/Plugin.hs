@@ -13,6 +13,7 @@ import Rattus.Plugin.SingleTick
 import Rattus.Plugin.CheckSingleTick
 import Rattus.Plugin.Utils
 import Rattus.Plugin.Annotation
+import Rattus.Plugin.Transform
 
 import Prelude hiding ((<>))
 
@@ -65,20 +66,22 @@ strictifyProgram opts guts = do
   newBinds <- mapM (strictify opts guts) (mg_binds guts)
   return guts { mg_binds = newBinds }
 
-strictify :: Options -> ModGuts -> CoreBind -> CoreM (CoreBind)
+strictify :: Options -> ModGuts -> CoreBind -> CoreM CoreBind
 strictify opts guts b@(Rec bs) = do
   tr <- liftM or (mapM (shouldTransform guts . fst) bs)
   if tr then do
     let vs = map fst bs
     es' <- mapM (\ (v,e) -> do
-                    e' <- toSingleTick e
+                    singleTick <- toSingleTick e
                     lazy <- allowLazyData guts v
                     --allowRec <- allowRecursion guts v
-                    e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
-                    e''' <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
-                                         fatalError = False, verbose = debugMode opts,
-                                         allowRecExp = False} e''
-                    return e''') bs
+                    strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
+                    ok <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
+                                         fatalError = True, verbose = debugMode opts,
+                                         allowRecExp = False} strict
+                    if ok
+                      then transform strict
+                      else error "Rattus: Ill-typed program") bs
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
@@ -86,16 +89,21 @@ strictify opts guts b@(NonRec v e) = do
     if tr then do
       -- liftIO $ putStrLn "-------- old --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e))
-      e' <- toSingleTick e
+      singleTick <- toSingleTick e
       -- liftIO $ putStrLn "-------- new --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e'))
       lazy <- allowLazyData guts v
       --allowRec <- allowRecursion guts v
-      e'' <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) e'
-      e''' <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
-                           fatalError = False, verbose = debugMode opts,
-                           allowRecExp = False } e''
-      return (NonRec v e''')
+      strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
+      ok <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
+                           fatalError = True, verbose = debugMode opts,
+                           allowRecExp = False } strict
+      if ok
+      then do
+        transformed <- transform strict
+        return $ NonRec v transformed
+      else
+        error "Rattus: Ill-typed program"
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]

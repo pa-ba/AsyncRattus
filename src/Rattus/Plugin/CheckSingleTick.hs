@@ -9,9 +9,6 @@ module Rattus.Plugin.CheckSingleTick
   (checkExpr, CheckExpr (..)) where
 
 
-import GHC.Types.Tickish
-
-
 
 import GHC.Plugins
 
@@ -19,58 +16,24 @@ import GHC.Plugins
 
 
 import Rattus.Plugin.Utils
-
+import qualified Rattus.Plugin.PrimExpr as Prim
 import Prelude hiding ((<>))
-import Text.Printf
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (isJust, fromJust)
-import qualified Debug.Trace as D
-import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
-import qualified GHC.Types.Name.Occurrence as Occurrence
-import Data.IORef (readIORef)
-import GHC.Unit.External (ExternalPackageState (eps_PTE))
-import GHC.Types.TypeEnv
-import GHC.Unit.Home.ModInfo
-import GHC.Unit.Module.ModDetails
-import GHC.Types.TyThing
-import GHC.Builtin.Types
+import Data.Maybe (isJust)
+import Control.Monad (foldM)
+import GHC.Types.Tickish
+import Control.Applicative ((<|>))
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
 type Hidden = Map Var HiddenReason
 
-data Prim = Delay | Adv | Box | Arr | Select
-
-data PartialPrimInfo = PartialPrimInfo {
-  primPart :: Prim,               
-  functionPart :: Var,
-  argTypePart :: Maybe Type,           
-  argVarPart :: Maybe Var,    
-  arg2TypePart :: Maybe Type,
-  arg2VarPart :: Maybe Var
-}
-
-data PrimInfo = PrimInfo {
-  prim :: Prim,
-  function :: Var,
-  arg :: (Var, Type),
-  arg2 :: Maybe (Var, Type)
-}
 
 data TypeError = TypeError SrcSpan SDoc
 
-instance Outputable PartialPrimInfo where
-  ppr (PartialPrimInfo prim f argT argV arg2T arg2V) = text "PartialPrimInfo { prim = " <> ppr prim <> text ", function = " <> ppr f <> text ", argT = " <> ppr argT <> text ", argV = " <> ppr argV <> text ", arg2T = " <> ppr arg2T <> ", arg2V = " <> ppr arg2V
-
-instance Outputable Prim where
-  ppr Delay = "delay"
-  ppr Adv = "adv"
-  ppr Select = "select"
-  ppr Box = "box"
-  ppr Arr = "arr"
 
 data Ctx = Ctx
   { current :: LCtx,
@@ -79,154 +42,14 @@ data Ctx = Ctx
     srcLoc :: SrcSpan,
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
-    primAlias :: Map Var Prim,
     allowRecursion :: Bool,
-    inDelay :: Bool,
+    --inDelay :: Bool,
     hasSeenAdvSelect :: Bool,
     fresh :: Maybe Var
     }
 
 hasTick :: Ctx -> Bool
 hasTick = isJust . earlier
-
-origNameCache :: CoreM OrigNameCache
-origNameCache = do
-  hscEnv <- getHscEnv
-  nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
-  return $ nsNames nameCache
-
-externalPackageState :: CoreM ExternalPackageState
-externalPackageState = do
-  hscEnv <- getHscEnv
-  liftIO $ readIORef $ hsc_EPS hscEnv
-
-homePackageState :: CoreM HomePackageTable
-homePackageState = do
-  hsc_HPT <$> getHscEnv
-
-homeModInfo :: Module -> CoreM (Maybe HomeModInfo)
-homeModInfo mod = do
-  hpt <- homePackageState
-  return $ lookupHptByModule hpt mod
-
-getHomeTyEnv :: Module -> CoreM (Maybe TypeEnv)
-getHomeTyEnv mod = do
-  maybeHmi <- homeModInfo mod
-  let details = fmap hm_details maybeHmi
-  return $ fmap md_types details
-
-getExtTyEnv :: CoreM TypeEnv
-getExtTyEnv = do
-  eps_PTE <$> externalPackageState
-
-nameToVar :: Module -> Name -> CoreM (Maybe Id)
-nameToVar mod n = do
-  putMsg $ text "nameToVar, name: " <> ppr n <> text " | mod: " <> ppr mod
-  extTyEnv <- getExtTyEnv
-  maybeHomeTyEnv <- getHomeTyEnv mod
-  --putMsg $ text "THIS IS A TEST HOME " <> ppr maybeHomeTyEnv <> text " | EXTERNAL : " <> ppr extTyEnv
-
-  case maybeHomeTyEnv of
-    Just homeTyEnv -> return (tyThingId <$> lookupNameEnv homeTyEnv n)
-    Nothing -> return (tyThingId <$> lookupNameEnv extTyEnv n)
-
-
-findName :: OccName -> Module -> CoreM Name
-findName occName mod = do
-  putMsg $ text "findName " <> ppr occName <> text " | " <> ppr mod
-  onc <- origNameCache
-  return $ fromJust $ D.trace (showPprUnsafe (ppr (moduleEnvToList onc))) lookupOrigNameCache onc mod occName --D.trace (showPprUnsafe (ppr (moduleEnvToList onc)))
-
-adv'Var :: CoreM Var
-adv'Var = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "adv'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "adv'"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-select'Var :: CoreM Var
-select'Var = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "select'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "select'"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-bigDelay :: CoreM Var
-bigDelay = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  let occName = mkOccName Occurrence.varName "Delay"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-inputValueVar :: CoreM TyCon
-inputValueVar = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  let occName = mkOccName Occurrence.tcName "InputValue"
-  name <- findName occName mod
-  lookupTyCon name
-  --maybeId <- nameToVar mod name
-  --return $ fromJust maybeId
-
-ordIntClass :: CoreM Var
-ordIntClass = do
-  origNameCache <- origNameCache
-  let [mod] = filter (("GHC.Classes" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let occName = mkOccName Occurrence.varName "$fOrdInt"
-  name <- findName occName mod
-  lookupId name
-
-unionVar :: CoreM Var
-unionVar = do
-  origNameCache <- origNameCache
-  let [mod] = filter (("Data.Set.Internal" ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let occName = mkOccName Occurrence.varName "union"
-  name <- findName occName mod
-  lookupId name
-
-extractClockVar :: CoreM Var
-extractClockVar = do
-  rattusMods <- rattusModules
-  let [mod] = (filter (("Rattus.Primitives" ==) . unpackFS . getModuleFS) . moduleEnvKeys) rattusMods
-  putMsg $ text "adv'Var: mod " <> ppr mod
-  let occName = mkOccName Occurrence.varName "extractClock"
-  name <- findName occName mod
-  maybeId <- nameToVar mod name
-  return $ fromJust maybeId
-
-
-rattusModules :: CoreM (ModuleEnv (OccEnv Name))
-rattusModules = do
-  origNameCache <- origNameCache
-  let rattusBindings = filterModuleEnv (\mod _ -> isRattModule (getModuleFS mod)) origNameCache
-  return rattusBindings
-
-primMap :: Map FastString Prim
-primMap = Map.fromList
-  [("delay", Delay),
-   ("adv", Adv),
-   ("select", Select),
-   ("box", Box),
-   ("arr", Arr)
-   ]
-
-
-isPrim :: Ctx -> Var -> Maybe Prim
-isPrim c v
-  | Just p <- Map.lookup v (primAlias c) = Just p
-  | otherwise = do
-  (name,mod) <- getNameModule v
-  if isRattModule mod then Map.lookup name primMap
-  else Nothing
-
 
 
 stabilize :: HiddenReason -> Ctx -> Ctx
@@ -274,13 +97,8 @@ pickFirst :: SrcSpan -> SrcSpan -> SrcSpan
 pickFirst s@RealSrcSpan{} _ = s
 pickFirst _ s = s
 
-
-typeError :: Ctx -> Var -> SDoc -> CoreM (Maybe TypeError)
-typeError ctx var doc =
-  return (Just (mkTypeError ctx var doc))
-
-mkTypeError :: Ctx -> Var -> SDoc -> TypeError
-mkTypeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
+typeError :: Ctx -> Var -> SDoc -> TypeError
+typeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
 
 emptyCtx :: CheckExpr -> Ctx
 emptyCtx c =
@@ -289,71 +107,15 @@ emptyCtx c =
         hidden = Map.empty,
         srcLoc = noLocationInfo,
         recDef = recursiveSet c,
-        primAlias = Map.empty,
         stableTypes = Set.empty,
         allowRecursion = allowRecExp c,
-        inDelay = False,
+        -- inDelay = False,
         hasSeenAdvSelect = False,
         fresh = Nothing
         }
 
-createPartialPrimInfo :: Prim -> Var -> PartialPrimInfo
-createPartialPrimInfo prim function = 
-  PartialPrimInfo {
-    primPart = prim,
-    functionPart = function,
-    argTypePart = Nothing,
-    argVarPart = Nothing,
-    arg2TypePart = Nothing,
-    arg2VarPart = Nothing
-  }
-
-{-
-isPrimExpr :: Ctx -> Expr Var -> Maybe (Prim,Var)
-isPrimExpr c (App e (Type _)) = isPrimExpr c e
-isPrimExpr c (App e e') | not $ tcIsLiftedTypeKind $ typeKind $ exprType e' = isPrimExpr c e
-isPrimExpr c (Var v) = fmap (,v) (isPrim c v)
-isPrimExpr c (Tick _ e) = isPrimExpr c e
-isPrimExpr c (Lam v e)
-  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr c e
-isPrimExpr _ _ = Nothing
--}
-
-validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
-validatePartialPrimInfo (PartialPrimInfo Select f (Just argT) (Just argV) (Just arg2T) (Just arg2V)) = Just PrimInfo { prim = Select, function = f, arg = (argV, argT), arg2 = Just (arg2V, arg2T)}
-validatePartialPrimInfo (PartialPrimInfo {primPart = Delay, functionPart = f, argTypePart = Just typ}) = Just PrimInfo {prim = Delay, function = f, arg = (undefined, typ), arg2 = Nothing}    -- UGLY HACK (connected to the one below)
-validatePartialPrimInfo (PartialPrimInfo p f (Just argT) (Just argV) Nothing Nothing) = Just PrimInfo { prim = p, function = f, arg = (argV, argT), arg2 = Nothing}
-validatePartialPrimInfo pPI@(PartialPrimInfo { primPart = p}) = D.trace ("INCORRECT STRUCTURE FOR " ++ showPprUnsafe (ppr p) ++ ": " ++ showPprUnsafe (ppr pPI)) Nothing 
-
-isPrimExpr :: Ctx -> Expr Var -> Maybe PrimInfo
-isPrimExpr ctx expr = case partPrimInfo of
-  Just pPI -> validatePartialPrimInfo pPI
-  Nothing -> Nothing
-  where partPrimInfo = isPrimExpr' ctx (D.trace ("isPrimExpr called with: " ++ showPprUnsafe (ppr expr)) expr) 
-
--- App (App (App (App f type) arg) Type2) arg2
-isPrimExpr' :: Ctx -> Expr Var -> Maybe PartialPrimInfo
-isPrimExpr' c (App e (Type t)) = case pPI of
-  Just partPrimInfo ->
-    case (argTypePart partPrimInfo, arg2TypePart partPrimInfo) of
-    (Just _, Nothing) -> Just partPrimInfo {arg2TypePart = Just t}
-    (Nothing, Nothing) -> Just partPrimInfo {argTypePart = Just t}
-    _ -> Nothing
-  Nothing -> Nothing
-  where pPI = isPrimExpr' c e
-isPrimExpr' c (App e e') = 
-  case isPrimExpr' c e of
-    Just partPrimInfo@(PartialPrimInfo { primPart = Delay}) -> Just partPrimInfo {argVarPart = Just undefined}    -- UGLY HACK!!! Our data model does not suit delay well.
-    Just partPrimInfo@(PartialPrimInfo { argVarPart = Nothing, arg2VarPart = Nothing}) -> Just partPrimInfo {argVarPart = getMaybeVar e'}
-    Just partPrimInfo@(PartialPrimInfo { argVarPart = Just _, arg2VarPart = Nothing}) -> Just partPrimInfo {arg2VarPart = getMaybeVar e'}
-    _ -> Nothing
-isPrimExpr' c (Var v) = case isPrim c v of
-  Just p ->  Just $ createPartialPrimInfo p v
-  Nothing -> Nothing 
-isPrimExpr' c (Tick _ e) = isPrimExpr' c e
-isPrimExpr' c (Lam v e)
-  | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = isPrimExpr' c e
-isPrimExpr' _ _ = Nothing
+inDelay :: Ctx -> Bool
+inDelay = isJust . earlier
 
 stabilizeLater :: Ctx -> Ctx
 stabilizeLater c =
@@ -381,12 +143,12 @@ instance Show SymbolicClock where
   show (Clock v) = "Clock " ++ (showSDocUnsafe . ppr) v
   show (Union c1 c2) = "Union (" ++ show c1 ++ ") (" ++ show c2 ++ ")"
 
-data CheckResult = CheckResult{
-  foundClock :: Maybe SymbolicClock
-} deriving Show
+newtype CheckResult = CheckResult{
+  advSelect :: Maybe Var
+}
 
-advSelect :: CheckResult -> Bool
-advSelect = isJust . foundClock
+emptyCheckResult :: CheckResult
+emptyCheckResult = CheckResult {advSelect = Nothing}
 
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
@@ -396,34 +158,12 @@ data CheckExpr = CheckExpr{
   allowRecExp :: Bool
   }
 
-checkExpr :: CheckExpr -> Expr Var -> CoreM (CoreExpr)
+checkExpr :: CheckExpr -> Expr Var -> CoreM Bool
 checkExpr c e = do
-  --let check = countAdvSelect' (emptyCtx c) e
-  putMsgS (showTree e)
-  av <- adv'Var
-  bigDelayVar <- bigDelay
-  unionV <- unionVar
-  putMsg $ text "checkExpr, adv' Var:" <> ppr av <> text " Delay: " <> ppr bigDelayVar <> text "ORD CLASS : " <> ppr unionV
-
-  e' <- transform (emptyCtx c) e
-  --name <- retrieveName "Rattus.Plugin.Replacements" "adv'"
-  --case name of
-  --  _ -> putMsgS ("Case stmt" ++ showSDocUnsafe (ppr name))
-  -- case check of
-  --  Left s -> putMsgS s
-  --  Right result -> putMsgS "Success"
-  putMsgS "OLD-AST"
-  putMsg (ppr e)
-  putMsgS "NEW AST"
-  putMsg (ppr e')
-  putMsgS "NEW TREE SHOW"
-  putMsgS (showTree e')
-  return e'
-{-
-  --res <- checkExpr' (emptyCtx c) e
+  res <- checkExpr' (emptyCtx c) e
   case res of
-    Nothing -> return ()
-    Just (TypeError src doc) ->
+    Right _ -> return True
+    Left (TypeError src doc) ->
       let sev = if fatalError c then SevError else SevWarning
       in if verbose c then do
         printMessage sev src ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
@@ -431,43 +171,35 @@ checkExpr c e = do
         liftIO $ putStrLn (showSDocUnsafe (ppr (oldExpr c)))
         liftIO $ putStrLn "-------- new --------"
         liftIO $ putStrLn (showSDocUnsafe (ppr e))
-         else
+        return $ not (fatalError c)
+         else do
         printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
                              "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
--}
-{-
-checkExpr' :: Ctx -> Expr Var -> CoreM (Maybe TypeError)
+        return $ not (fatalError c)
+        
+
+checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
-checkExpr' c@Ctx{current = cur, hidden = hid, earlier = earl} (App e1 e2) =
-  case isPrimExpr c e1 of
-    Just (p,v) -> case p of
-      Box -> do
-        checkExpr' (stabilize BoxApp c) e2
-      Arr -> do
-        checkExpr' (stabilize BoxApp c) e2
-
-      Delay -> (if inDelay c then typeError c v (text "Nested delays not allowed")
-                else checkExpr' c{current = Set.empty, earlier = Just cur, inDelay = True} e2)
-      Adv -> case earl of
-        Just er -> if hasSeenAdvSelect c then typeError c v (text "Only one adv/select allowed in a delay")
-                   else
-                    D.trace ("ADV arg: " ++ showSDocUnsafe (ppr e1)) $
-                    if isVar e2
-                    then return Nothing
-                    else typeError c v (text "can only advance on a variable")
-
-        Nothing -> typeError c v (text "can only advance under delay")
-      Select -> typeError c v (text "select not implemented")
-        --case earl of
-        --Just er | hasSeenAdvSelect c -> typeError c v (text "Only one adv/select allowed in a delay")
-        --        | not $ all isVar args -> return Nothing
-        --        | otherwise -> typeError c v (text "can only advance on a variable")
-        --Nothing -> typeError c v (text "Can only select under delay")
-    _ -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' c e2)
-checkExpr' c (Case e v _ alts) =
-    liftM2 (<|>) (checkExpr' c e) (liftM (foldl' (<|>) Nothing)
-                                   (mapM ((\ (_,vs,e)-> checkExpr' (addVars vs c') e) . getAlt) alts))
+checkExpr' c@Ctx{current = cur} expr@(App e e') =
+  case Prim.isPrimExpr expr of
+    Just (Prim.BoxApp _) ->
+      checkExpr' (stabilize BoxApp c) e'
+    Just (Prim.ArrApp _) ->
+      checkExpr' (stabilize BoxApp c) e'
+    Just (Prim.DelayApp f) ->
+      if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
+      else checkExpr' c{current = Set.empty, earlier = Just cur} e'
+    Just (Prim.AdvApp f _)  -> checkAdvSelect c Prim.Adv f
+    Just (Prim.SelectApp f _ _)-> checkAdvSelect c Prim.Select f
+    Nothing -> checkBoth c e e'
+checkExpr' c (Case e _ _ [Alt DEFAULT [] rhs]) = checkBoth c e rhs
+checkExpr' c (Case e v _ alts) = do
+    res <- checkExpr' c' e
+    let maybePrimVar = foldl (\acc (Alt _ _ altE) -> acc <|> recursiveIsPrimExpr altE) Nothing alts
+    case maybePrimVar of
+      Just _ -> return $ Left $ typeError c v "Primitives in case expressions are not allowed"
+      Nothing -> return res
   where c' = addVars [v] c
 checkExpr' c (Lam v e)
   | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = do
@@ -477,22 +209,25 @@ checkExpr' c (Lam v e)
             Just t -> c{stableTypes = Set.insert t (stableTypes c)}
       checkExpr' c' e
   | otherwise = checkExpr' (addVars [v] (stabilizeLater c)) e
-checkExpr' _ (Type _)  = return Nothing
-checkExpr' _ (Lit _)  = return Nothing
-checkExpr' _ (Coercion _)  = return Nothing
+checkExpr' _ (Type _)  = return $ Right emptyCheckResult
+checkExpr' _ (Lit _)  = return $ Right emptyCheckResult
+checkExpr' _ (Coercion _)  = return $ Right emptyCheckResult
 checkExpr' c (Tick (SourceNote span _name) e) =
   checkExpr' c{srcLoc = fromRealSrcSpan span} e
 checkExpr' c (Tick _ e) = checkExpr' c e
 checkExpr' c (Cast e _) = checkExpr' c e
-checkExpr' c (Let (NonRec v e1) e2) =
-  case isPrimExpr c e1 of
-    Just (p,_) -> (checkExpr' (c{primAlias = Map.insert v p (primAlias c)}) e2)
-    Nothing -> liftM2 (<|>) (checkExpr' c e1)  (checkExpr' (addVars [v] c) e2)
-checkExpr' _ (Let (Rec ([])) _) = return Nothing
+checkExpr' c (Let (NonRec v e1) e2) = do
+  c' <- checkAndUpdate c e1
+  case c' of
+    Left err -> return $ Left err
+    Right ctx -> checkExpr' (addVars [v] ctx) e2
+checkExpr' _ (Let (Rec ([])) _) = return $ Right emptyCheckResult
 checkExpr' c (Let (Rec binds) e2) = do
     r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
-    r2 <- checkExpr' (addVars vs c) e2
-    return (foldl' (<|>) Nothing r1 <|> r2)
+    let ctxE = foldl updateContextFromEithers (Right c) r1
+    case ctxE of
+      Left err -> return $ Left err
+      Right ctx -> checkExpr' (addVars vs ctx) e2
   where vs = map fst binds
         ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
         c' v = c {current = Set.empty,
@@ -502,26 +237,67 @@ checkExpr' c (Let (Rec binds) e2) = do
                   recDef = recDef c `Set.union` Set.fromList vs }
 checkExpr' c  (Var v)
   | tcIsLiftedTypeKind $ typeKind $ varType v =  case getScope c v of
-             Hidden reason -> typeError c v reason
-             Visible -> return Nothing
-  | otherwise = return Nothing
--}
+             Hidden reason -> return $ Left $ typeError c v reason
+             Visible -> return $ Right emptyCheckResult
+  | otherwise = return $ Right emptyCheckResult
+
+-- Assumes that Prim is either adv or select.
+checkAdvSelect :: Ctx ->Prim.Prim -> Var -> CoreM (Either TypeError CheckResult)
+checkAdvSelect c p f =
+  -- We only allow adv/select to be applied to variables.
+  -- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
+  if not $ inDelay c then return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
+  else if hasSeenAdvSelect c then return $ Left $ typeError c f (text "Only one " <> ppr p <> text " allowed in a delay")
+  else return $ Right $ emptyCheckResult {advSelect = Just f}
+
+
+recursiveIsPrimExpr :: CoreExpr -> Maybe Var
+recursiveIsPrimExpr expr@(App e e') =
+  case Prim.isPrimExpr expr of
+    Just primInfo -> Just $ Prim.function primInfo  
+    Nothing -> recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
+recursiveIsPrimExpr (Lam _ e) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Tick _ e) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Cast e _) = recursiveIsPrimExpr e
+recursiveIsPrimExpr (Let (NonRec _ e) e') = recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
+recursiveIsPrimExpr (Let (Rec binds) e) = foldl (\acc (_, e) -> acc <|> recursiveIsPrimExpr e) Nothing binds
+recursiveIsPrimExpr (Case e _ _ alts) = recursiveIsPrimExpr e <|> foldl (\acc (Alt _ _ e') -> acc <|> recursiveIsPrimExpr e') Nothing alts
+recursiveIsPrimExpr _ = Nothing
+
 
 
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
 
-emptyCheckResult :: CheckResult
-emptyCheckResult = CheckResult {foundClock = Nothing}
+checkBoth :: Ctx -> CoreExpr -> CoreExpr -> CoreM (Either TypeError CheckResult)
+checkBoth c e e' = do
+  c' <- checkAndUpdate c e
+  case c' of
+    Left err -> return $ Left err
+    Right ctx -> checkExpr' ctx e'
 
-updateCtxFromResult :: Ctx -> CheckResult -> Ctx
-updateCtxFromResult c r = if advSelect r then c {hasSeenAdvSelect = advSelect r} else c
+updateCtxFromResult :: Ctx -> CheckResult -> Either TypeError Ctx
+updateCtxFromResult c@(Ctx {hasSeenAdvSelect = True}) (CheckResult {advSelect = Just v}) = Left $ typeError c v "Only one adv/select allowed in a delay"
+updateCtxFromResult c@(Ctx {hasSeenAdvSelect = hasSeen}) r = Right $ c {hasSeenAdvSelect = hasSeen || isJust (advSelect r)}
 
---checkAndUpdate :: Ctx -> Expr Var -> Either String Ctx
---checkAndUpdate c e = fmap (updateCtxFromResult c) (countAdvSelect' c e)
+updateCtxFromResult' :: Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
+updateCtxFromResult' c e = do
+  res <- e
+  updateCtxFromResult c res
+
+checkAndUpdate :: Ctx -> Expr Var -> CoreM (Either TypeError Ctx)
+checkAndUpdate c e = do
+  res <- checkExpr' c e
+  case res of
+    Left err -> return $ Left err
+    Right r -> return $ updateCtxFromResult c r
+
+updateContextFromEithers :: Either TypeError Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
+updateContextFromEithers c r = do
+  ctx <- c
+  updateCtxFromResult' ctx r
 
 {-
--- called on the subtree to which a delay is applied
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
 countAdvSelect' ctx (App e e') = case isPrimExpr ctx e of
       Just (p, _) -> case D.trace ("we have met a prim: " ++ showSDocUnsafe (ppr p)) p of
@@ -557,155 +333,3 @@ countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
 countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
 countAdvSelect' _ _ = Right emptyCheckResult
 -}
-
-replaceVar :: Var -> Var -> Expr Var ->  Expr Var
-replaceVar match rep (Var v) = if v == match then D.trace ("RREPLACING MATCH WITH REP: " ++ showPprUnsafe (ppr (Var rep :: Expr Var)) ++ " REPLACED: " ++ showPprUnsafe (ppr (Var v :: Expr Var))) Var rep else Var v
-replaceVar match rep (App e e') = App (replaceVar match rep e) (replaceVar match rep e')
-replaceVar match rep (Tick _ e) = replaceVar match rep e
-replaceVar match rep (Lam v e) = Lam (if v == match then rep else v) (replaceVar match rep e) 
-replaceVar match rep (Let (NonRec b e') e) = 
-  Let (NonRec newB (replaceVar  match rep e')) (replaceVar match rep e)
-  where newB = if b == match then rep else b
-replaceVar match rep (Cast e _) = replaceVar match rep e
-replaceVar match rep (Case e b t alts) = 
-  Case newExpr newB t (map (\(Alt con binds expr) -> Alt con (map (\v -> if v == match then rep else v) binds) (replaceVar match rep expr)) alts)
-  where newExpr = replaceVar match rep e
-        newB = if b == match then rep else b
-replaceVar _ _ e = e
-
-transformAdv :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type)))
-transformAdv ctx expr@(App e e') = case isPrimExpr ctx expr of
-  Just (PrimInfo {prim = Adv, function = f, arg = arg}) -> do
-    putMsgS "I HIT TRANSFORM"
-    varAdv' <- adv'Var
-    let newE = replaceVar f varAdv' e
-    return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg)
-  _ -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error "transformAdv: Can only transform adv"
-transformAdv _ _ = do 
-  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-
-transformSelect :: Ctx -> Expr Var -> CoreM ((Expr Var, (Var, Type), (Var, Type)))
-transformSelect ctx expr@(App e e') = case isPrimExpr ctx expr of
-  Just (PrimInfo {prim = Select, function = f, arg = arg, arg2 = Just arg2}) -> do
-    putMsgS ("I HIT TRANSFORM SELECT " ++ (showTree expr) ++ "THIS IS ARGS FOR SELECT" ++showSDocUnsafe (ppr arg <> text " | " <> ppr arg2)) 
-    varSelect' <- select'Var
-    let newE = replaceVar f varSelect' e
-    return ((App (App newE e') (Var (fromJust $ fresh ctx))), arg, arg2)
-  _ -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
-        error "transformAdv: Can only transform select"
-transformSelect _ _ = do 
-  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-  error "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
-
-transform :: Ctx -> Expr Var -> CoreM (Expr Var)
-transform ctx e = do
-  (e', _, _) <- transform' ctx e
-  return e'
-
-hdd :: (a, b, c) -> a
-hdd (a, b, c) = a
-
-
-clockUnion :: Var -> Var -> Var -> (Var,Type) -> (Var, Type) -> Expr Var
-clockUnion unionVar ordInt extractClock (arg1Var, arg1Type) (arg2Var, arg2Type) = 
-  App 
-  (
-    App 
-    (
-      App 
-      (
-        App (Var unionVar) (Type intTy)
-      )
-      (
-        Var ordInt
-      )
-    )
-    (
-      App 
-      (
-        App (Var extractClock) (Type arg1Type)
-      )
-      (
-        Var arg1Var
-      )
-    )
-  )
-  (
-    App 
-    (
-      App (Var extractClock) (Type arg2Type)
-    )
-    (
-      Var arg2Var
-    )
-  )
-
-transform' :: Ctx -> Expr Var -> CoreM ((Expr Var, Maybe (Var, Type), Maybe (Var, Type)))
-transform' ctx expr@(App e e') = case D.trace ("This is our application " ++ (showSDocUnsafe $ ppr expr)) isPrimExpr ctx expr of 
-  Just (PrimInfo {prim = Adv}) -> do
-    putMsg $ text "Adv Expr before - " <> ppr e
-    (newExpr, arg) <- transformAdv ctx expr
-    putMsg $ text "Adv Expr after - " <> ppr newExpr
-    return $ (newExpr, Just (arg), Nothing)
-  Just (PrimInfo {prim = Select}) -> do 
-    putMsg $ text "Select Expr before - " <> ppr e
-    (newExpr, arg, arg2) <- transformSelect ctx expr
-    putMsg $ text "Select Expr after - " <> ppr newExpr
-    return $ (newExpr, Just arg, Just arg2)
-  Just (PrimInfo {prim = Delay, arg=(_, typ)}) -> do
-    bigDelayVar <- bigDelay
-    inputValueV <- inputValueVar
-    extractClock <- extractClockVar
-    putMsg $ text "VALUEEEE - " <> ppr inputValueV
-    let inputValueType = mkTyConTy inputValueV --Change name of variable
-    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
-    let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
-    putMsg $ text "FRESHVAR - " <> ppr inpVarR
-    let ctx' = ctx {fresh = Just inpVarR}
-    (newExpr, arg, arg2) <- transform' ctx' e'
-    case (arg, arg2) of 
-      (Just (clVar, typeAdv), Nothing) -> do
-        let lambdaExpr = Lam inpVarR newExpr
-        putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
-        --lambdaVar <- fail "hello"
-        return $ ((App (App (Var bigDelayVar) (App (App (Var extractClock) (Type (typeAdv))) (Var clVar))) lambdaExpr), Nothing, Nothing) --App e e'
-      (Just (clVar, typeAdv), Just (clVar2, typeAdv2)) -> do
-        let lambdaExpr = Lam inpVarR newExpr
-        ordInt <- ordIntClass
-        unionV <- unionVar
-        putMsg $ text "LAMBDA EXPR - " <> ppr lambdaExpr
-        --lambdaVar <- fail "hello"
-        return $ ((App (App (Var bigDelayVar) (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))) lambdaExpr), Nothing, Nothing) --App e e' (clockUnion unionV ordInt extractClock (clVar, typeAdv) (clVar2, typeAdv2))
-      (Nothing, Nothing) -> error "NO CLOCK PRESENT"
-      (_,_) -> error "INCORRECT STRUCTURE (CANNOT HAPPEN I THINK)"
-  Just _ -> do
-        (newExpr, cl, typeAdv) <- transform' ctx e'
-        return $ (App e newExpr, cl, typeAdv)
-  Nothing -> do
-    (expr, cl, typeAdv) <- transform' ctx e
-    (expr', cl', typeAdv') <- transform' ctx e'
-    case (cl, cl') of 
-      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
-      (Just c1, Nothing) -> return (App expr expr', Just c1, typeAdv)
-      (Nothing, Just c2) -> return (App expr expr', Just c2, typeAdv')
-      (Nothing, Nothing) -> return (App expr expr', Nothing, Nothing)
-transform' ctx (Lam b rhs) = transform' ctx rhs >>= \(expr, cl, typeAdv) -> return (Lam b expr, cl, typeAdv)  
-transform' ctx (Let (NonRec b e') e) = do 
-    (nonRecExpr, cl, typeAdv) <- transform' ctx e'
-    (letBodyExpr, cl',typeAdv') <- transform' ctx e
-    case (cl, cl') of 
-      (Just c1, Just c2) -> error "MULTIPLE CLOCKS"
-      (Just c1, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c1, typeAdv)
-      (Nothing, Just c2) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Just c2, typeAdv')
-      (Nothing, Nothing) -> return (Let (NonRec b nonRecExpr) letBodyExpr, Nothing, Nothing)
-transform' ctx (Case e b t alts) = do
-    (expr, cl, typeAdv) <- transform' ctx e
-    alts' <- mapM (\(Alt con binds expr) -> transform' ctx expr >>= (return . Alt con binds . hdd)) alts
-    return $ D.trace ("CLOCKEXTRACT: " ++ showPprUnsafe (ppr cl))(Case expr b t alts', cl, typeAdv)
-transform' ctx (Cast e _) = transform' ctx e
-transform' ctx (Tick _ e) = transform' ctx e
-transform' _ e = return (e, Nothing, Nothing)

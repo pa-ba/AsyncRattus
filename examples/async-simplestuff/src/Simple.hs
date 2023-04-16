@@ -47,8 +47,6 @@ addOne li = delay (adv li + 22)
 --naiveIf b x y = delay (b, adv (if b then x else y))
 
  
--- Fungerer ikke endnu, fordi select-primitiven ikke er implementeret.
--- Skal komme til at fungere
 describe :: O a -> O b -> O Int
 describe a b = delay (case D.trace ("DESCRIBE a: " ++ show a ++ " b: " ++ show b) (select a b) of
             Both _ _ -> 1

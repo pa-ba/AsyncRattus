@@ -13,7 +13,6 @@ module Rattus.Primitives where
   ,Value
   ,delay
   ,delay'
-  ,delayCustom
   ,extractF
   ,extractClock
   ,adv
