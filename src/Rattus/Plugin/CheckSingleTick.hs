@@ -187,7 +187,7 @@ checkExpr' c@Ctx{current = cur} expr@(App e e') =
       checkExpr' (stabilize BoxApp c) e'
     Just (Prim.ArrApp _) ->
       checkExpr' (stabilize BoxApp c) e'
-    Just (Prim.DelayApp f) ->
+    Just (Prim.DelayApp f _) ->
       if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
       else checkExpr' c{current = Set.empty, earlier = Just cur} e'
     Just (Prim.AdvApp f _)  -> checkAdvSelect c Prim.Adv f

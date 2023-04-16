@@ -46,7 +46,7 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
     return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
-  Just (DelayApp _) -> do
+  Just (DelayApp _ t) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
     let inputValueType = mkTyConTy inputValueV --Change name of variable
@@ -57,7 +57,7 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     let primInfo = fromJust maybePrimInfo
     let lambdaExpr = Lam inpVar newExpr
     clockCode <- constructClockExtractionCode primInfo
-    return (App (App (Var bigDelayVar) clockCode) lambdaExpr, primInfo)
+    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, primInfo)
   Just primInfo -> do
         --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
         error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
@@ -72,6 +72,8 @@ transform expr = do
     (newExpr, _) <- transform' emptyCtx expr
     putMsgS "OLD-AST"
     putMsg (ppr expr)
+    putMsgS "OLD TREE SHOW"
+    putMsgS (showTree expr)
     putMsgS "NEW AST"
     putMsg (ppr newExpr)
     putMsgS "NEW TREE SHOW"

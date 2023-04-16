@@ -63,6 +63,11 @@ main = do
     let o = adv' z (3, IntValue 3)
     print o
 
+    print "Naive"
+    let n = naiveIf False (Delay (Set.singleton 1) (\(1, IntValue i) -> i + 1)) (Delay (Set.singleton 2) (\(2, IntValue i) -> i + 2))
+    let l = adv' n (2, IntValue 1)
+    print l
+
 
 {-
 main = play

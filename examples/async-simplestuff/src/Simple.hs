@@ -43,8 +43,9 @@ addOne li = delay (adv li + 22)
 -- still be better than Rattus.
 
 -- should maybe work?
---naiveIf :: Bool -> O a -> O a -> O (Bool, a)
---naiveIf b x y = delay (b, adv (if b then x else y))
+naiveIf :: Bool -> O a -> O a -> O (Bool, a)
+naiveIf b x y = delay (b, adv (if b then x else y))
+    
 
  
 describe :: O a -> O b -> O Int
