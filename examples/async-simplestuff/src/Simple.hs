@@ -1,12 +1,12 @@
 module Simple where
 
 import Rattus
-import Rattus.Stream (Str(..))
-import Rattus.ToHaskell
+--import Rattus.Stream (Str(..))
 import Rattus.Primitives
 import qualified Data.Set as Set
-import Prelude hiding (Left, Right)
-import Debug.Trace as D
+import Prelude hiding (Left, Right, map)
+import Rattus.Later (map)
+import Rattus.Channels (mkChannels, InputFunc)
 
 {-# ANN module Rattus #-}
 data Test a = IntTest Int a
@@ -18,6 +18,18 @@ test = IntTest 1 True
 
 test2 :: Set.Set Int
 test2 = Set.union (Set.singleton 1) (Set.singleton 2)
+
+(input, [kbChannel, mouseChannel]) = mkChannels ["keyboard", "mouse"]
+
+keyboard :: O Char
+keyboard = map (\(CharValue c) -> c) kbChannel
+
+describeChar :: Char -> String
+describeChar c = "This keyboard input just arrived " ++ show c
+
+describeKeyboard :: O String
+describeKeyboard = map describeChar keyboard
+
 -- should work
 id3 :: O a -> O a
 id3 a = delay (adv a)
@@ -49,7 +61,7 @@ naiveIf b x y = delay (b, adv (if b then x else y))
 
  
 describe :: O a -> O b -> O Int
-describe a b = delay (case D.trace ("DESCRIBE a: " ++ show a ++ " b: " ++ show b) (select a b) of
+describe a b = delay (case select a b of
             Both _ _ -> 1
             Left _ _ -> 2
             Right _ _ -> 3)

@@ -109,19 +109,19 @@ getTyConFromModule :: String -> String -> CoreM TyCon
 getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
 
 adv'Var :: CoreM Var
-adv'Var = getVarFromModule "Rattus.Primitives" "adv'"
+adv'Var = getVarFromModule "Rattus.InternalPrimitives" "adv'"
 
 select'Var :: CoreM Var
-select'Var = getVarFromModule "Rattus.Primitives" "select'"
+select'Var = getVarFromModule "Rattus.InternalPrimitives" "select'"
 
 bigDelay :: CoreM Var
-bigDelay = getVarFromModule "Rattus.Primitives" "Delay"
+bigDelay = getVarFromModule "Rattus.InternalPrimitives" "Delay"
 
 inputValueVar :: CoreM TyCon
-inputValueVar = getTyConFromModule "Rattus.Primitives" "InputValue"
+inputValueVar = getTyConFromModule "Rattus.InternalPrimitives" "InputValue"
 
 extractClockVar :: CoreM Var
-extractClockVar = getVarFromModule "Rattus.Primitives" "extractClock"
+extractClockVar = getVarFromModule "Rattus.InternalPrimitives" "extractClock"
 
 ordIntClass :: CoreM Var
 ordIntClass = getVarFromModule "GHC.Classes" "$fOrdInt"
@@ -142,7 +142,7 @@ instance Ord FastString where
 
 rattModules :: Set FastString
 rattModules = Set.fromList ["Rattus.Internal","Rattus.Primitives"
-                           ,"Rattus.Stable", "Rattus.Arrow"]
+                           ,"Rattus.Stable", "Rattus.Arrow", "Rattus.InternalPrimitives"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName

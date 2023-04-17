@@ -17,7 +17,7 @@ build-type:          Simple
 executable testprog
   hs-source-dirs:      src
   main-is:             Main.hs
-  other-modules:       StandardLibrary, Simple
+  other-modules:       Simple
   default-language:    Haskell2010
   build-depends:       Rattus, base, containers, gloss
   ghc-options:         -fplugin=Rattus.Plugin -dverbose-core2core -O0

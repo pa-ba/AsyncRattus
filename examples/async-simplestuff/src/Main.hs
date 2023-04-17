@@ -1,14 +1,13 @@
 module Main where
 
-import StandardLibrary
-import Rattus.ToHaskell
+--import StandardLibrary
 import Rattus.Primitives
 import Graphics.Gloss.Interface.Pure.Game
-import Rattus.Stream
 import Debug.Trace as D
 import qualified Data.Set as Set
 import Simple
 
+{-
 type World = (Maybe InputValue, String, O(Str String))
 
 initial' :: World
@@ -32,8 +31,11 @@ step' _ world = world
 sizex = 1512 
 sizey = 982 
 
+-}
+
 main :: IO ()
 main = do
+    {-
     print "THIS IS BEFORE"
     let a = addOne (Delay (Set.singleton 1) (\(1, IntValue i) -> D.trace ("LATER RETURNING: " ++ show i) i))
     print "THIS IS AFTER A IS DEFINED"
@@ -67,6 +69,9 @@ main = do
     let n = naiveIf False (Delay (Set.singleton 1) (\(1, IntValue i) -> i + 1)) (Delay (Set.singleton 2) (\(2, IntValue i) -> i + 2))
     let l = adv' n (2, IntValue 1)
     print l
+    -}
+    
+    print $ input "keyboard" (CharValue 'c') describeKeyboard
 
 
 {-

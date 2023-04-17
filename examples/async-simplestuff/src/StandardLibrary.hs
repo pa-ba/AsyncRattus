@@ -4,7 +4,6 @@ module StandardLibrary where
 
 import Rattus
 import Rattus.Stream hiding (scan)
-import Rattus.ToHaskell
 import Rattus.Primitives
 import Prelude hiding (Left, Right)
 import qualified Data.Set as Set
