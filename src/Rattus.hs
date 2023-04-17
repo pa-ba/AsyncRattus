@@ -32,12 +32,12 @@ import Rattus.Primitives
 
 -- | Applicative operator for 'O'.
 {-# INLINE (<#>) #-}
-(<#>) :: O (a -> b) -> O a -> O b
+(<#>) :: O v (a -> b) -> O v a -> O v b
 f <#> x = delay (adv f (adv x))
 
 -- | Variant of '<#>' where the argument is of a stable type..
 {-# INLINE (<##) #-}
-(<##) :: Stable a => O (a -> b) -> a -> O b
+(<##) :: Stable a => O v (a -> b) -> a -> O v b
 f <## x = delay (adv f x)
 
 -- | Applicative operator for 'Box'.

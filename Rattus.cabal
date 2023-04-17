@@ -140,7 +140,6 @@ library
                        Rattus.Strict
                        --Rattus.Event
                        --Rattus.Future
-                       Rattus.Yampa
                        Rattus.Plugin
                        Rattus.Arrow
                        Rattus.Primitives

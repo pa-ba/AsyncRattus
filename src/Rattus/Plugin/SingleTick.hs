@@ -188,4 +188,4 @@ isPrimVar p v = maybe False id $ do
   let occ = getOccString name
   return (p occ
           && ((moduleNameString (moduleName mod) == "Rattus.Internal") ||
-          moduleNameString (moduleName mod) == "Rattus.Primitives"))
+          moduleNameString (moduleName mod) == "Rattus.InternalPrimitives"))

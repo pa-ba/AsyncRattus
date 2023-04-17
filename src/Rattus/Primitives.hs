@@ -9,7 +9,6 @@
 module Rattus.Primitives
   (O
   ,Box
-  ,Value(..)
   ,Select(..)
   ,Clock
   ,delay

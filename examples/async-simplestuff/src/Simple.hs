@@ -10,7 +10,8 @@ import Rattus.Channels (mkChannels, InputFunc)
 
 {-# ANN module Rattus #-}
 data Test a = IntTest Int a
-type Input2Test = (Int, Value)
+
+data MyValue = IntValue Int | BoolValue Bool | CharValue Char
 
 --Constant
 test :: Test Bool
@@ -21,21 +22,21 @@ test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 
 (input, [kbChannel, mouseChannel]) = mkChannels ["keyboard", "mouse"]
 
-keyboard :: O Char
+keyboard :: O MyValue Char
 keyboard = map (\(CharValue c) -> c) kbChannel
 
 describeChar :: Char -> String
 describeChar c = "This keyboard input just arrived " ++ show c
 
-describeKeyboard :: O String
+describeKeyboard :: O MyValue String
 describeKeyboard = map describeChar keyboard
 
 -- should work
-id3 :: O a -> O a
+id3 :: O v a -> O v a
 id3 a = delay (adv a)
 
 -- should work
-addOne :: O Int -> O Int
+addOne :: O v Int -> O v Int
 addOne li = delay (adv li + 22)
 
 -- It is not _in general_ legal to advance on anything other than a var.
@@ -45,22 +46,32 @@ addOne li = delay (adv li + 22)
 --id4 :: O Int -> O Int
 --id4 x = delay (adv (delay (adv x)))
 
--- should not work since we cannot guarantee that the clocks of x and y are compatible.
--- however, the compiler synthesizes a fresh variable with the result of the if statement, so we cannot
+-- should work since we can extract the clock of the variable at runtime.
+-- because of the toSingleTick pass, the result of the if-expression is bound to a new variable, so we cannot
 -- distinguish between a legal variable and a synthesized one.
--- the general case: if we bind one of several later values to a variable ie. in a case statement,
+
+-- Right now, we are not ensured that clocks are compatible. This can lead to runtime errors. How to handle this?
+-- The general case: if we bind one of several later values to a variable ie. in a case statement,
 -- how do we know the clock at compile time?
 
 -- possible solution: union clocks. This means that values may be recomputed unnecessarily. It would
 -- still be better than Rattus.
 
--- should maybe work?
-naiveIf :: Bool -> O a -> O a -> O (Bool, a)
-naiveIf b x y = delay (b, adv (if b then x else y))
-    
+-- should work
+naiveIf :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf b x y = delay (b, adv later)
+    where
+        later = case b of
+            True -> x
+            False -> x
 
+
+
+-- should not work
+naiveIf' :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf' b x y = delay (b, adv (if b then x else y))
  
-describe :: O a -> O b -> O Int
+describe :: O v a -> O v b -> O v Int
 describe a b = delay (case select a b of
             Both _ _ -> 1
             Left _ _ -> 2

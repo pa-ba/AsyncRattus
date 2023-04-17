@@ -11,20 +11,20 @@ import Data.Maybe (fromMaybe)
 
 -- Function for providing input to a later
 --             Channel name | value | later
-type InputFunc a = String -> Value -> O a -> a
-type InputChannel = O Value
+type InputFunc v a = String -> v -> O v a -> a
+type InputChannel v = O v v
 
-input :: Map String Int -> String -> Value -> O a -> a
+input :: Map String Int -> String -> v -> O v a -> a
 input nameToId name v later = adv' later (id, v)
     where id = fromMaybe (error "No such input channel") (lookup name nameToId)
 
-mkChannelFromId :: InputChannelIdentifier -> InputChannel
+mkChannelFromId :: InputChannelIdentifier -> InputChannel v
 mkChannelFromId id = Delay (Set.singleton id) snd
 
 index :: [a] -> [Int]
 index = zipWith const [0..]
 
-mkChannels :: [String] -> (InputFunc a, [O Value])
+mkChannels :: [String] -> (InputFunc v a, [O v v])
 mkChannels names = (input nameMapping, map mkChannelFromId $ index names)
     where nameMapping = constructNameMapping names
           

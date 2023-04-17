@@ -43,7 +43,7 @@ data List a = Nil | !a :! !(List a)
 
 -- | Turns a list of delayed computations into a delayed computation
 -- that produces a list of values.
-listDelay :: List (O a) -> O (List a)
+listDelay :: List (O v a) -> O v (List a)
 listDelay Nil = delay Nil
 listDelay (x :! xs) = let xs' = listDelay xs in delay (adv x :! adv xs')
 

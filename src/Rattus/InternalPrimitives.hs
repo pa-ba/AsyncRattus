@@ -11,14 +11,14 @@ type Clock = Set InputChannelIdentifier
 -- A value that arrives on an input channel
 data Value = IntValue Int | CharValue Char | BoolValue Bool deriving (Show)
 
-type InputValue = (InputChannelIdentifier, Value)
+type InputValue a = (InputChannelIdentifier, a)
 
 -- | The "later" type modality. A value of type @O a@ is a computation
 -- that produces a value of type @a@ in the next time step. Use
 -- 'delay' and 'adv' to construct and consume 'O'-types.
-data O a = Delay Clock (InputValue -> a)
+data O v a = Delay Clock (InputValue v -> a)
 
-data Select a b = Left !a !(O b) | Right !(O a) !b | Both !a !b
+data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
 
 -- | This is the constructor for the "later" modality 'O':
 --
@@ -27,16 +27,16 @@ data Select a b = Left !a !(O b) | Right !(O a) !b | Both !a !b
 -- >  Γ ⊢ delay t :: O 𝜏
 --
 {-# INLINE [1] delay #-}
-delay :: a -> O a
+delay :: a -> O v a
 delay x = Delay undefined (const x)
 
-delay' :: Clock -> a -> O a
+delay' :: Clock -> a -> O v a
 delay' cl a = Delay cl (const a)
 
-extractClock :: O a -> Clock
-extractClock (Delay cl f) = cl
+extractClock :: O v a -> Clock
+extractClock (Delay cl _) = cl
 
-adv' :: O a -> InputValue -> a
+adv' :: O v a -> InputValue v -> a
 adv' (Delay _ f) = f
 
 
@@ -47,14 +47,14 @@ adv' (Delay _ f) = f
 -- >  Γ ✓ Γ' ⊢ adv t :: 𝜏
 --
 {-# INLINE [1] adv #-}
-adv :: O a -> a
+adv :: O v a -> a
 adv (Delay _ _) = undefined
 
 
-select :: O a -> O b -> Select a b
+select :: O v a -> O v b -> Select v a b
 select a b = select' a b undefined
 
-select' :: O a -> O b -> InputValue -> Select a b
+select' :: O v a -> O v b -> InputValue v -> Select v a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
   | chId `elem` clA && chId `elem` clB = Both (inpFA inputValue) (inpFB inputValue)
   | chId `elem` clA = Left (inpFA inputValue) b
@@ -89,7 +89,7 @@ data Box a = Box a
 -- >  Γ ⊢ box t :: Box 𝜏
 --
 -- where Γ☐ is obtained from Γ by removing ✓ and any variables @x ::
--- 𝜏@, where 𝜏 is not a stable type.
+-- 𝜏@, wheere 𝜏 is not a stable type.
 
 {-# INLINE [1] box #-}
 box :: a -> Box a
