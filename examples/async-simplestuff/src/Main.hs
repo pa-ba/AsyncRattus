@@ -2,6 +2,7 @@ module Main where
 
 --import StandardLibrary
 import Rattus.Primitives
+import Rattus.Stream (Str(..), tl)
 import Graphics.Gloss.Interface.Pure.Game
 import Debug.Trace as D
 import qualified Data.Set as Set
@@ -72,6 +73,14 @@ main = do
     -}
     
     print $ input "keyboard" (CharValue 'c') describeKeyboard
+    let (x ::: xs) = input "num" (IntValue 8) mappedStr
+    print x
+    let (x2 ::: xs2) = input "num" (IntValue 800) xs
+    print x2
+    let (y ::: ys) = input "num" (IntValue 10) (tl scannedStr)
+    print y
+    let (y2 ::: ys2) = input "num" (IntValue 20) ys
+    print y2
 
 
 {-

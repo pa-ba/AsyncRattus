@@ -136,7 +136,7 @@ custom-setup
 
 library
   exposed-modules:     Rattus
-                       --Rattus.Stream
+                       Rattus.Stream
                        Rattus.Strict
                        --Rattus.Event
                        --Rattus.Future
