@@ -20,7 +20,7 @@ test = IntTest 1 True
 test2 :: Set.Set Int
 test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 
-(input, [kbChannel, mouseChannel, numChannel, num2Channel]) = mkChannels ["keyboard", "mouse", "num", "num2"]
+(input, inputMaybe, depend, [kbChannel, mouseChannel, numChannel, num2Channel, num3Channel]) = mkChannels ["keyboard", "mouse", "num", "num2", "num3"]
 
 keyboard :: O MyValue Char
 keyboard = map (\(CharValue c) -> c) kbChannel
@@ -36,6 +36,9 @@ num = map (\(IntValue i) -> i) numChannel
 
 num2 :: O MyValue Int
 num2 = map (\(IntValue i) -> i) num2Channel
+
+num3 :: O MyValue Int
+num3 = map (\(IntValue i) -> i) num3Channel
 
 -- should work
 id3 :: O v a -> O v a
@@ -83,6 +86,7 @@ describe a b = delay (case select a b of
             Left _ _ -> 2
             Right _ _ -> 3)
 
+
 maybe :: O v (Maybe a) -> a -> O v a
 maybe later d =
     delay (
@@ -102,6 +106,8 @@ constIf0 i later =
 
 const47Later = constIf0 0 num
 const48Later = constIf0 1 num
+const49Later = constIf0 2 num2
+const50Later = constIf0 2 num3
 idLater = constIf0 2 num
 
 {-

@@ -70,14 +70,21 @@ main = do
     let l = adv' n (2, IntValue 1)
     print l
     -}
-    
+
     print $ input "keyboard" (CharValue 'c') describeKeyboard
     print $ input "num" (IntValue 100) const47Later
     print $ input "num" (IntValue 100) const48Later
     print $ input "num" (IntValue 100) idLater
     print $ input "num" (IntValue 300) myFunkyExample
     print $ input "num" (IntValue 350) myFunkyExample2
-
+    print $ depend describeKeyboard
+    let laterDescribe = describe const47Later const49Later
+    let laterLater = describe laterDescribe const50Later
+    print $ depend laterLater
+    print $ inputMaybe "num2" (IntValue 350) const50Later
+    
+    -- Fails as expected
+    --print $ input "num2" (IntValue 350) const50Later
 
 {-
 main = play
