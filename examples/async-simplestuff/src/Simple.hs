@@ -20,7 +20,7 @@ test = IntTest 1 True
 test2 :: Set.Set Int
 test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 
-(input, [kbChannel, mouseChannel]) = mkChannels ["keyboard", "mouse"]
+(input, [kbChannel, mouseChannel, numChannel, num2Channel]) = mkChannels ["keyboard", "mouse", "num", "num2"]
 
 keyboard :: O MyValue Char
 keyboard = map (\(CharValue c) -> c) kbChannel
@@ -30,6 +30,12 @@ describeChar c = "This keyboard input just arrived " ++ show c
 
 describeKeyboard :: O MyValue String
 describeKeyboard = map describeChar keyboard
+
+num :: O MyValue Int
+num = map (\(IntValue i) -> i) numChannel
+
+num2 :: O MyValue Int
+num2 = map (\(IntValue i) -> i) num2Channel
 
 -- should work
 id3 :: O v a -> O v a
@@ -76,6 +82,58 @@ describe a b = delay (case select a b of
             Both _ _ -> 1
             Left _ _ -> 2
             Right _ _ -> 3)
+
+maybe :: O v (Maybe a) -> a -> O v a
+maybe later d =
+    delay (
+        case adv later of
+            Nothing -> d
+            Just i -> i
+    )
+
+constIf0 :: Int -> O v Int -> O v Int
+constIf0 i later =
+    delay (
+        case i of
+            0 -> 47
+            1 -> 48
+            _ -> adv later
+    )
+
+const47Later = constIf0 0 num
+const48Later = constIf0 1 num
+idLater = constIf0 2 num
+
+{-
+naiveSwitch :: Int -> O v Int -> O v Int -> O v Int
+naiveSwitch i later1 later2 =
+    delay (
+        case i of
+            0 -> adv later1
+            _ -> adv later2
+    )
+
+naiveSwitch1 = naiveSwitch 0 num num2
+naiveSwitch2 = naiveSwitch 1 num num2
+-}
+
+funkyExample :: Int -> O v Int -> O v Int
+funkyExample n later =
+    delay (
+        case n of
+            0 -> adv later
+            _ -> 
+                case select later later of
+                    Left a _ -> a
+                    Right _ b -> b
+                    Both a b -> a + b
+    )
+
+myFunkyExample :: O MyValue Int
+myFunkyExample = funkyExample 0 num
+
+myFunkyExample2 :: O MyValue Int
+myFunkyExample2 = funkyExample 1 num
 
 
 -- invalid. We do not support nested delays

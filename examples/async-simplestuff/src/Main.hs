@@ -72,6 +72,11 @@ main = do
     -}
     
     print $ input "keyboard" (CharValue 'c') describeKeyboard
+    print $ input "num" (IntValue 100) const47Later
+    print $ input "num" (IntValue 100) const48Later
+    print $ input "num" (IntValue 100) idLater
+    print $ input "num" (IntValue 300) myFunkyExample
+    print $ input "num" (IntValue 350) myFunkyExample2
 
 
 {-
