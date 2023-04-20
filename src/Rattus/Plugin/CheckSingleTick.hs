@@ -99,6 +99,9 @@ pickFirst _ s = s
 typeError :: Ctx -> Var -> SDoc -> TypeError
 typeError ctx var = TypeError (pickFirst (srcLoc ctx) (nameSrcSpan (varName var)))
 
+instance Outputable TypeError where
+  ppr (TypeError srcLoc sdoc) = text "TypeError at " <> ppr srcLoc <> text ": " <> ppr sdoc
+
 emptyCtx :: CheckExpr -> Ctx
 emptyCtx c =
   Ctx { current =  Set.empty,
@@ -134,12 +137,26 @@ isStableConstr t =
         _ -> return Nothing
     _ ->  return Nothing
 
+-- should be equatable
+type SymbolicClock = Set Var
+
+mkClock1 :: Var -> SymbolicClock
+mkClock1 = Set.singleton
+
+mkClock2 :: Var -> Var -> SymbolicClock
+mkClock2 v1 v2 = Set.fromList [v1, v2]
+
 newtype CheckResult = CheckResult{
-  advSelect :: Maybe Var
+  -- if present, contains the variable of the primitive applied so we can report its position
+  -- in case of an error, and the clock for the primitive
+  prim :: Maybe (Var, SymbolicClock)
 }
 
+instance Outputable CheckResult where
+  ppr (CheckResult prim) = text "CheckResult {prim = " <> ppr prim <> text "}"
+
 emptyCheckResult :: CheckResult
-emptyCheckResult = CheckResult {advSelect = Nothing}
+emptyCheckResult = CheckResult {prim = Nothing}
 
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
@@ -181,10 +198,11 @@ checkExpr' c@Ctx{current = cur} expr@(App e e') =
     Just (Prim.DelayApp f _ _) ->
       if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
       else checkExpr' c{current = Set.empty, earlier = Just cur} e'
-    Just (Prim.AdvApp f _)  -> checkAdvSelect c Prim.Adv f
-    Just (Prim.SelectApp f _ _)-> checkAdvSelect c Prim.Select f
+    Just (Prim.AdvApp f _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use adv under delay")
+    Just (Prim.AdvApp f (arg, _)) -> return $ Right $ CheckResult {prim = Just (f, mkClock1 arg)}
+    Just (Prim.SelectApp f _ _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use select under delay")
+    Just (Prim.SelectApp f (arg1, _) (arg2, _))-> return $ Right $ CheckResult {prim = Just (f, mkClock2 arg1 arg2)}
     Nothing -> checkBoth c e e'
-checkExpr' c (Case e _ _ [Alt DEFAULT [] rhs]) = checkBoth c e rhs
 checkExpr' c (Case e v _ alts) = do
     res <- checkExpr' c' e
     resAll <- mapM (\(Alt _ _ altE) -> checkExpr' c altE) alts
@@ -232,14 +250,6 @@ checkExpr' c  (Var v)
              Visible -> return $ Right emptyCheckResult
   | otherwise = return $ Right emptyCheckResult
 
--- Assumes that Prim is either adv or select.
-
--- We only allow adv/select to be applied to variables.
--- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
-checkAdvSelect :: Ctx -> Prim.Prim -> Var -> CoreM (Either TypeError CheckResult)
-checkAdvSelect c p f | not (inDelay c) = return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
-checkAdvSelect _ _ f = return $ Right $ emptyCheckResult {advSelect = Just f}
-
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
 
@@ -249,14 +259,16 @@ checkBoth c e e' = do
   c2 <- checkExpr' c e'
   return $ combine c c1 c2
 
+-- Combines two CheckResults such that the clocks therein are compatible.
+-- If both CheckResults have PrimVars, one is picked arbitrarily.
 combine :: Ctx -> Either TypeError CheckResult -> Either TypeError CheckResult -> Either TypeError CheckResult
 combine c eRes1 eRes2 = do
   res1 <- eRes1
   res2 <- eRes2
   case (res1, res2) of
-    (CheckResult {advSelect = Just v}, CheckResult {advSelect = Just v'}) | v == v' -> Right res1
-    (CheckResult {advSelect = Just _}, CheckResult {advSelect = Just v}) -> Left $ typeError c v "Only one adv/select allowed in a delay"
-    (CheckResult {advSelect = maybeV}, CheckResult {advSelect = maybeV'}) -> Right $ CheckResult {advSelect = maybeV <|> maybeV'}
+    (CheckResult (Just (_, cl1)), CheckResult (Just (_, cl2))) | cl1 == cl2 -> Right res2
+    (CheckResult (Just _), CheckResult (Just (p, _))) -> Left $ typeError c p "Only one adv/select allowed in a delay"
+    (CheckResult maybeP, CheckResult maybeP') -> Right $ CheckResult {prim = maybeP <|> maybeP'}
 
 
 {-

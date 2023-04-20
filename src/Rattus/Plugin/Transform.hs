@@ -10,6 +10,7 @@ import Data.Maybe (fromJust)
 import Prelude hiding ((<>))
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
+import Data.Tuple (swap)
 
 
 data Ctx = Ctx {
@@ -106,11 +107,18 @@ transform' ctx (Let (NonRec b rhs) e) = do
     (newExpr, primInfo') <- transform' ctx e
     return (Let (NonRec b newRhs) newExpr, primInfo <|> primInfo')
 transform' ctx (Case e b t alts) = do
+    -- The checking pass has ensured that there are not advances on different
+    -- clocks. Thus we can just pick the first PrimInfo we find.
     (expr, primInfo) <- transform' ctx e
-    -- Throw away primInfos occurring in alts. This is safe because we
-    -- don't allow adv/select in alts.
-    alts' <- mapM (\(Alt con binds expr) -> transform' ctx expr <&> (Alt con binds . fst)) alts
-    return (Case expr b t alts', primInfo)
+
+    -- For each alternative, transform it and save the maybePrimInfo-value
+    transformed <- mapM (\(Alt con binds expr) -> transform' ctx expr <&> fmap (Alt con binds) . swap) alts
+
+    -- Of all the primInfos we have, pick the first one. This is safe because
+    -- the checking pass has ensured that the clocks of all primitives.
+    let firstPrimInfo = foldl (\acc (p, _) -> acc <|> p) primInfo transformed
+    let alts' = map snd transformed
+    return (Case expr b t alts', firstPrimInfo)
 transform' ctx (Cast e _) = transform' ctx e
 transform' ctx (Tick _ e) = transform' ctx e
 transform' _ e = return (e, Nothing)
@@ -119,7 +127,7 @@ constructClockExtractionCode :: Type -> PrimInfo -> CoreM CoreExpr
 constructClockExtractionCode vt (AdvApp _ arg) = createClockCode vt arg
 constructClockExtractionCode vt (SelectApp _ arg arg2) =
     clockUnion vt arg arg2
-constructClockExtractionCode vt primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
+constructClockExtractionCode _ primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
 
 -- takes as args: value type, later type, var we adv on
 createClockCode :: Type -> (Var, Type) -> CoreM CoreExpr
