@@ -44,7 +44,6 @@ data Ctx = Ctx
     stableTypes :: Set Var,
     allowRecursion :: Bool,
     --inDelay :: Bool,
-    hasSeenAdvSelect :: Bool,
     fresh :: Maybe Var
     }
 
@@ -110,7 +109,6 @@ emptyCtx c =
         stableTypes = Set.empty,
         allowRecursion = allowRecExp c,
         -- inDelay = False,
-        hasSeenAdvSelect = False,
         fresh = Nothing
         }
 
@@ -135,13 +133,6 @@ isStableConstr t =
           else return Nothing
         _ -> return Nothing
     _ ->  return Nothing
-
-
-data SymbolicClock = Clock Var | Union SymbolicClock SymbolicClock
-
-instance Show SymbolicClock where
-  show (Clock v) = "Clock " ++ (showSDocUnsafe . ppr) v
-  show (Union c1 c2) = "Union (" ++ show c1 ++ ") (" ++ show c2 ++ ")"
 
 newtype CheckResult = CheckResult{
   advSelect :: Maybe Var
@@ -176,7 +167,7 @@ checkExpr c e = do
         printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
                              "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
         return $ not (fatalError c)
-        
+
 
 checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
@@ -196,10 +187,13 @@ checkExpr' c@Ctx{current = cur} expr@(App e e') =
 checkExpr' c (Case e _ _ [Alt DEFAULT [] rhs]) = checkBoth c e rhs
 checkExpr' c (Case e v _ alts) = do
     res <- checkExpr' c' e
+    resAll <- mapM (\(Alt _ _ altE) -> checkExpr' c altE) alts
+    foldM (fmap return . combine c) res resAll
+    {-
     let maybePrimVar = foldl (\acc (Alt _ _ altE) -> acc <|> recursiveIsPrimExpr altE) Nothing alts
     case maybePrimVar of
       Just _ -> return $ Left $ typeError c v "Primitives in case expressions are not allowed"
-      Nothing -> return res
+      Nothing -> return res -}
   where c' = addVars [v] c
 checkExpr' c (Lam v e)
   | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = do
@@ -217,23 +211,20 @@ checkExpr' c (Tick (SourceNote span _name) e) =
 checkExpr' c (Tick _ e) = checkExpr' c e
 checkExpr' c (Cast e _) = checkExpr' c e
 checkExpr' c (Let (NonRec v e1) e2) = do
-  c' <- checkAndUpdate c e1
-  case c' of
-    Left err -> return $ Left err
-    Right ctx -> checkExpr' (addVars [v] ctx) e2
+  res1 <- checkExpr' c e1
+  res2 <- checkExpr' c e2
+  return $ combine c res1 res2
 checkExpr' _ (Let (Rec ([])) _) = return $ Right emptyCheckResult
 checkExpr' c (Let (Rec binds) e2) = do
-    r1 <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
-    let ctxE = foldl updateContextFromEithers (Right c) r1
-    case ctxE of
-      Left err -> return $ Left err
-      Right ctx -> checkExpr' (addVars vs ctx) e2
+    resAll <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
+    res <- checkExpr' (addVars vs c) e2
+    foldM (fmap return . combine c) res resAll
   where vs = map fst binds
         ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
         c' v = c {current = Set.empty,
                   earlier = Nothing,
                   hidden =  hidden c `Map.union`
-                   (Map.fromSet (const (NestedRec v)) ctxHid),
+                   Map.fromSet (const (NestedRec v)) ctxHid,
                   recDef = recDef c `Set.union` Set.fromList vs }
 checkExpr' c  (Var v)
   | tcIsLiftedTypeKind $ typeKind $ varType v =  case getScope c v of
@@ -242,60 +233,31 @@ checkExpr' c  (Var v)
   | otherwise = return $ Right emptyCheckResult
 
 -- Assumes that Prim is either adv or select.
-checkAdvSelect :: Ctx ->Prim.Prim -> Var -> CoreM (Either TypeError CheckResult)
-checkAdvSelect c p f =
-  -- We only allow adv/select to be applied to variables.
-  -- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
-  if not $ inDelay c then return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
-  else if hasSeenAdvSelect c then return $ Left $ typeError c f (text "Only one " <> ppr p <> text " allowed in a delay")
-  else return $ Right $ emptyCheckResult {advSelect = Just f}
 
-
-recursiveIsPrimExpr :: CoreExpr -> Maybe Var
-recursiveIsPrimExpr expr@(App e e') =
-  case Prim.isPrimExpr expr of
-    Just primInfo -> Just $ Prim.function primInfo  
-    Nothing -> recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
-recursiveIsPrimExpr (Lam _ e) = recursiveIsPrimExpr e
-recursiveIsPrimExpr (Tick _ e) = recursiveIsPrimExpr e
-recursiveIsPrimExpr (Cast e _) = recursiveIsPrimExpr e
-recursiveIsPrimExpr (Let (NonRec _ e) e') = recursiveIsPrimExpr e <|> recursiveIsPrimExpr e'
-recursiveIsPrimExpr (Let (Rec binds) e) = foldl (\acc (_, e) -> acc <|> recursiveIsPrimExpr e) Nothing binds
-recursiveIsPrimExpr (Case e _ _ alts) = recursiveIsPrimExpr e <|> foldl (\acc (Alt _ _ e') -> acc <|> recursiveIsPrimExpr e') Nothing alts
-recursiveIsPrimExpr _ = Nothing
-
-
+-- We only allow adv/select to be applied to variables.
+-- But there is no reason to check whether the arguments are variables, since this is ensured by isPrimExpr.
+checkAdvSelect :: Ctx -> Prim.Prim -> Var -> CoreM (Either TypeError CheckResult)
+checkAdvSelect c p f | not (inDelay c) = return $ Left $ typeError c f (text "can only use " <> ppr p <> text " under delay")
+checkAdvSelect _ _ f = return $ Right $ emptyCheckResult {advSelect = Just f}
 
 addVars :: [Var] -> Ctx -> Ctx
 addVars v c = c{current = Set.fromList v `Set.union` current c }
 
 checkBoth :: Ctx -> CoreExpr -> CoreExpr -> CoreM (Either TypeError CheckResult)
 checkBoth c e e' = do
-  c' <- checkAndUpdate c e
-  case c' of
-    Left err -> return $ Left err
-    Right ctx -> checkExpr' ctx e'
+  c1 <- checkExpr' c e
+  c2 <- checkExpr' c e'
+  return $ combine c c1 c2
 
-updateCtxFromResult :: Ctx -> CheckResult -> Either TypeError Ctx
-updateCtxFromResult c@(Ctx {hasSeenAdvSelect = True}) (CheckResult {advSelect = Just v}) = Left $ typeError c v "Only one adv/select allowed in a delay"
-updateCtxFromResult c@(Ctx {hasSeenAdvSelect = hasSeen}) r = Right $ c {hasSeenAdvSelect = hasSeen || isJust (advSelect r)}
+combine :: Ctx -> Either TypeError CheckResult -> Either TypeError CheckResult -> Either TypeError CheckResult
+combine c eRes1 eRes2 = do
+  res1 <- eRes1
+  res2 <- eRes2
+  case (res1, res2) of
+    (CheckResult {advSelect = Just v}, CheckResult {advSelect = Just v'}) | v == v' -> Right res1
+    (CheckResult {advSelect = Just _}, CheckResult {advSelect = Just v}) -> Left $ typeError c v "Only one adv/select allowed in a delay"
+    (CheckResult {advSelect = maybeV}, CheckResult {advSelect = maybeV'}) -> Right $ CheckResult {advSelect = maybeV <|> maybeV'}
 
-updateCtxFromResult' :: Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
-updateCtxFromResult' c e = do
-  res <- e
-  updateCtxFromResult c res
-
-checkAndUpdate :: Ctx -> Expr Var -> CoreM (Either TypeError Ctx)
-checkAndUpdate c e = do
-  res <- checkExpr' c e
-  case res of
-    Left err -> return $ Left err
-    Right r -> return $ updateCtxFromResult c r
-
-updateContextFromEithers :: Either TypeError Ctx -> Either TypeError CheckResult -> Either TypeError Ctx
-updateContextFromEithers c r = do
-  ctx <- c
-  updateCtxFromResult' ctx r
 
 {-
 countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
