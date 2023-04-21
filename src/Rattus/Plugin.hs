@@ -74,11 +74,11 @@ strictify opts guts b@(Rec bs) = do
     es' <- mapM (\ (v,e) -> do
                     singleTick <- toSingleTick e
                     lazy <- allowLazyData guts v
-                    --allowRec <- allowRecursion guts v
+                    allowRec <- allowRecursion guts v
                     strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
                     ok <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
                                          fatalError = True, verbose = debugMode opts,
-                                         allowRecExp = False} strict
+                                         allowRecExp = allowRec} strict
                     if ok
                       then transform strict
                       else error "Rattus: Ill-typed program") bs
@@ -93,11 +93,11 @@ strictify opts guts b@(NonRec v e) = do
       -- liftIO $ putStrLn "-------- new --------"
       -- liftIO $ putStrLn (showSDocUnsafe (ppr e'))
       lazy <- allowLazyData guts v
-      --allowRec <- allowRecursion guts v
+      allowRec <- allowRecursion guts v
       strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
       ok <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
                            fatalError = True, verbose = debugMode opts,
-                           allowRecExp = False } strict
+                           allowRecExp = allowRec } strict
       if ok
       then do
         transformed <- transform strict
