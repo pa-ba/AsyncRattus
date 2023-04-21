@@ -1,8 +1,17 @@
 module Sheet where 
 
 import Rattus.Channels
+import qualified Rattus.Primitives as Prim
+import qualified Data.Set
 
-Data Input = IntValue Int | CharValue Char | BoolVale Bool
+data Input = IntValue Int | CharValue Char | MouseValue Bool
+type O a = Prim.O Input a
 
 
-(input, inputMaybe, depend, kbChannel, mouseChanel) = mkChannels ["keyboard", "num", "mouse"]
+-- Identifier, value of cell, dependent on these cells
+--type Cell f = (String, f, O Int)
+--type Spreadsheet = Map String Cell 
+
+
+(input, inputMaybe, depend, [kbChannel, mouseChanel]) = mkChannels ["keyboard", "mouse"]
+

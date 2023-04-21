@@ -17,6 +17,7 @@ build-type:          Simple
 executable testprog
   hs-source-dirs:      src
   main-is:             Main.hs
+  other-modules:       MegaParser, Sheet
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers
-  ghc-options:         -fplugin=Rattus.Plugin -dverbose-core2core
+  build-depends:       Rattus, base, containers, megaparsec, parser-combinators
+  ghc-options:         -fplugin=Rattus.Plugin 
