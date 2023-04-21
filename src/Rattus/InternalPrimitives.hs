@@ -37,7 +37,8 @@ extractClock :: O v a -> Clock
 extractClock (Delay cl _) = cl
 
 adv' :: O v a -> InputValue v -> a
-adv' (Delay _ f) = f
+adv' (Delay cl f) inpVal@(chId, _) | chId `elem` cl = f inpVal
+adv' (Delay cl _) (chId, _) = error $ "Rattus internal error: inpVal chId " ++ show chId ++ " not in clock for delay: " ++ show cl
 
 
 -- | This is the eliminator for the "later" modality 'O':
