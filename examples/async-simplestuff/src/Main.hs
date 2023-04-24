@@ -81,6 +81,12 @@ main = do
     print y
     let (y2 ::: ys2) = input "num" (IntValue 20) ys
     print y2
+    let (z ::: zs) = input "num" (IntValue 21) scanMappedStr
+    print z
+    let (z2 ::: zs2) = input "num" (IntValue 43) zs
+    print z2
+    let (z3 ::: zs3) = input "num" (IntValue 1) zs2
+    print z3
 
 
 {-

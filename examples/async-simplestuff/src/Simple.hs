@@ -44,6 +44,12 @@ mappedStr = map (Stream.map (box (+100))) $ constLaterStr numbers
 scannedStr :: Str MyValue Int
 scannedStr = Stream.scanAwait (box (+)) 0 numberStr
 
+scanMappedStr :: O MyValue (Str MyValue Int)
+scanMappedStr = 
+    delay (
+        Stream.scanMap (box (+)) (box (\x -> if even x then x else -x)) 0 (adv numberStr)
+    )
+
 -- should work
 id3 :: O v a -> O v a
 id3 a = delay (adv a)

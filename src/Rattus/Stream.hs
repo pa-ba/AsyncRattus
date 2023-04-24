@@ -13,7 +13,7 @@ module Rattus.Stream
   , shiftMany
   , scan
   , scanAwait
---  , scanMap
+  , scanMap
 --  , scanMap2
   , Str(..)
 --  , zipWith
@@ -51,7 +51,7 @@ map :: Box (a -> b) -> Str v a -> Str v b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
 
--- Construct a stream which just yields values a later
+-- Construct a stream which just yields values from a later
 fromLater :: O v a -> O v (Str v a)
 fromLater l = delay (let x = adv l in x ::: fromLater l)
 
@@ -85,9 +85,9 @@ scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
 -- > scanMap f g x === map g . scan f x
--- scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Str v a -> Str v c
--- scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
---   where acc' = unbox f acc a
+scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Str v a -> Str v c
+scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
+  where acc' = unbox f acc a
 
 
 -- | 'scanMap2' is similar to 'scanMap' but takes two input streams.
@@ -148,7 +148,7 @@ integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv
 --{-# NOINLINE [1] const #-}
 --{-# NOINLINE [1] constBox #-}
 {-# NOINLINE [1] scan #-}
---{-# NOINLINE [1] scanMap #-}
+{-# NOINLINE [1] scanMap #-}
 --{-# NOINLINE [1] zip #-}
 
 
@@ -160,8 +160,8 @@ integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv
   "map/map" forall f g xs.
     map f (map g xs) = map (box (unbox f . unbox g)) xs ;
 
---  "map/scan" forall f p acc as.
---    map p (scan f acc as) = scanMap f p acc as ;
+  "map/scan" forall f p acc as.
+    map p (scan f acc as) = scanMap f p acc as ;
 
   --"zip/map" forall xs ys f.
   --  map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys
@@ -170,15 +170,15 @@ integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv
 
 #if __GLASGOW_HASKELL__ >= 808
 {-# RULES
---  "scan/scan" forall f g b c as.
---    scan g c (scan f b as) =
---      let f' = unbox f; g' = unbox g in
---      scanMap (box (\ (b:*c) a -> let b' = f' b a in (b':* g' c b'))) (box snd') (b:*c) as ;
+  "scan/scan" forall f g b c as.
+    scan g c (scan f b as) =
+      let f' = unbox f; g' = unbox g in
+      scanMap (box (\ (b:*c) a -> let b' = f' b a in (b':* g' c b'))) (box snd') (b:*c) as ;
 
---  "scan/scanMap" forall f g p b c as.
---    scan g c (scanMap f p b as) =
---      let f' = unbox f; g' = unbox g; p' = unbox p in
---      scanMap (box (\ (b:*c) a -> let b' = f' (p' b) a in (b':* g' c b'))) (box snd') (b:*c) as ;
+  "scan/scanMap" forall f g p b c as.
+    scan g c (scanMap f p b as) =
+      let f' = unbox f; g' = unbox g; p' = unbox p in
+      scanMap (box (\ (b:*c) a -> let b' = f' (p' b) a in (b':* g' c b'))) (box snd') (b:*c) as ;
 
 #-}
 #endif
