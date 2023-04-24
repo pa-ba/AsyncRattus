@@ -1,10 +1,11 @@
 module Simple where
 
 import Rattus
---import Rattus.Stream (Str(..))
+import Rattus.Stream (Str(..))
+import qualified Rattus.Stream as Stream
 import Rattus.Primitives
 import qualified Data.Set as Set
-import Prelude hiding (Left, Right, map)
+import Prelude hiding (Left, Right, map, const)
 import Rattus.Later (map)
 import Rattus.Channels (mkChannels, InputFunc)
 
@@ -40,6 +41,24 @@ num2 = map (\(IntValue i) -> i) num2Channel
 num3 :: O MyValue Int
 num3 = map (\(IntValue i) -> i) num3Channel
 
+numbers :: O MyValue Int
+numbers = map (\(IntValue i) -> i) numChannel
+
+numberStr :: O MyValue (Str MyValue Int)
+numberStr = constLaterStr numbers
+
+mappedStr :: O MyValue (Str MyValue Int)
+mappedStr = map (Stream.map (box (+100))) $ constLaterStr numbers
+
+scannedStr :: Str MyValue Int
+scannedStr = Stream.scanAwait (box (+)) 0 numberStr
+
+scanMappedStr :: O MyValue (Str MyValue Int)
+scanMappedStr = 
+    delay (
+        Stream.scanMap (box (+)) (box (\x -> if even x then x else -x)) 0 (adv numberStr)
+    )
+
 -- should work
 id3 :: O v a -> O v a
 id3 a = delay (adv a)
@@ -47,6 +66,9 @@ id3 a = delay (adv a)
 -- should work
 addOne :: O v Int -> O v Int
 addOne li = delay (adv li + 22)
+
+constLaterStr :: O v Int -> O v (Str v Int)
+constLaterStr = Stream.fromLater
 
 -- It is not _in general_ legal to advance on anything other than a var.
 -- However here, because delay (adv x) = x, we want the whole thing to be

@@ -2,6 +2,7 @@ module Main where
 
 --import StandardLibrary
 import Rattus.Primitives
+import Rattus.Stream (Str(..), tl)
 import Graphics.Gloss.Interface.Pure.Game
 import Debug.Trace as D
 import qualified Data.Set as Set
@@ -70,8 +71,23 @@ main = do
     let l = adv' n (2, IntValue 1)
     print l
     -}
-
+    
     print $ input "keyboard" (CharValue 'c') describeKeyboard
+    let (x ::: xs) = input "num" (IntValue 8) mappedStr
+    print x
+    let (x2 ::: xs2) = input "num" (IntValue 800) xs
+    print x2
+    let (y ::: ys) = input "num" (IntValue 10) (tl scannedStr)
+    print y
+    let (y2 ::: ys2) = input "num" (IntValue 20) ys
+    print y2
+    let (z ::: zs) = input "num" (IntValue 21) scanMappedStr
+    print z
+    let (z2 ::: zs2) = input "num" (IntValue 43) zs
+    print z2
+    let (z3 ::: zs3) = input "num" (IntValue 1) zs2
+    print z3
+
     print $ input "num" (IntValue 100) const47Later
     print $ input "num" (IntValue 100) const48Later
     print $ input "num" (IntValue 100) idLater

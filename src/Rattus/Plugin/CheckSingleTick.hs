@@ -168,6 +168,7 @@ data CheckExpr = CheckExpr{
 
 checkExpr :: CheckExpr -> Expr Var -> CoreM Bool
 checkExpr c e = do
+  putMsg $ text "checkExpr: " <> ppr e 
   res <- checkExpr' (emptyCtx c) e
   case res of
     Right _ -> return True
@@ -197,7 +198,12 @@ checkExpr' c@Ctx{current = cur} expr@(App e e') =
       checkExpr' (stabilize BoxApp c) e'
     Just (Prim.DelayApp f _ _) ->
       if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
-      else checkExpr' c{current = Set.empty, earlier = Just cur} e'
+      else do
+        eRes <- checkExpr' c{current = Set.empty, earlier = Just cur} e'
+        case eRes of
+          Left err -> return $ Left err
+          Right (CheckResult {prim = Nothing}) -> return $ Left $ typeError c f (text "Each delay must contain an adv or select")
+          Right _ -> return $ Right emptyCheckResult
     Just (Prim.AdvApp f _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use adv under delay")
     Just (Prim.AdvApp f (arg, _)) -> return $ Right $ CheckResult {prim = Just (f, mkClock1 arg)}
     Just (Prim.SelectApp f _ _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use select under delay")

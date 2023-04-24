@@ -20,6 +20,8 @@ data O v a = Delay Clock (InputValue v -> a)
 
 data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
 
+rattusError = error "Did you forget to mark this as a Rattus module?"
+
 -- | This is the constructor for the "later" modality 'O':
 --
 -- >     Γ ✓ ⊢ t :: 𝜏
@@ -28,7 +30,7 @@ data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
 --
 {-# INLINE [1] delay #-}
 delay :: a -> O v a
-delay x = Delay undefined (const x)
+delay x = Delay rattusError (const x)
 
 delay' :: Clock -> a -> O v a
 delay' cl a = Delay cl (const a)
@@ -49,11 +51,11 @@ adv' (Delay cl _) (chId, _) = error $ "Rattus internal error: inpVal chId " ++ s
 --
 {-# INLINE [1] adv #-}
 adv :: O v a -> a
-adv (Delay _ _) = undefined
+adv (Delay _ _) = rattusError
 
 
 select :: O v a -> O v b -> Select v a b
-select a b = select' a b undefined
+select a b = select' a b rattusError
 
 select' :: O v a -> O v b -> InputValue v -> Select v a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
