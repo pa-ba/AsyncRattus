@@ -1,6 +1,8 @@
-module MegaParser where
+module MegaParser (
+    parse,
+) where
 
-import Text.Megaparsec
+import Text.Megaparsec hiding (parse)
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L hiding (binary) 
 import Control.Monad.Combinators.Expr
@@ -9,19 +11,17 @@ import Control.Monad (void)
 import Control.Applicative hiding (many, some)
 import Data.Void
 
+import Expr
+
 data ParseError = 
     UnrecognizedOperator String |
     UnrecognizedFormat String
 
-data Expr = Plus Expr Expr   |
-            Minus Expr Expr  |
-            Times Expr Expr  |
-            Divide Expr Expr |
-            Negate Expr      |
-            Number Int       |
-            Var String deriving (Eq, Show)
 
 type Parser = Parsec Void String
+
+parse :: String -> Maybe Expr
+parse = parseMaybe pExpr
 
 -- based on example https://markkarpov.com/tutorial/megaparsec.html#parsing-expressions
 
