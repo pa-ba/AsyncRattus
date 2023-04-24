@@ -12,6 +12,7 @@
 
 module Rattus.Strict
   ( List(..),
+    singleton,
     init',
     listDelay,
     reverse',
@@ -35,6 +36,8 @@ infixr 8 :!
 -- | Strict list type.
 data List a = Nil | !a :! !(List a)
 
+singleton :: a -> List a
+singleton x = x :! Nil
 
 --{-# ANN module Rattus #-}
 -- All recursive functions in this module are defined by structural
