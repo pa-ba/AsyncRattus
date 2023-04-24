@@ -1,7 +1,7 @@
 module Rattus.InternalPrimitives where
 
 import Prelude hiding (Left, Right)
-import Data.Set (Set)
+import Data.Set (Set, empty)
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
@@ -64,6 +64,9 @@ select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
   | chId `elem` clB = Right a (inpFB inputValue)
   | otherwise = error "Tick did not come on correct input channels"
 
+
+never :: O v a
+never = Delay empty (error "Trying to adv on the 'never' delayed computation")
 
 -- | A type is @Stable@ if it is a strict type and the later modality
 -- @O@ and function types only occur under @Box@.
