@@ -3,13 +3,13 @@
 module Main where
 
 import Rattus.Primitives
+import qualified Rattus.Stream as Stream
 import Debug.Trace as D
 import qualified Data.Set as Set
 import MegaParser
 import Expr
-
-cells :: Map String (Str (Maybe Int))
-cells = Map.empty
+import qualified Data.Map as Map
+import Data.Map (Map)
 
 processLine :: String -> String
 processLine line =

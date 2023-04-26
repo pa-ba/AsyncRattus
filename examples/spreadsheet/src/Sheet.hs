@@ -4,6 +4,7 @@ import Rattus.Channels
 import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (box, unbox, select, delay, adv)
 import qualified Rattus.Stream as Stream
+import Rattus.Stream(Str(..))
 import qualified Rattus.Later as Later
 import qualified Rattus.Strict as Strict
 import qualified Data.Set
@@ -14,9 +15,9 @@ import Expr
 type Cell = String
 data CellUpdate = NewFormula Expr | UpdatedDependency (Cell, Maybe Int)
 
-type Input = CellFormula
+type Input = (Cell, Expr)
 type O a = Prim.O Input a
-type Str a = Stream.Str Input a
+type Stream a = Str Input a
 
 -- Identifier, value of cell, dependent on these cells
 --type Cell f = (String, f, O Int)
@@ -32,22 +33,22 @@ cellStrings = map (\(x,y) -> [x] ++ show y) cells
 cellToChannel = Map.fromList $ zip cellStrings channels
 
 -- Given a list of cell streams, produces as stream of corresponding variable environments
-varEnv :: Strict.List (O (Str (Cell, Int))) -> O (Str VarEnv)
-varEnv delayedStreams = scanAwait (box fold) emptyVarEnv delayedStreams
+{-varEnv :: Strict.List (O (Stream (Cell, Int))) -> Stream VarEnv
+varEnv delayedStreams = Stream.scanAwait (box fold) emptyVarEnv strChangedCells
     where
         laterChangedCells = Later.selectMany delayedStreams
         strChangedCells = Stream.fromLater laterChangedCells
         fold acc (cell, value) = Map.insert cell value acc
-
-cell :: Expr -> O (Str VarEnv) -> O (Str (Maybe Int))
-cell e envs = Later.map (Stream.map (evalMaybe e)) envs
+-}
+cell :: Expr -> O (Stream VarEnv) -> O (Stream (Maybe Int))
+cell e envs = Later.map (Stream.map (box (evalMaybe e))) envs
 
 -- 1st arg: initial variable environment
 -- 2nd arg: Stream of cell updates
-resettableCell :: O (Str VarEnv) -> O (Str CellUpdate) -> O (Str (Maybe Int))
+resettableCell :: O (Stream VarEnv) -> O (Stream CellUpdate) -> O (Stream (Maybe Int))
 resettableCell varEnvs updates = delay (
         case adv updates of
-            NewFormula e ::: us -> 
-            UpdatedDependency (cellId, maybeValue) ::: us ->
+            NewFormula e ::: us -> undefined
+            UpdatedDependency (cellId, maybeValue) ::: us -> undefined
     )
 

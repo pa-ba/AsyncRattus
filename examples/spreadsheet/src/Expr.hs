@@ -11,6 +11,7 @@ import Data.Map (Map, lookup, empty)
 import Control.Monad (liftM2)
 import Data.Maybe (fromJust)
 import qualified Rattus.Strict as Strict
+import Rattus.Strict (List(..), (+++))
 
 type VarEnv = Map String Int
 

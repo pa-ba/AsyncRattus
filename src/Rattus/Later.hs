@@ -15,6 +15,8 @@ import Rattus.Strict (List(..), singleton)
 map :: (a -> b) -> O v a -> O v b
 map f later = delay (f (adv later))
 
+{-# ANN selectMany AllowRecursion #-}
+
 -- Given a list of delayed values, select over them return list of all available values when one arrives.
 selectMany :: List (O v a) -> O v (List (Int, a))
 selectMany lst = aux 0 lst
