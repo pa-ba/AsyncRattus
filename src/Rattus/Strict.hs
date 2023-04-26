@@ -14,7 +14,6 @@ module Rattus.Strict
   ( List(..),
     singleton,
     init',
-    listDelay,
     reverse',
     (+++),
     listToMaybe',
@@ -39,16 +38,10 @@ data List a = Nil | !a :! !(List a)
 singleton :: a -> List a
 singleton x = x :! Nil
 
---{-# ANN module Rattus #-}
+{-# ANN module Rattus #-}
 -- All recursive functions in this module are defined by structural
 -- induction on a strict type.
 {-# ANN module AllowRecursion #-}
-
--- | Turns a list of delayed computations into a delayed computation
--- that produces a list of values.
-listDelay :: List (O v a) -> O v (List a)
-listDelay Nil = delay Nil
-listDelay (x :! xs) = let xs' = listDelay xs in delay (adv x :! adv xs')
 
 -- | Remove the last element from a list if there is one, otherwise
 -- return 'Nil'.
