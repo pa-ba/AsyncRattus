@@ -73,6 +73,33 @@ extractAdvApp e1 e2
   tell [(x,e2)]
   return (App e1 (Var x))
 
+-- removes casts and ticks from a tree
+filterTree :: CoreExpr -> CoreExpr
+filterTree (Cast e _) = filterTree e
+filterTree (Tick _ e) = filterTree e
+filterTree e = e
+
+
+extractSelectApp :: CoreExpr -> CoreExpr -> WriterT [(Id,CoreExpr)] CoreM CoreExpr
+extractSelectApp e1 e2
+  | isVar e' && isVar e2 = return (App e1 e2)
+  | isVar e2 = do
+    x <- lift (mkSysLocalFromExpr (fsLit "selectFreshVar") e')
+    tell [(x, e')]
+    return (App (App e (Var x)) e2)
+  | isVar e' = do
+    x <- lift (mkSysLocalFromExpr (fsLit "selectFreshVar") e2)
+    tell [(x, e2)]
+    return (App e1 (Var x))
+  | otherwise = do
+    x <- lift (mkSysLocalFromExpr (fsLit "selectFreshVar") e')
+    y <- lift (mkSysLocalFromExpr (fsLit "selectFreshVar") e2)
+    tell [(x, e')]
+    tell [(y, e2)]
+    return (App (App e (Var x)) (Var y))
+  where (App e e') = filterTree e1
+
+
 -- This is used to pull adv out of delayed terms. The writer monad
 -- returns mappings from fresh variables to terms that occur as
 -- argument of adv.
@@ -81,8 +108,10 @@ extractAdvApp e1 e2
 -- fresh variable @x@) and the pair @(x,t)@ is returned in the
 -- writer monad.
 extractAdv :: CoreExpr -> WriterT [(Id,CoreExpr)] CoreM CoreExpr
+extractAdv (App expr@(App e _) e2) | isSelectApp e = extractSelectApp expr e2
 extractAdv e@(App e1 e2)
   | isAdvApp e1 = extractAdvApp e1 e2
+  | isSelectApp e1 = extractSelectApp e1 e2
   | isDelayApp e1 = do
       (e2', advs) <- lift $ runWriterT (extractAdv e2)
       advs' <- mapM (mapM extractAdv) advs
@@ -122,12 +151,18 @@ extractAdv e@Coercion{} = return e
 -- 
 -- That is occurrences of @adv t@ are replaced with a fresh variable
 -- @x@ and the triple @(x,adv,t)@ is returned in the writer monad.
+-- For select a b, the triple @(x, select a, b) is returned in the writer monad.
 extractAdv' :: CoreExpr -> WriterT [(Id,CoreExpr,CoreExpr)] CoreM CoreExpr
 extractAdv' e@(App e1 e2)
   | isAdvApp e1 = do
        x <- lift (mkSysLocalFromExpr (fsLit "adv") e)
        tell [(x,e1,e2)]
        return (Var x)
+  | isSelectApp e1 = do
+      lift $ putMsg $ text "isSelectApp called with: " <> ppr e
+      x <- lift (mkSysLocalFromExpr (fsLit "select") e)
+      tell [(x,e1,e2)]
+      return (Var x)
   | isDelayApp e1 = do
       (e2', advs) <- lift $ runWriterT (extractAdv e2)
       advs' <- mapM (mapM extractAdv') advs
@@ -163,14 +198,16 @@ extractAdv' e@Coercion{} = return e
 
 
 isDelayApp :: CoreExpr -> Bool
-isDelayApp = isPrimApp (\occ -> occ == "delay")
+isDelayApp = isPrimApp (== "delay")
 
 isBoxApp :: CoreExpr -> Bool
 isBoxApp = isPrimApp (\occ -> occ == "Box" || occ == "box")
 
 isAdvApp :: CoreExpr -> Bool
-isAdvApp = isPrimApp (\occ -> occ == "adv")
+isAdvApp = isPrimApp (== "adv")
 
+isSelectApp :: CoreExpr -> Bool
+isSelectApp = isPrimApp (== "select")
 
 isPrimApp :: (String -> Bool) -> CoreExpr -> Bool
 isPrimApp p (App e e')
