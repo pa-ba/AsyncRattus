@@ -26,7 +26,7 @@ module Rattus.Stream
 where
 
 import Rattus
-import Prelude hiding (map, const, zipWith, zip, filter)
+import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 
 import Data.VectorSpace
 
@@ -55,14 +55,15 @@ map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 fromLater :: O v a -> O v (Str v a)
 fromLater l = delay (let x = adv l in x ::: fromLater l)
 
--- | Construct a stream that has the same given value at each step.
--- const :: Stable a => a -> Str v a
--- const a = a ::: delay (const a)
+-- | Construct a stream that has the given value and then never ticks.
+-- | From the Async RaTT paper
+const :: Stable a => a -> Str v a
+const x = x ::: never
 
 -- | Variant of 'const' that allows any type @a@ as argument as long
 -- as it is boxed.
--- constBox :: Box a -> Str a
--- constBox a = unbox a ::: delay (constBox a)
+constBox :: Box a -> Str v a
+constBox a = unbox a ::: never
 
 -- | Construct a stream by repeatedly applying a function to a given
 -- start element. That is, @unfold (box f) x@ will produce the stream
@@ -79,6 +80,7 @@ scan :: (Stable b) => Box(b -> a -> b) -> b -> Str v a -> Str v b
 scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
 
+-- Like scan, but uses a delayed stream. Taken from the Async RaTT paper.
 scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O v (Str v a) -> Str v b
 scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
@@ -96,16 +98,22 @@ scanMap2 :: (Stable b) => Box(b -> a1 -> a2 -> b) -> Box (b -> c) -> b -> Str a1
 scanMap2 f p acc (a1 ::: as1) (a2 ::: as2) =
     unbox p acc' ::: delay (scanMap2 f p acc' (adv as1) (adv as2))
   where acc' = unbox f acc a1 a2
-
+-}
 
 -- | Similar to 'Prelude.zipWith' on Haskell lists.
-zipWith :: Box(a -> b -> c) -> Str a -> Str b -> Str c
-zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (zipWith f (adv as) (adv bs))
+-- | Inspired by 'zip' in the Async RaTT paper.
+zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> Str v a -> Str v b -> Str v c
+zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (
+    case select as bs of
+      Left as' lbs -> zipWith f as' (b ::: lbs)
+      Right las bs' -> zipWith f (a ::: las) bs'
+      Both as' bs' -> zipWith f as' bs'
+  )
 
--- | Similar to 'Prelude.zip' on Haskell lists.
-zip :: Str a -> Str b -> Str (a:*b)
-zip (a ::: as) (b ::: bs) =  (a :* b) ::: delay (zip (adv as) (adv bs))
--}
+-- | Combines two signals by picking the most recent value from each.
+-- | From the Async RaTT paper.
+zip :: (Stable a, Stable b) => Str v a -> Str v b -> Str v (a:*b)
+zip = zipWith (box (:*))
 
 -- | Filter out elements from a stream according to a predicate.
 filter :: Box(a -> Bool) -> Str v a -> Str v (Maybe' a)
@@ -145,17 +153,17 @@ integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv
 -- rules to fire.
 
 {-# NOINLINE [1] map #-}
---{-# NOINLINE [1] const #-}
---{-# NOINLINE [1] constBox #-}
+{-# NOINLINE [1] const #-}
+{-# NOINLINE [1] constBox #-}
 {-# NOINLINE [1] scan #-}
 {-# NOINLINE [1] scanMap #-}
---{-# NOINLINE [1] zip #-}
+{-# NOINLINE [1] zip #-}
 
 
 {-# RULES
 
-  --"const/map" forall (f :: Stable b => Box (a -> b))  x.
-  --  map f (const x) = let x' = unbox f x in const x' ;
+  "const/map" forall (f :: Stable b => Box (a -> b))  x.
+    map f (const x) = let x' = unbox f x in const x' ;
 
   "map/map" forall f g xs.
     map f (map g xs) = map (box (unbox f . unbox g)) xs ;
@@ -163,8 +171,8 @@ integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv
   "map/scan" forall f p acc as.
     map p (scan f acc as) = scanMap f p acc as ;
 
-  --"zip/map" forall xs ys f.
-  --  map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys
+  "zip/map" forall xs ys f.
+    map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys
 #-}
 
 
