@@ -10,6 +10,7 @@ import MegaParser
 import Expr
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Sheet
 
 processLine :: String -> String
 processLine line =
@@ -38,6 +39,11 @@ main = do
     print $ c >>= \res -> evalMaybe res emptyVarEnv
     print $ d >>= \res -> evalMaybe res emptyVarEnv
     print $ e >>= \res -> evalMaybe res emptyVarEnv
+
+    let (env Stream.::: envStr) = input "A3" ("A2", Number 5) testVarEnv
+    let (env2 Stream.::: envStr2) = input "A3" ("A2", Number 3) envStr
+    print env
+    print env2
 
     interact (unlines . map processLine . lines)
    

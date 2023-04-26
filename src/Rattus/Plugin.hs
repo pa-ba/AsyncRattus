@@ -82,6 +82,7 @@ strictify opts guts b@(Rec bs) = do
                     if ok
                       then transform strict
                       else error "Rattus: Ill-typed program") bs
+    when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr es'
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
@@ -97,6 +98,7 @@ strictify opts guts b@(NonRec v e) = do
       if ok
       then do
         transformed <- transform strict
+        when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr transformed
         return $ NonRec v transformed
       else
         error "Rattus: Ill-typed program"
