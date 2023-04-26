@@ -71,18 +71,7 @@ transformPrim _ _ = do
 
 
 transform :: CoreExpr -> CoreM CoreExpr
-transform expr = do
-    putMsgS "OLD-AST"
-    putMsg (ppr expr)
-    putMsgS "OLD TREE"
-    putMsgS (showTree expr)
-    (newExpr, _) <- transform' emptyCtx expr
-    putMsgS "NEW AST"
-    putMsg (ppr newExpr)
-    putMsgS "NEW TREE SHOW"
-    putMsgS (showTree newExpr)
-    return newExpr
-    --fst <$> transform' emptyCtx expr
+transform expr = fst <$> transform' emptyCtx expr
 
 transform' :: Ctx -> CoreExpr -> CoreM (CoreExpr, Maybe PrimInfo)
 transform' ctx expr@(App e e') = case isPrimExpr expr of

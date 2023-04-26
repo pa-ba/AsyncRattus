@@ -79,7 +79,7 @@ strictify opts guts b@(Rec bs) = do
                     ok <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
                                          fatalError = True, verbose = debugMode opts,
                                          allowRecExp = allowRec} strict
-                    if True
+                    if ok
                       then transform strict
                       else error "Rattus: Ill-typed program") bs
     return (Rec (zip vs es'))
@@ -98,7 +98,7 @@ strictify opts guts b@(NonRec v e) = do
       ok <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
                            fatalError = True, verbose = debugMode opts,
                            allowRecExp = allowRec } strict
-      if True
+      if ok
       then do
         transformed <- transform strict
         return $ NonRec v transformed
