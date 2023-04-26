@@ -95,11 +95,7 @@ validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT, _]) = Just $ AdvApp
 validatePartialPrimInfo _ = Nothing
 
 isPrimExpr :: Expr Var -> Maybe PrimInfo
---isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
-isPrimExpr expr = do
-  let mPpi = let res = isPrimExpr' expr in D.trace ("PrimExpr | Input expr: " ++ showSDocUnsafe (ppr expr) ++ ", Maybe PartialPrimInfo: " ++ showSDocUnsafe (ppr res)) res
-  pPi <- mPpi
-  validatePartialPrimInfo pPi
+isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
 
 -- App (App (App (App f type) arg) Type2) arg2
 isPrimExpr' :: Expr Var -> Maybe PartialPrimInfo

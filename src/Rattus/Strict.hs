@@ -17,6 +17,7 @@ module Rattus.Strict
     reverse',
     (+++),
     listToMaybe',
+    map',
     mapMaybe',
     (:*)(..),
     Maybe'(..),
@@ -28,6 +29,7 @@ module Rattus.Strict
 import Data.VectorSpace
 import Rattus.Primitives
 import Rattus.Plugin.Annotation
+import Prelude hiding (map)
 
 infixr 2 :*
 infixr 8 :!
@@ -68,6 +70,11 @@ listToMaybe' = foldr (const . Just') Nothing'
 (+++) (x:!xs) ys = x :! xs +++ ys
 
 
+map' :: (a -> b) -> List a -> List b
+map' _ Nil = Nil
+map' f (x :! xs) = f x :! map' f xs
+
+
 -- | A version of 'map' which can throw out elements.  In particular,
 -- the function argument returns something of type @'Maybe'' b@.  If
 -- this is 'Nothing'', no element is added on to the result list.  If
@@ -99,9 +106,8 @@ instance Foldable List where
     
   
 instance Functor List where
-  fmap f = run where
-    run Nil = Nil
-    run (x :! xs) = f x :! run xs
+  fmap = map'
+
 
 
 -- | Strict variant of 'Maybe'.
