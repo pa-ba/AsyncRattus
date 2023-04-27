@@ -16,8 +16,9 @@ module Rattus.Stream
   , scanMap
 --  , scanMap2
   , Str(..)
---  , zipWith
---  , zip
+  , zipWith
+  , zipWithAwait
+  , zip
 --  , unfold
   , filter
 --  , integral
@@ -108,6 +109,14 @@ zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (
       Left as' lbs -> zipWith f as' (b ::: lbs)
       Right las bs' -> zipWith f (a ::: las) bs'
       Both as' bs' -> zipWith f as' bs'
+  )
+
+zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> O v (Str v a) -> O v (Str v b) -> a -> b -> Str v c
+zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
+    case select as bs of
+      Both as' bs' -> zipWith f as' bs'
+      Left as' lbs -> zipWith f as' (defaultB ::: lbs)
+      Right las bs' -> zipWith f (defaultA ::: las) bs'
   )
 
 -- | Combines two signals by picking the most recent value from each.
