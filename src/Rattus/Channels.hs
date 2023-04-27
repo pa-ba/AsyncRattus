@@ -1,6 +1,7 @@
 module Rattus.Channels (
     mkChannels,
     InputFunc,
+    InputChannel,
 ) where
 import Prelude hiding (Left, Right, lookup)
 import Rattus.InternalPrimitives
@@ -33,7 +34,7 @@ mkChannelFromId id = Delay (Set.singleton id) snd
 index :: [a] -> [Int]
 index = zipWith const [0..]
 
-mkChannels :: [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [O v v])
+mkChannels :: [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [InputChannel v])
 mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map mkChannelFromId $ index names)
     where nameMapping = constructNameMapping names
           idMapping = constructIdToNameMapping names

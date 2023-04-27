@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Rattus.Plugin.Transform (
     transform
 ) where
@@ -11,6 +12,7 @@ import Prelude hiding ((<>))
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
 import Data.Tuple (swap)
+import Control.Monad (foldM)
 
 
 data Ctx = Ctx {
@@ -71,18 +73,7 @@ transformPrim _ _ = do
 
 
 transform :: CoreExpr -> CoreM CoreExpr
-transform expr = do
-    putMsgS "OLD-AST"
-    putMsg (ppr expr)
-    putMsgS "OLD TREE"
-    putMsgS (showTree expr)
-    (newExpr, _) <- transform' emptyCtx expr
-    putMsgS "NEW AST"
-    putMsg (ppr newExpr)
-    putMsgS "NEW TREE SHOW"
-    putMsgS (showTree newExpr)
-    return newExpr
-    --fst <$> transform' emptyCtx expr
+transform expr = fst <$> transform' emptyCtx expr
 
 transform' :: Ctx -> CoreExpr -> CoreM (CoreExpr, Maybe PrimInfo)
 transform' ctx expr@(App e e') = case isPrimExpr expr of
@@ -106,7 +97,16 @@ transform' ctx (Let (NonRec b rhs) e) = do
     (newRhs, primInfo) <- transform' ctx rhs
     (newExpr, primInfo') <- transform' ctx e
     return (Let (NonRec b newRhs) newExpr, primInfo <|> primInfo')
-transform' ctx (Case e b t alts) = do
+transform' ctx (Let (Rec binds) e) = do
+    -- expect: [(b, (expr, primInfo))]
+    transformedBinds <- mapM (\(b, bindE) -> fmap (b,) (transform' ctx bindE)) binds
+    (e', mPi) <- transform' ctx e
+    let primInfos = map (\(_, (_, p)) -> p) transformedBinds
+    let firstPrimInfo = foldl (<|>) mPi primInfos
+    newBinds <- mapM (\(b, (e, _)) -> return (b, e)) transformedBinds
+    return (Let (Rec newBinds) e', firstPrimInfo)
+transform' ctx caseExpr@(Case e b t alts) = do
+    putMsg $ text "CASE EXPR:" <> ppr caseExpr
     -- The checking pass has ensured that there are not advances on different
     -- clocks. Thus we can just pick the first PrimInfo we find.
     (expr, primInfo) <- transform' ctx e

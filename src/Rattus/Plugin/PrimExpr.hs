@@ -14,7 +14,6 @@ import GHC.Plugins
 import Rattus.Plugin.Utils
 import Prelude hiding ((<>))
 import qualified Debug.Trace as D
-import Data.Maybe (fromMaybe)
 
 data Prim = Delay | Adv | Box | Arr | Select
 
@@ -96,11 +95,7 @@ validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT, _]) = Just $ AdvApp
 validatePartialPrimInfo _ = Nothing
 
 isPrimExpr :: Expr Var -> Maybe PrimInfo
---isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
-isPrimExpr expr = do
-  let mPpi = let res = isPrimExpr' expr in D.trace ("PrimExpr | Input expr: " ++ showSDocUnsafe (ppr expr) ++ ", Maybe PartialPrimInfo: " ++ showSDocUnsafe (ppr res)) res
-  pPi <- mPpi
-  validatePartialPrimInfo pPi
+isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
 
 -- App (App (App (App f type) arg) Type2) arg2
 isPrimExpr' :: Expr Var -> Maybe PartialPrimInfo
@@ -110,7 +105,7 @@ isPrimExpr' (App e (Type t)) = case mPPI of
   where mPPI = isPrimExpr' e
 isPrimExpr' (App e e') =
   case isPrimExpr' e of
-    Just partPrimInfo@(PartialPrimInfo { primPart = Delay, args = args}) -> Just partPrimInfo {args = undefined : args}    -- UGLY HACK!!! Our data model does not suit delay well.
+    Just partPrimInfo@(PartialPrimInfo { primPart = Delay, args = args}) -> Just partPrimInfo {args = undefined : args}
     Just partPrimInfo@(PartialPrimInfo { args = args}) -> Just partPrimInfo {args = maybe args (:args) (getMaybeVar e')}
     _ -> Nothing
 isPrimExpr' (Var v) = case isPrim v of

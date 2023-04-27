@@ -23,7 +23,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import GHC.Types.Tickish
 import Control.Applicative ((<|>))
 
@@ -168,7 +168,7 @@ data CheckExpr = CheckExpr{
 
 checkExpr :: CheckExpr -> Expr Var -> CoreM Bool
 checkExpr c e = do
-  putMsg $ text "checkExpr: " <> ppr e 
+  when (verbose c) $ putMsg $ text "checkExpr: " <> ppr e
   res <- checkExpr' (emptyCtx c) e
   case res of
     Right _ -> return True
@@ -238,7 +238,6 @@ checkExpr' c (Let (NonRec v e1) e2) = do
   res1 <- checkExpr' c e1
   res2 <- checkExpr' c e2
   return $ combine c res1 res2
-checkExpr' _ (Let (Rec ([])) _) = return $ Right emptyCheckResult
 checkExpr' c (Let (Rec binds) e2) = do
     resAll <- mapM (\ (v,e) -> checkExpr' (c' v) e) binds
     res <- checkExpr' (addVars vs c) e2

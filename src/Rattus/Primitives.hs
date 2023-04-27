@@ -16,6 +16,7 @@ module Rattus.Primitives
   ,box
   ,unbox
   ,select
+  ,never
   ,Stable
   ) where
 import Rattus.InternalPrimitives

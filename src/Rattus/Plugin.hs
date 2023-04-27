@@ -82,16 +82,13 @@ strictify opts guts b@(Rec bs) = do
                     if ok
                       then transform strict
                       else error "Rattus: Ill-typed program") bs
+    when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr es'
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
     tr <- shouldTransform guts v
     if tr then do
-      -- liftIO $ putStrLn "-------- old --------"
-      -- liftIO $ putStrLn (showSDocUnsafe (ppr e))
       singleTick <- toSingleTick e
-      -- liftIO $ putStrLn "-------- new --------"
-      -- liftIO $ putStrLn (showSDocUnsafe (ppr e'))
       lazy <- allowLazyData guts v
       allowRec <- allowRecursion guts v
       strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
@@ -101,6 +98,7 @@ strictify opts guts b@(NonRec v e) = do
       if ok
       then do
         transformed <- transform strict
+        when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr transformed
         return $ NonRec v transformed
       else
         error "Rattus: Ill-typed program"
