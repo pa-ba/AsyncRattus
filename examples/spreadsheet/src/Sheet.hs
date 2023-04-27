@@ -1,14 +1,17 @@
+{-# LANGUAGE TypeOperators #-}
+
 module Sheet where 
 
 import Rattus (Rattus(..))
-import Rattus.Channels
+import qualified Rattus.Channels as Channels
+import Rattus.Channels (mkChannels)
 import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (box, unbox, select, delay, adv)
 import qualified Rattus.Stream as Stream
 import Rattus.Stream(Str(..))
 import qualified Rattus.Later as Later
 import qualified Rattus.Strict as Strict
-import Rattus.Strict (List(..), (+++))
+import Rattus.Strict (List(..), (+++), (:*))
 import qualified Data.Set
 import qualified Data.Map as Map
 import Data.Map ((!))
@@ -18,9 +21,10 @@ import Expr
 type Cell = String
 data CellUpdate = NewFormula Expr | UpdatedDependency (Cell, Maybe Int)
 
-type Input = (Cell, Expr)
+type Input = Int
 type O a = Prim.O Input a
 type Stream a = Str Input a
+type InputChannel = Channels.InputChannel Input
 
 {-# ANN module Rattus #-}
 
@@ -28,14 +32,26 @@ type Stream a = Str Input a
 --type Cell f = (String, f, O Int)
 --type Spreadsheet = Map String Cell
 
-cells = [(x, y) | x <- ['A' .. 'E'], y <- [1 .. 5]]
+inputCells = ["A1", "A2", "B1", "B2"]
 
--- Produces strings "A1", "A2", ... "B1", ... "E5"
-cellStrings = map (\(x,y) -> [x] ++ show y) cells
+(input, inputMaybe, depend, channels) = mkChannels inputCells
 
-(input, inputMaybe, depend, channels) = mkChannels cellStrings
+([a1, a2, b1, b2]) = map Stream.fromLater channels
 
+c1 :: Stream Int
+c1 = Stream.zipWithAwait (box (+)) a1 b1 0 0
+
+a3 :: Stream Int
+a3 = Stream.zipWithAwait (box (+)) a1 a2 0 0
+
+miniSheet :: Stream (Int :* Int)
+miniSheet = Stream.zip c1 a3
+
+--------------------------------------------------------------------
+
+{-
 cellToChannel = Map.fromList $ zip cellStrings channels
+channelToCell = Map.fromList $ zip channels cellStrings
 
 updateVarEnv :: List (Cell, Maybe Int) -> VarEnv -> VarEnv
 updateVarEnv lst env = foldl folder env lst
@@ -78,16 +94,51 @@ testVarEnv = varEnv (Strict.map' (Later.map (Stream.map (box (\(c, e) -> (c, eva
         evalMaybe' Nothing = Nothing
 
 
-cell :: Expr -> O (Stream VarEnv) -> O (Stream (Maybe Int))
-cell e envs = Later.map (Stream.map (box (evalMaybe e))) envs
+spreadSheet :: Stream (Map Cell (Maybe Int))
 
-{-
--- 1st arg: initial variable environment
--- 2nd arg: Stream of cell updates
-resettableCell :: O (Stream VarEnv) -> O (Stream CellUpdate) -> O (Stream (Maybe Int))
-resettableCell varEnvs updates = delay (
-        case adv updates of
-            NewFormula e ::: us -> undefined
-            UpdatedDependency (cellId, maybeValue) ::: us -> undefined
+
+spreadSheet' :: Stream (Map Cell (InputChannel, Expr)) -> Stream (Map Cell (Expr, Maybe Int))
+spreadSheet' (updates ::: updateStr) = undefined
+    where 
+        lAssocs = Strict.map (\(ch, cell) -> Later.map (cell,) ch) (Map.assocs channelToCell)
+        -- O (List (Int, (cell, expr)))
+        lUpdatedChannels = Later.selectMany lAssocs
+        -- O (List (cellId, expr))
+        lUpdatedChannels' = Later.map (Strict.map snd) lUpdatedChannels
+
+
+
+
+cell :: Expr -> Stream VarEnv -> Stream (Maybe Int)
+cell e = Stream.map (evalMaybe e)
+
+-- assume we know this expr has no dependencies
+constCell :: Expr -> Stream (Maybe Int)
+constCell = Stream.const . flip evalMaybe (emptyVarEnv)
+
+-- assume this expr has a single dependency
+singleDependencyCell :: Expr -> O (Stream (Maybe Int)) -> Stream (Maybe Int)
+singleDependencyCell e dependency = Stream.map (evalMaybe e) varEnvStr
+    where varEnvStr = varEnv (Strict.singleton dependency) emptyVarEnv
+
+-- assume this expr has a single dependency
+cell :: Expr -> List (O (Stream (Maybe Int))) -> Stream (Maybe Int)
+cell e dependencies = Stream.map (evalMaybe e) varEnvStr
+    where varEnvStr = varEnv dependencies emptyVarEnv
+
+mkCell :: Expr -> Map Cell (O (Stream (Maybe Int))) -> Stream (Maybe Int)
+mkCell e cellStrs = cell e dependencyStrs
+    where dependencies = depends e
+          dependencyStrs = Map.foldWithKey (\cellId cellStr acc -> if cellId `elem` dependencies then cellStr :! acc else acc) Nil cellStrs
+
+resettableCell :: Stream VarEnv -> Stream Expr -> Stream (Maybe Int)
+resettableCell envStr exprStr = 
+    Stream.map (\e -> cell e envStr) exprStr
+    
+    cell expr envStr ::: delay (
+        case select envs exprs of
+            Left envStr lExprStr -> resettableCell env (expr ::: lExprStr)
+            Right lEnvStr exprStr' -> resettableCell (env ::: lEnvStr) exprStr'
+            Both envStr exprStr' -> resettableCell envStr exprStr'
     )
 -}

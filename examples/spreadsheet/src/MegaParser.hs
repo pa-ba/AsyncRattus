@@ -29,7 +29,7 @@ lexeme = L.lexeme whitespace
 symbol = L.symbol whitespace
 
 whitespace :: Parser ()
-whitespace = void $ many $ (oneOf " \n\t" <?> "whitespace")
+whitespace = void $ many $ (oneOf " \t" <?> "whitespace")
 
 -- Parse variable of form a1 etc
 pVar :: Parser Expr
