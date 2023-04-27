@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 
-name:                spreadsheet
+name:                simple-sheet
 version:             0.1.0.0
 -- synopsis:
 -- description:
