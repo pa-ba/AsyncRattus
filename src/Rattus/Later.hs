@@ -7,7 +7,7 @@ module Rattus.Later (
 
 import Prelude hiding (map, Left, Right)
 import Rattus
-import Rattus.Primitives ( O, delay, adv, Select(..))
+import Rattus.Primitives ( O, delay, adv, Select(..), never)
 import Rattus.Strict (List(..), singleton)
 
 {-# ANN module Rattus #-}
@@ -21,6 +21,8 @@ map f later = delay (f (adv later))
 selectMany :: List (O v a) -> O v (List (Int, a))
 selectMany lst = aux 0 lst
     where
+        aux _ Nil = never
+        aux _ (x :! Nil) = map (\val -> (0, val) :! Nil) x
         aux n (x :! y :! Nil) = 
             delay (
                 case select x y of
