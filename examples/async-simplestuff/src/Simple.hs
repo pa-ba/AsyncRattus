@@ -1,9 +1,10 @@
 module Simple where
 
-import Rattus
+import Rattus (Rattus(..))
 import Rattus.Stream (Str(..))
 import qualified Rattus.Stream as Stream
-import Rattus.Primitives
+import qualified Rattus.Primitives as Prim
+import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
 import qualified Data.Set as Set
 import Prelude hiding (Left, Right, map, const)
 import Rattus.Later (map)
@@ -14,6 +15,9 @@ data Test a = IntTest Int a
 
 data MyValue = IntValue Int | BoolValue Bool | CharValue Char
 
+type O a = Prim.O MyValue a
+type Stream a = Str MyValue a
+
 --Constant
 test :: Test Bool
 test = IntTest 1 True
@@ -23,51 +27,51 @@ test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 
 (input, inputMaybe, depend, [kbChannel, mouseChannel, numChannel, num2Channel, num3Channel]) = mkChannels ["keyboard", "mouse", "num", "num2", "num3"]
 
-keyboard :: O MyValue Char
+keyboard :: O Char
 keyboard = map (\(CharValue c) -> c) kbChannel
 
 describeChar :: Char -> String
 describeChar c = "This keyboard input just arrived " ++ show c
 
-describeKeyboard :: O MyValue String
+describeKeyboard :: O String
 describeKeyboard = map describeChar keyboard
 
-num :: O MyValue Int
+num :: O Int
 num = map (\(IntValue i) -> i) numChannel
 
-num2 :: O MyValue Int
+num2 :: O Int
 num2 = map (\(IntValue i) -> i) num2Channel
 
-num3 :: O MyValue Int
+num3 :: O Int
 num3 = map (\(IntValue i) -> i) num3Channel
 
-numbers :: O MyValue Int
+numbers :: O Int
 numbers = map (\(IntValue i) -> i) numChannel
 
-numberStr :: O MyValue (Str MyValue Int)
+numberStr :: O (Stream Int)
 numberStr = constLaterStr numbers
 
-mappedStr :: O MyValue (Str MyValue Int)
+mappedStr :: O (Stream Int)
 mappedStr = map (Stream.map (box (+100))) $ constLaterStr numbers
 
-scannedStr :: Str MyValue Int
+scannedStr :: Stream Int
 scannedStr = Stream.scanAwait (box (+)) 0 numberStr
 
-scanMappedStr :: O MyValue (Str MyValue Int)
+scanMappedStr :: O (Stream Int)
 scanMappedStr = 
     delay (
         Stream.scanMap (box (+)) (box (\x -> if even x then x else -x)) 0 (adv numberStr)
     )
 
 -- should work
-id3 :: O v a -> O v a
+id3 :: O a -> O a
 id3 a = delay (adv a)
 
 -- should work
-addOne :: O v Int -> O v Int
-addOne li = delay (adv li + 22)
+add :: Int -> O Int -> O Int
+add k li = delay (adv li + k)
 
-constLaterStr :: O v Int -> O v (Str v Int)
+constLaterStr :: O Int -> O (Stream Int)
 constLaterStr = Stream.fromLater
 
 -- It is not _in general_ legal to advance on anything other than a var.
@@ -89,7 +93,7 @@ constLaterStr = Stream.fromLater
 -- still be better than Rattus.
 
 -- should work
-naiveIf :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf :: Bool -> O a -> O a -> O (Bool, a)
 naiveIf b x y = delay (b, adv later)
     where
         later = case b of
@@ -99,17 +103,17 @@ naiveIf b x y = delay (b, adv later)
 
 
 -- should not work
-naiveIf' :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf' :: Bool -> O a -> O a -> O (Bool, a)
 naiveIf' b x y = delay (b, adv (if b then x else y))
  
-describe :: O v a -> O v b -> O v Int
+describe :: O a -> O b -> O Int
 describe a b = delay (case select a b of
             Both _ _ -> 1
             Left _ _ -> 2
             Right _ _ -> 3)
 
 
-maybe :: O v (Maybe a) -> a -> O v a
+maybe :: O (Maybe a) -> a -> O a
 maybe later d =
     delay (
         case adv later of
@@ -117,7 +121,7 @@ maybe later d =
             Just i -> i
     )
 
-constIf0 :: Int -> O v Int -> O v Int
+constIf0 :: Int -> O Int -> O Int
 constIf0 i later =
     delay (
         case i of
@@ -145,7 +149,7 @@ naiveSwitch1 = naiveSwitch 0 num num2
 naiveSwitch2 = naiveSwitch 1 num num2
 -}
 
-funkyExample :: Int -> O v Int -> O v Int
+funkyExample :: Int -> O Int -> O Int
 funkyExample n later =
     delay (
         case n of
@@ -157,15 +161,15 @@ funkyExample n later =
                     Both a b -> a + b
     )
 
-myFunkyExample :: O MyValue Int
+myFunkyExample :: O Int
 myFunkyExample = funkyExample 0 num
 
-myFunkyExample2 :: O MyValue Int
+myFunkyExample2 :: O Int
 myFunkyExample2 = funkyExample 1 num
 
 
 -- invalid. We do not support nested delays
---stutter :: Int -> Str Int
+--stutter :: Int -> Stream Int
 --stutter n = n ::: delay (n ::: delay (stutter (n+1)))
 
 -- invalid. Only a single adv can appear inside a delay

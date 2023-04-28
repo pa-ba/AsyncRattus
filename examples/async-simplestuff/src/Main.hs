@@ -98,6 +98,7 @@ main = do
     let laterLater = describe laterDescribe const50Later
     print $ depend laterLater
     print $ inputMaybe "num2" (IntValue 350) const50Later
+    print $ inputMaybe "num" (IntValue 1000) (add 50 num)
     
     -- Fails as expected
     --print $ input "num2" (IntValue 350) const50Later
