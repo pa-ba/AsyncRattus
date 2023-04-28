@@ -7,8 +7,6 @@ import qualified Rattus.Stream as Stream
 import Rattus.Stream (Str(..))
 import Debug.Trace as D
 import qualified Data.Set as Set
-import MegaParser
-import Expr
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Functor ((<&>))
