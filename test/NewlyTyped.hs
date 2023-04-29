@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE RebindableSyntax #-}
 
 module Main (module Main) where

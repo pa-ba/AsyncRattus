@@ -13,13 +13,12 @@ import qualified Data.Map as Map
 import GHC.Plugins
 import Rattus.Plugin.Utils
 import Prelude hiding ((<>))
-import qualified Debug.Trace as D
 
-data Prim = Delay | Adv | Box | Arr | Select
+data Prim = Delay | Adv | Box | Select
 
 -- DelayApp has the following fields: Var = delay f, T1 = value type, T2 = later type (O v a)
 -- AdvApp has the following fields: Var = adv f, TypedArg = var and type for arg
-data PrimInfo = DelayApp Var Type Type | AdvApp Var TypedArg | BoxApp Var | ArrApp Var | SelectApp Var TypedArg TypedArg
+data PrimInfo = DelayApp Var Type Type | AdvApp Var TypedArg | BoxApp Var | SelectApp Var TypedArg TypedArg
 
 type TypedArg = (Var, Type)
 
@@ -39,12 +38,10 @@ instance Outputable Prim where
   ppr Adv = "adv"
   ppr Select = "select"
   ppr Box = "box"
-  ppr Arr = "arr"
 
 instance Outputable PrimInfo where
   ppr (DelayApp f _ _) = text "DelayApp - function " <> ppr f 
-  ppr (BoxApp f) = text "BoxApp - function " <> ppr f 
-  ppr (ArrApp f) = text "ArrApp - function " <> ppr f 
+  ppr (BoxApp f) = text "BoxApp - function " <> ppr f
   ppr (AdvApp f arg) = text "AdvApp - function " <> ppr f <> text " | arg " <> ppr arg
   ppr (SelectApp f arg arg2) = text "SelectApp - function " <> ppr f <> text " | arg " <> ppr arg <> text " | arg2 " <> ppr arg2
   
@@ -53,8 +50,7 @@ primMap = Map.fromList
   [("delay", Delay),
    ("adv", Adv),
    ("select", Select),
-   ("box", Box),
-   ("arr", Arr)
+   ("box", Box)
    ]
 
 
@@ -75,22 +71,19 @@ createPartialPrimInfo prim function =
 function :: PrimInfo -> Var
 function (DelayApp f _ _) = f
 function (BoxApp f) = f
-function (ArrApp f) = f
 function (AdvApp f _) = f
 function (SelectApp f _ _) = f
 
 prim :: PrimInfo -> Prim
 prim (DelayApp {}) = Delay
 prim (BoxApp _) = Box
-prim (ArrApp _) = Arr
 prim (AdvApp {}) = Adv
 prim (SelectApp {}) = Select
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
 validatePartialPrimInfo (PartialPrimInfo Select f [arg2V, argV] [arg2T, argT, _]) = Just $ SelectApp f (argV, argT) (arg2V, arg2T)
 validatePartialPrimInfo (PartialPrimInfo Delay f [_] [argT, vt]) = Just $ DelayApp f vt argT
-validatePartialPrimInfo (PartialPrimInfo {primPart = Box, functionPart = f}) = Just $ BoxApp f     
-validatePartialPrimInfo (PartialPrimInfo {primPart = Arr, functionPart = f}) = Just $ ArrApp f 
+validatePartialPrimInfo (PartialPrimInfo {primPart = Box, functionPart = f}) = Just $ BoxApp f
 validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT, _]) = Just $ AdvApp f (argV, argT)
 validatePartialPrimInfo _ = Nothing
 

@@ -194,8 +194,6 @@ checkExpr' c@Ctx{current = cur} expr@(App e e') =
   case Prim.isPrimExpr expr of
     Just (Prim.BoxApp _) ->
       checkExpr' (stabilize BoxApp c) e'
-    Just (Prim.ArrApp _) ->
-      checkExpr' (stabilize BoxApp c) e'
     Just (Prim.DelayApp f _ _) ->
       if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
       else do

@@ -80,9 +80,6 @@ transform' ctx expr@(App e e') = case isPrimExpr expr of
     Just (BoxApp _) -> do
         (newExpr, primInfo) <- transform' ctx e'
         return (App e newExpr, primInfo)
-    Just (ArrApp _) -> do
-        (newExpr, primInfo) <- transform' ctx e'
-        return (App e newExpr, primInfo)
     Just _ -> do
         (newExpr, primInfo) <- transformPrim ctx expr
         return (newExpr, Just primInfo)
@@ -105,8 +102,7 @@ transform' ctx (Let (Rec binds) e) = do
     let firstPrimInfo = foldl (<|>) mPi primInfos
     newBinds <- mapM (\(b, (e, _)) -> return (b, e)) transformedBinds
     return (Let (Rec newBinds) e', firstPrimInfo)
-transform' ctx caseExpr@(Case e b t alts) = do
-    putMsg $ text "CASE EXPR:" <> ppr caseExpr
+transform' ctx (Case e b t alts) = do
     -- The checking pass has ensured that there are not advances on different
     -- clocks. Thus we can just pick the first PrimInfo we find.
     (expr, primInfo) <- transform' ctx e

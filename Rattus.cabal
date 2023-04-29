@@ -141,7 +141,6 @@ library
                        --Rattus.Event
                        --Rattus.Future
                        Rattus.Plugin
-                       Rattus.Arrow
                        Rattus.Primitives
                        Rattus.Later
                        Rattus.Channels

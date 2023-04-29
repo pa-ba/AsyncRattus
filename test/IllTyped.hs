@@ -1,17 +1,14 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE RebindableSyntax #-}
 
 module Main (module Main) where
 
 import Rattus
 import Rattus.Stream as S
-import Rattus.Yampa
 import Prelude
 import Rattus.Plugin.Annotation (InternalAnn (..))
 
 
 {-# ANN module Rattus #-}
-
 
 
 {-# ANN loopIndirect ExpectError #-}
@@ -30,11 +27,6 @@ nestedUnguard = run 0
   where run :: Int -> Str Int
         run 0 = nestedUnguard
         run n = n ::: delay (run (n-1))
-
-{-# ANN sfLeak ExpectError #-}
-sfLeak :: O Int -> SF () (O Int)
-sfLeak  x = proc _ -> do
-  returnA -< x
 
 {-# ANN advDelay ExpectError #-}
 advDelay :: O (O a) -> O a

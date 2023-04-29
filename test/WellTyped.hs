@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE RebindableSyntax #-}
 
 module Main (module Main) where
@@ -12,20 +11,6 @@ import Prelude
 
 
 {-# ANN module Rattus #-}
-
-ballPos :: SF (Int :* Int) Int
-ballPos = arr (\ (x :* y) -> x)
-
-padPos :: SF Int Int
-padPos = arr (\ x -> x)
-
-{-# ANN pong AllowLazyData #-}
-pong :: SF Int (Int :* Int)
-pong = proc inp -> do
-  pad <- padPos -< inp
-  ball <- ballPos -< (pad :* inp)
-  returnA -< (ball :* pad)
-
 
 boxedInt :: Box Int
 boxedInt = box 8

@@ -142,7 +142,7 @@ instance Ord FastString where
 
 rattModules :: Set FastString
 rattModules = Set.fromList ["Rattus.Internal","Rattus.Primitives"
-                           ,"Rattus.Stable", "Rattus.Arrow", "Rattus.InternalPrimitives"]
+                           ,"Rattus.Stable", "Rattus.InternalPrimitives"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName
