@@ -20,6 +20,7 @@ import Prelude hiding ((<>))
 import Control.Monad
 import Data.Maybe
 import Data.Data hiding (tyConName)
+import Data.Foldable (find)
 import qualified Data.Set as Set
 
 #if __GLASGOW_HASKELL__ >= 900
@@ -39,7 +40,7 @@ plugin :: Plugin
 plugin = defaultPlugin {
   installCoreToDos = install,
   pluginRecompile = purePlugin,
-  --typeCheckResultAction = typechecked,
+  typeCheckResultAction = typechecked,
   tcPlugin = tcStable
   }
 
@@ -72,36 +73,48 @@ strictify opts guts b@(Rec bs) = do
   if tr then do
     let vs = map fst bs
     es' <- mapM (\ (v,e) -> do
-                    singleTick <- toSingleTick e
-                    lazy <- allowLazyData guts v
+                    when (debugMode opts) $ putMsg $ text "Processing binding: " <> ppr v <> " | Recursive binding"
+                    when (debugMode opts) $ putMsg $ text "Expr: " <> ppr e
                     allowRec <- allowRecursion guts v
+                    expectAnn <- internalAnn guts v
+                    let expectCheckError = expectAnn == Just ExpectError
+                    singleTick <- toSingleTick e
+                    when (debugMode opts) $ putMsg $ text "Single-tick: " <> ppr singleTick
+                    lazy <- allowLazyData guts v
                     strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-                    ok <- checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
-                                         fatalError = True, verbose = debugMode opts,
+                    when (debugMode opts) $ putMsg $ text "Strict single-tick: " <> ppr strict
+                    checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
+                                         expectError = expectCheckError, verbose = debugMode opts,
                                          allowRecExp = allowRec} strict
-                    if ok
-                      then transform strict
-                      else error "Rattus: Ill-typed program") bs
+                    if expectCheckError
+                    then return strict -- don't attempt to transform an ill-typed program
+                    else transform strict) bs
     when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr es'
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
+    when (debugMode opts) $ putMsg $ text "Processing binding: " <> ppr v <> text " | Non-recursive binding"
+    when (debugMode opts) $ putMsg $ text "Expr: " <> ppr e
     tr <- shouldTransform guts v
+    expectAnn <- internalAnn guts v
+    let expectCheckError = expectAnn == Just ExpectError
+    putMsg $ text "expectCheckError: " <> ppr expectCheckError
     if tr then do
-      singleTick <- toSingleTick e
-      lazy <- allowLazyData guts v
       allowRec <- allowRecursion guts v
+      singleTick <- toSingleTick e
+      when (debugMode opts) $ putMsg $ text "Single-tick: " <> ppr singleTick
+      lazy <- allowLazyData guts v
       strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-      ok <- checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
-                           fatalError = True, verbose = debugMode opts,
+      when (debugMode opts) $ putMsg $ text "Strict single-tick: " <> ppr strict
+      checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
+                           expectError = expectCheckError, verbose = debugMode opts,
                            allowRecExp = allowRec } strict
-      if ok
-      then do
+      if expectCheckError
+      then return (NonRec v strict) -- don't attempt to transform an ill-typed program
+      else do
         transformed <- transform strict
         when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr transformed
         return $ NonRec v transformed
-      else
-        error "Rattus: Ill-typed program"
     else return b
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
@@ -110,7 +123,7 @@ getModuleAnnotations guts = anns'
                          ModuleTarget m -> m == (mg_module guts)
                          _ -> False) (mg_anns guts)
         anns' = mapMaybe (fromSerialized deserializeWithData . ann_value) anns
-  
+
 
 
 
@@ -124,12 +137,17 @@ allowRecursion guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [Rattus]
   return (AllowRecursion `elem` l)
 
+internalAnn :: ModGuts -> CoreBndr -> CoreM (Maybe InternalAnn)
+internalAnn guts bndr = do
+  l <- annotationsOn guts bndr :: CoreM [InternalAnn]
+  if ExpectError `elem` l
+  then return (Just ExpectError)
+  else return ((==) ExpectWarning `find` l)
 
 shouldTransform :: ModGuts -> CoreBndr -> CoreM Bool
 shouldTransform guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [Rattus]
-  l' <- annotationsOn guts bndr :: CoreM [InternalAnn]
-  return ((Rattus `elem` l && not (NotRattus `elem` l) && userFunction bndr) && not (ExpectError `elem` l'))
+  return (Rattus `elem` l && notElem NotRattus l && userFunction bndr)
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do

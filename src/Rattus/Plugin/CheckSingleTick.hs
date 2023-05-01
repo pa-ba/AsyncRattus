@@ -26,11 +26,11 @@ import Data.Maybe (isJust)
 import Control.Monad (foldM, when)
 import GHC.Types.Tickish
 import Control.Applicative ((<|>))
+import System.Exit (exitFailure)
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
 type Hidden = Map Var HiddenReason
-
 
 data TypeError = TypeError SrcSpan SDoc
 
@@ -161,30 +161,36 @@ emptyCheckResult = CheckResult {prim = Nothing}
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
   oldExpr :: Expr Var,
-  fatalError :: Bool,
+  expectError :: Bool,
   verbose :: Bool,
   allowRecExp :: Bool
   }
 
-checkExpr :: CheckExpr -> Expr Var -> CoreM Bool
+checkExpr :: CheckExpr -> Expr Var -> CoreM ()
 checkExpr c e = do
   when (verbose c) $ putMsg $ text "checkExpr: " <> ppr e
   res <- checkExpr' (emptyCtx c) e
   case res of
-    Right _ -> return True
+    Right _ | expectError c -> do
+      putMsg $ text "Expected error, but no errors were encountered. Expr: " <> ppr e
+    Right _ -> do when (verbose c) $ putMsgS "checkExpr succeeded."
+    Left (TypeError src doc) | expectError c -> do
+      when (verbose c) $ printMessage SevInfo src $ text "checkExpr: error was expected, and there was an error:" $$ doc
     Left (TypeError src doc) ->
-      let sev = if fatalError c then SevError else SevWarning
-      in if verbose c then do
-        printMessage sev src ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
-        liftIO $ putStrLn "-------- old --------"
-        liftIO $ putStrLn (showSDocUnsafe (ppr (oldExpr c)))
-        liftIO $ putStrLn "-------- new --------"
-        liftIO $ putStrLn (showSDocUnsafe (ppr e))
-        return $ not (fatalError c)
-         else do
-        printMessage sev noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
-                             "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
-        return $ not (fatalError c)
+      let printErrMsg = if verbose c
+          then do
+            printMessage SevError src ("Ill-typed Async Rattus program:" $$ doc)
+            putMsgS "-------- old --------"
+            putMsg $ ppr (oldExpr c)
+            putMsgS "-------- new --------"
+            putMsg (ppr e)
+            
+          else do
+            printMessage SevError noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
+                                  "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
+      in do
+        printErrMsg
+        liftIO exitFailure
 
 
 checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
@@ -211,11 +217,6 @@ checkExpr' c (Case e v _ alts) = do
     res <- checkExpr' c' e
     resAll <- mapM (\(Alt _ _ altE) -> checkExpr' c altE) alts
     foldM (fmap return . combine c) res resAll
-    {-
-    let maybePrimVar = foldl (\acc (Alt _ _ altE) -> acc <|> recursiveIsPrimExpr altE) Nothing alts
-    case maybePrimVar of
-      Just _ -> return $ Left $ typeError c v "Primitives in case expressions are not allowed"
-      Nothing -> return res -}
   where c' = addVars [v] c
 checkExpr' c (Lam v e)
   | isTyVar v || (not $ tcIsLiftedTypeKind $ typeKind $ varType v) = do
