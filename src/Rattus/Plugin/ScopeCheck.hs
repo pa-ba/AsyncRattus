@@ -205,16 +205,39 @@ updateLoc src = modifyCtxt (\c -> c {srcLoc = src})
 
 
 
--- | Check all definitions in the given module. If Scope errors are
--- found, the current execution is halted with 'exitFailure'.
-checkAll :: TcGblEnv -> TcM ()
+
+
+
+
+
+
+-- | Check all definitions in the given module.
+-- | For each SCC, there can be 4 results, depending on whether it type checks, and whether we expected it to:
+-- | 1) expected to type check, did type check - all is well, continue processing.
+-- | 2) expected to type check, did not type check - abort compilation with an error.
+-- | 3) expected not to type check, did not type check - this is expected, so don't abort compilation (so we can run other test cases).
+-- |      But remove the binding from the environment so it is not processed by the Core passes (which cannot deal with e.g. partially applied adv).
+-- | 4) expected not to type check, did type check - continue compilation, and leave the bindings in the env so they can be processed by the Core passes.
+
+-- | If any binding does not type check and does not expect errors, the current execution is halted with 'exitFailure'.
+-- | Otherwise this pass is successful. We return a new environment where we have removed all those bindings
+-- | with expected errors such that they will not be processed by the Core passes.
+checkAll :: TcGblEnv -> TcM TcGblEnv
 checkAll env = do
-  let dep = dependency (tcg_binds env)
+  let binds = tcg_binds env
+  let dep = dependency binds
   let bindDep = filter (filterBinds (tcg_mod env) (tcg_ann_env env)) dep
-  result <- mapM (checkSCC' (tcg_mod env) (tcg_ann_env env)) bindDep
-  let (res,msgs) = foldl' (\(b,l) (b',l') -> (b && b', l ++ l')) (True,[]) result
-  printAccErrMsgs msgs
-  if res then return () else liftIO exitFailure
+  results <- mapM (checkSCC' (tcg_mod env) (tcg_ann_env env)) bindDep
+  -- Check for SCCs of type 2 (failed unexpectedly)
+  if any (\(expectSuccess, typeSuccess, _) -> expectSuccess && not typeSuccess) results
+  then do
+    printAccErrMsgs $ List.concatMap (\(_, _, errs) -> errs) results
+    liftIO exitFailure
+  else
+    let sccExpectedResult = List.zipWith (\scc (expected, result, _) -> (scc, expected, result)) bindDep results
+        sccToKeep = List.map (\(scc, _, _) -> scc) $ List.filter (\(_, expected, typeSuccess) -> expected || typeSuccess) sccExpectedResult
+        bindsToKeep = List.concatMap (List.map fst . Foldable.toList) sccToKeep
+    in liftIO (putStrLn ("# binds out: " ++ show (length bindsToKeep))) >> return env {tcg_binds = listToBag bindsToKeep}
 
 
 printAccErrMsgs :: [ErrorMsg] -> TcM ()
@@ -796,25 +819,27 @@ getSCCLoc (AcyclicSCC (L l _ ,_)) = getLocAnn' l
 getSCCLoc (CyclicSCC ((L l _,_ ) : _)) = getLocAnn' l
 getSCCLoc _ = noLocationInfo
 
-
-checkSCC' ::  Module -> AnnEnv -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> TcM (Bool, [ErrorMsg])
+-- Checks each binding in A SCC. Returns: a boolean stating whether we expected the SCC to type check,
+-- a boolean stating whether it typed successfully, and a list of warning/error messages.
+checkSCC' ::  Module -> AnnEnv -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> TcM (Bool, Bool, [ErrorMsg])
 checkSCC' mod anEnv scc = do
   err <- liftIO (newIORef [])
   let allowRec = AllowRecursion `Set.member` getAnn mod anEnv scc
-  res <- checkSCC allowRec err scc
+  let isRattus = Rattus `Set.member` getAnn mod anEnv scc
+  res <- if isRattus
+    then checkSCC allowRec err scc
+    else return True
   msgs <- liftIO (readIORef err)
   let anns = getAnn mod anEnv scc
-  if ExpectWarning `Set.member` anns 
+  if ExpectWarning `Set.member` anns
     then if ExpectError `Set.member` anns
-         then return (False,[(SevError, getSCCLoc scc, "Annotation to expect both warning and error is not allowed.")])
-         else if any (\(s,_,_) -> case s of SevWarning -> True; _ -> False) msgs
-              then return (res, filter (\(s,_,_) -> case s of SevWarning -> False; _ -> True) msgs)
-              else return (False,[(SevError, getSCCLoc scc, "Warning was expected, but typechecking produced no warning.")])
+         then return (True, False,[(SevError, getSCCLoc scc, "Annotation to expect both warning and error is not allowed.")])
+         else return (True, res, filter (\(s,_,_) -> case s of SevWarning -> False; _ -> True) msgs)
     else if ExpectError `Set.member` anns
          then if res
-              then return (False,[(SevError, getSCCLoc scc, "Error was expected, but typechecking produced no error.")])
-              else return (True,[])
-         else return (res, msgs)
+              then return (False, res,[(SevError, getSCCLoc scc, "Error was expected, but typechecking produced no error.")])
+              else return (False, res,[])
+         else return (True, res, msgs)
 
 getAnn :: forall a . (Data a, Ord a) => Module -> AnnEnv -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> Set a
 getAnn mod anEnv scc =
