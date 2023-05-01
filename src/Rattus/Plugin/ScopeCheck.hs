@@ -141,7 +141,7 @@ type RecDef = (Set Var, SrcSpan)
 data StableReason = StableRec SrcSpan | StableBox | StableArr deriving Show
 
 -- | Indicates, why a variable has fallen out of scope.
-data HiddenReason = Stabilize StableReason | FunDef | DelayApp | AdvApp deriving Show
+data HiddenReason = Stabilize StableReason | FunDef | DelayApp | AdvApp | SelectApp deriving Show
 
 -- | Indicates, why there is no tick
 data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
@@ -151,7 +151,7 @@ data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
 type Hidden = Map Var HiddenReason
 
 -- | The 4 primitive Rattus operations plus 'arr'.
-data Prim = Delay | Adv | Box | Unbox | Arr deriving Show
+data Prim = Delay | Adv | Select | Box | Unbox | Arr deriving Show
 
 -- | This constraint is used to pass along the context implicitly via
 -- an implicit parameter.
@@ -471,9 +471,16 @@ tickHidden :: HiddenReason -> SDoc
 tickHidden FunDef = "a function definition"
 tickHidden DelayApp = "a nested application of delay"
 tickHidden AdvApp = "an application of adv"
+tickHidden SelectApp = "an application of select"
 tickHidden (Stabilize StableBox) = "an application of box"
 tickHidden (Stabilize StableArr) = "an application of arr"
 tickHidden (Stabilize (StableRec src)) = "a nested recursive definition (at " <> ppr src <> ")"
+
+isSelect :: GetCtxt => LHsExpr GhcTc -> Bool
+isSelect e =
+  case isPrimExpr e of
+    Just (Select, _) -> True
+    _ -> False
 
 instance Scope (HsExpr GhcTc) where
   check (HsVar _ (L _ v))
@@ -487,6 +494,23 @@ instance Scope (HsExpr GhcTc) where
              ImplUnboxed -> return True
                -- printMessageCheck SevWarning
                --  (ppr v <> text " is an external temporal function used under delay, which may cause time leaks.")
+  check (HsApp _ (L _ (HsApp _ f arg)) arg2) | isSelect f =
+    case isPrimExpr f of
+    Just (Select,_) -> case earlier ?ctxt of
+      Right (er :| ers) -> do
+        b1 <- mod `modifyCtxt` check arg
+        b2 <- mod `modifyCtxt` check arg2
+        return $ b1 && b2
+        where mod c =  c{earlier = case nonEmpty ers of
+                                    Nothing -> Left $ TickHidden SelectApp
+                                    Just ers' -> Right ers',
+                        current = er,
+                        hidden = hidden ?ctxt `Map.union`
+                        Map.fromSet (const SelectApp) (current ?ctxt)}
+      Left NoDelay -> printMessageCheck SevError "select may only be used in the scope of a delay."
+      Left (TickHidden hr) -> printMessageCheck SevError ("select may only be used in the scope of a delay. "
+                        <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
+    _ -> error "Rattus: internal error"
   check (HsApp _ e1 e2) =
     case isPrimExpr e1 of
     Just (p,_) -> case p of
@@ -521,6 +545,7 @@ instance Scope (HsExpr GhcTc) where
         Left NoDelay -> printMessageCheck SevError ("adv may only be used in the scope of a delay.")
         Left (TickHidden hr) -> printMessageCheck SevError ("adv may only be used in the scope of a delay. "
                             <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
+      Select -> printMessageCheck SevError ("select must be fully applied")
     _ -> liftM2 (&&) (check e1)  (check e2)
   check HsUnboundVar{}  = return True
 #if __GLASGOW_HASKELL__ >= 904
@@ -860,6 +885,7 @@ getScope v =
               else Hidden ("Variable " <> ppr v <> " is no longer in scope:" $$
                        "It occurs inside an arrow notation and is of type " <> ppr (varType v) <> ", which is not stable.")
             Just AdvApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under adv.")
+            Just SelectApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under select.")
             Just DelayApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope due to repeated application of delay")
             Just FunDef -> if (isStable (stableTypes ?ctxt) (varType v)) then Visible
               else Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs in a function that is defined under a delay, is a of a non-stable type " <> ppr (varType v) <> ", and is bound outside delay")
@@ -879,6 +905,7 @@ primMap = Map.fromList
   [("Delay", Delay),
    ("delay", Delay),
    ("adv", Adv),
+   ("select", Select),
    ("box", Box),
    ("arr", Arr),
    ("unbox", Unbox)]
