@@ -12,30 +12,30 @@ import Rattus.Strict (List(..), singleton)
 
 {-# ANN module Rattus #-}
 
-map :: (a -> b) -> O v a -> O v b
-map f later = delay (f (adv later))
-
-{-# ANN selectMany AllowRecursion #-}
+map :: Box (a -> b) -> O v a -> O v b
+map f later = delay (unbox f (adv later))
 
 -- Given a list of delayed values, select over them return list of all available values when one arrives.
 selectMany :: List (O v a) -> O v (List (Int, a))
-selectMany lst = aux 0 lst
-    where
-        aux _ Nil = never
-        aux _ (x :! Nil) = map (\val -> (0, val) :! Nil) x
-        aux n (x :! y :! Nil) = 
-            delay (
-                case select x y of
-                    Both a b -> (n, a) :! (n+1, b) :! Nil
-                    Left a lb -> singleton (n, a)
-                    Right la b -> singleton (n+1, b)
-            )
-        aux n (x :! xs) =
-            delay (
-                let xs' = (aux (n+1) xs) in
-                case select x xs' of
-                    Both a b -> (n, a) :! b
-                    Left a lb -> singleton (n, a)
-                    Right la b -> b
-            )
-        
+selectMany = selectMany' 0
+
+{-# ANN selectMany' AllowRecursion #-}
+selectMany' :: Int -> List (O v a) -> O v (List (Int, a))
+selectMany' _ Nil = never
+selectMany' _ (x :! Nil) = delay ((0, adv x) :! Nil)
+selectMany' n (x :! y :! Nil) = 
+    delay (
+        case select x y of
+            Both a b -> (n, a) :! (n+1, b) :! Nil
+            Left a lb -> singleton (n, a)
+            Right la b -> singleton (n+1, b)
+    )
+selectMany' n (x :! xs) =
+    let xs' = selectMany' (n+1) xs
+    in
+    delay (
+        case select x xs' of
+            Both a b -> (n, a) :! b
+            Left a lb -> singleton (n, a)
+            Right la b -> b
+    )

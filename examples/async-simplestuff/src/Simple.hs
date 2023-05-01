@@ -182,4 +182,24 @@ myFunkyExample2 = funkyExample 1 num
         Right _ _ -> "Right"
         Both _ _ -> "Both"
 -}
---------------------------------------
+
+-- should not work, and doesn't
+-- tomorrowPlusOne :: O Int -> Int
+-- tomorrowPlusOne laterI = adv laterI + 1
+
+-- illegal syntax. However, this is not detected. Can be detected if we keep track of aliases.
+-- Thus using this function is equivalent to an untransformed adv.
+tomorrow :: O a -> a
+tomorrow = adv
+
+-- nestedDelay :: O Int -> O (O Int)
+-- nestedDelay k = delay (delay (adv k + 1))
+
+{-
+weirdPlusTwo :: O Int -> O Int
+weirdPlusTwo x = delay (
+        let doAdd = (+) 1
+            newLater = delay (doAdd (adv x))
+        in doAdd (adv newLater)
+    )
+-}

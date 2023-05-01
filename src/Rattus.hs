@@ -15,7 +15,6 @@ module Rattus (
   -- * Applicative operators
   (|#|),
   (|##),
-  (<#>),
   (<##),
   -- * box for stable types
   box'
@@ -27,13 +26,8 @@ import Rattus.Strict
 import Rattus.Primitives
 
 -- all functions in this module are in Rattus 
---{-# ANN module Rattus #-}
+{-# ANN module Rattus #-}
 
-
--- | Applicative operator for 'O'.
-{-# INLINE (<#>) #-}
-(<#>) :: O v (a -> b) -> O v a -> O v b
-f <#> x = delay (adv f (adv x))
 
 -- | Variant of '<#>' where the argument is of a stable type..
 {-# INLINE (<##) #-}

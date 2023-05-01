@@ -99,6 +99,8 @@ main = do
     print $ depend laterLater
     print $ inputMaybe "num2" (IntValue 350) const50Later
     print $ inputMaybe "num" (IntValue 1000) (add 50 num)
+    -- print $ tomorrow num -- crashes the program
+    --print $ inputMaybe "num" (IntValue 2000) (weirdPlusTwo num)
     
     -- Fails as expected
     --print $ input "num2" (IntValue 350) const50Later
