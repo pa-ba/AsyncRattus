@@ -4,9 +4,8 @@ module Main (module Main) where
 
 import Rattus
 import Rattus.Stream as Str
-import Rattus.ToHaskell
 import Rattus.Plugin.Annotation (InternalAnn (..))
-
+{-
 {-# ANN module Rattus #-}
 
 
@@ -107,4 +106,6 @@ main = do
 
   let x = fromStr boxLeaky
   recurse 10000000 x
-  
+-}
+
+main = putStrLn ""

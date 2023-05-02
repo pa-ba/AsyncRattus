@@ -20,7 +20,6 @@ import Prelude hiding ((<>))
 import Control.Monad
 import Data.Maybe
 import Data.Data hiding (tyConName)
-import Data.Foldable (find)
 import qualified Data.Set as Set
 
 #if __GLASGOW_HASKELL__ >= 900
@@ -69,53 +68,51 @@ strictifyProgram opts guts = do
 
 strictify :: Options -> ModGuts -> CoreBind -> CoreM CoreBind
 strictify opts guts b@(Rec bs) = do
-  tr <- liftM or (mapM (shouldTransform guts . fst) bs)
+  let debug = debugMode opts
+  tr <- liftM or (mapM (shouldProcessCore guts . fst) bs)
   if tr then do
     let vs = map fst bs
     es' <- mapM (\ (v,e) -> do
-                    when (debugMode opts) $ putMsg $ text "Processing binding: " <> ppr v <> " | Recursive binding"
-                    when (debugMode opts) $ putMsg $ text "Expr: " <> ppr e
-                    allowRec <- allowRecursion guts v
-                    expectAnn <- internalAnn guts v
-                    let expectCheckError = expectAnn == Just ExpectError
-                    singleTick <- toSingleTick e
-                    when (debugMode opts) $ putMsg $ text "Single-tick: " <> ppr singleTick
-                    lazy <- allowLazyData guts v
-                    strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-                    when (debugMode opts) $ putMsg $ text "Strict single-tick: " <> ppr strict
-                    checkExpr CheckExpr{ recursiveSet = Set.fromList vs, oldExpr = e,
-                                         expectError = expectCheckError, verbose = debugMode opts,
-                                         allowRecExp = allowRec} strict
-                    if expectCheckError
-                    then return strict -- don't attempt to transform an ill-typed program
-                    else transform strict) bs
-    when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr es'
+      processCore <- shouldProcessCore guts v
+      if not processCore
+      then do
+        when debug $ putMsg $ text "Skipping binding: " <> ppr v
+        return e
+      else checkAndTransform guts (Set.fromList vs) debug v e
+      ) bs
+    when debug $ putMsg $ "Plugin | result of transformation: " <> ppr es'
     return (Rec (zip vs es'))
   else return b
 strictify opts guts b@(NonRec v e) = do
-    when (debugMode opts) $ putMsg $ text "Processing binding: " <> ppr v <> text " | Non-recursive binding"
-    when (debugMode opts) $ putMsg $ text "Expr: " <> ppr e
-    tr <- shouldTransform guts v
-    expectAnn <- internalAnn guts v
-    let expectCheckError = expectAnn == Just ExpectError
-    putMsg $ text "expectCheckError: " <> ppr expectCheckError
-    if tr then do
-      allowRec <- allowRecursion guts v
-      singleTick <- toSingleTick e
-      when (debugMode opts) $ putMsg $ text "Single-tick: " <> ppr singleTick
-      lazy <- allowLazyData guts v
-      strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-      when (debugMode opts) $ putMsg $ text "Strict single-tick: " <> ppr strict
-      checkExpr CheckExpr{ recursiveSet = Set.empty, oldExpr = e,
-                           expectError = expectCheckError, verbose = debugMode opts,
-                           allowRecExp = allowRec } strict
-      if expectCheckError
-      then return (NonRec v strict) -- don't attempt to transform an ill-typed program
-      else do
-        transformed <- transform strict
-        when (debugMode opts) $ putMsg $ "Plugin | result of transformation: " <> ppr transformed
-        return $ NonRec v transformed
-    else return b
+    let debug = debugMode opts
+    when debug $ putMsg $ text "Processing binding: " <> ppr v <> text " | Non-recursive binding"
+    when debug $ putMsg $ text "Expr: " <> ppr e
+    processCore <- shouldProcessCore guts v
+    if not processCore then do
+      when debug $ putMsg $ text "Skipping binding: " <> ppr v
+      return b
+    else do
+      transformed <- checkAndTransform guts Set.empty debug v e
+      when debug $ putMsg $ "Plugin | result of transformation: " <> ppr transformed
+      return $ NonRec v transformed
+
+checkAndTransform :: ModGuts -> Set Var -> Bool -> Var -> CoreExpr -> CoreM CoreExpr
+checkAndTransform guts recursiveSet debug v e = do
+  when debug $ putMsg $ text "Processing binding: " <> ppr v
+  when debug $ putMsg $ text "Expr: " <> ppr e
+  allowRec <- allowRecursion guts v
+  expectCheckError <- expectCoreError guts v
+  singleTick <- toSingleTick e
+  when debug $ putMsg $ text "Single-tick: " <> ppr singleTick
+  lazy <- allowLazyData guts v
+  strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
+  when debug $ putMsg $ text "Strict single-tick: " <> ppr strict
+  checkExpr CheckExpr{ recursiveSet = recursiveSet, oldExpr = e,
+                        expectError = expectCheckError, verbose = debug,
+                        allowRecExp = allowRec} strict
+  if expectCheckError
+  then return strict -- don't attempt to transform an ill-typed program
+  else transform strict
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
 getModuleAnnotations guts = anns'
@@ -137,17 +134,21 @@ allowRecursion guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [Rattus]
   return (AllowRecursion `elem` l)
 
-internalAnn :: ModGuts -> CoreBndr -> CoreM (Maybe InternalAnn)
-internalAnn guts bndr = do
+expectCoreError :: ModGuts -> CoreBndr -> CoreM Bool
+expectCoreError guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [InternalAnn]
-  if ExpectError `elem` l
-  then return (Just ExpectError)
-  else return ((==) ExpectWarning `find` l)
+  return $ ExpectCoreError `elem` l
 
-shouldTransform :: ModGuts -> CoreBndr -> CoreM Bool
-shouldTransform guts bndr = do
+expectTcError :: ModGuts -> CoreBndr -> CoreM Bool
+expectTcError guts bndr = do
+  l <- annotationsOn guts bndr :: CoreM [InternalAnn]
+  return $ ExpectTcError `elem` l
+
+shouldProcessCore :: ModGuts -> CoreBndr -> CoreM Bool
+shouldProcessCore guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [Rattus]
-  return (Rattus `elem` l && notElem NotRattus l && userFunction bndr)
+  expectTcError <- expectTcError guts bndr
+  return (Rattus `elem` l && notElem NotRattus l && userFunction bndr && not expectTcError)
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do

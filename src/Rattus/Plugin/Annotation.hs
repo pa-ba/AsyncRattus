@@ -37,4 +37,4 @@ data Rattus = Rattus | NotRattus | AllowLazyData | AllowRecursion deriving (Type
 
 
 -- | This annotation type is for internal use only.
-data InternalAnn = ExpectError | ExpectWarning deriving (Typeable, Data, Show, Eq, Ord)
+data InternalAnn = ExpectTcError | ExpectCoreError | ExpectWarning deriving (Typeable, Data, Show, Eq, Ord)

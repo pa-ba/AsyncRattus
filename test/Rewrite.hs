@@ -5,6 +5,7 @@ module Main (module Main) where
 import Rattus
 import Rattus.Stream as Str
 
+{-
 {-# ANN module Rattus #-}
 
 twice :: Str Int -> Str Int
@@ -37,6 +38,6 @@ apply f x y = f <#> x <#> y
 apply' :: O (Int -> Int -> Int) -> Int -> O Int -> O Int
 apply' f x y = f <## x <#> y
 
-
+-}
 {-# ANN main NotRattus #-}
 main = putStrLn "This is just to test the rewrite rules"

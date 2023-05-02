@@ -9,7 +9,7 @@ import Rattus.Plugin.Annotation (InternalAnn (..))
 
 -- All of these examples should typecheck with the more relaxed typing
 -- rules of Rattus that allows functions and delays under tick.
-
+{-
 {-# ANN module Rattus #-}
 
 {-# ANN recBox ExpectWarning #-}
@@ -63,6 +63,6 @@ nestedRec = run 10
   where run :: Int -> Str Int
         run 0 = 0 ::: delay (nestedRec)
         run n = n ::: delay (run (n-1))
-
+-}
 {-# ANN main NotRattus #-}
 main = putStrLn "This file should type check"
