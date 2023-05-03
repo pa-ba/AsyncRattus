@@ -139,6 +139,15 @@ incompatibleAdvSelect li lk = delay (adv li + adv lk)
 intPlusOne :: O v Int -> Int
 intPlusOne laterI = adv laterI + 1
 
+{-# ANN weirdPlusTwo ExpectTcError #-}
+weirdPlusTwo :: O v Int -> O v Int
+weirdPlusTwo x = delay (
+        let doAdd = box ((+) 1)
+            x' = x
+            newLater = delay (unbox doAdd (adv x'))
+        in unbox doAdd (adv newLater)
+    )
+
 {-# ANN stutter ExpectCoreError #-}
 stutter :: Int -> Str v Int
 stutter n = n ::: delay (n ::: delay (stutter (n+1)))
