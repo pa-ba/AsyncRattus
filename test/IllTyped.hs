@@ -152,5 +152,13 @@ weirdPlusTwo x = delay (
 stutter :: Int -> Str v Int
 stutter n = n ::: delay (n ::: delay (stutter (n+1)))
 
+{-# ANN advAlias ExpectTcError #-}
+advAlias :: O v a -> a
+advAlias = adv
+
+{-# ANN selectAlias ExpectTcError #-}
+selectAlias :: O v a -> O v b -> Select v a b
+selectAlias = select
+
 {-# ANN main NotRattus #-}
 main = putStrLn "This file should not type check"

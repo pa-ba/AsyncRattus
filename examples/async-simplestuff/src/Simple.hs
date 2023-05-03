@@ -28,31 +28,37 @@ test2 = Set.union (Set.singleton 1) (Set.singleton 2)
 (input, inputMaybe, depend, [kbChannel, mouseChannel, numChannel, num2Channel, num3Channel]) = mkChannels ["keyboard", "mouse", "num", "num2", "num3"]
 
 keyboard :: O Char
-keyboard = map (\(CharValue c) -> c) kbChannel
+keyboard = map (box toChar) kbChannel
 
 describeChar :: Char -> String
 describeChar c = "This keyboard input just arrived " ++ show c
 
 describeKeyboard :: O String
-describeKeyboard = map describeChar keyboard
+describeKeyboard = map (box describeChar) keyboard
+
+toChar :: MyValue -> Char
+toChar (CharValue c) = c
+
+toInt :: MyValue -> Int
+toInt (IntValue i) = i
 
 num :: O Int
-num = map (\(IntValue i) -> i) numChannel
+num = map (box toInt) numChannel
 
 num2 :: O Int
-num2 = map (\(IntValue i) -> i) num2Channel
+num2 = map (box toInt) num2Channel
 
 num3 :: O Int
-num3 = map (\(IntValue i) -> i) num3Channel
+num3 = map (box toInt) num3Channel
 
 numbers :: O Int
-numbers = map (\(IntValue i) -> i) numChannel
+numbers = map (box toInt) numChannel
 
 numberStr :: O (Stream Int)
 numberStr = constLaterStr numbers
 
 mappedStr :: O (Stream Int)
-mappedStr = map (Stream.map (box (+100))) $ constLaterStr numbers
+mappedStr = delay (Stream.map (box (+100)) (adv (constLaterStr numbers)))
 
 scannedStr :: Stream Int
 scannedStr = Stream.scanAwait (box (+)) 0 numberStr
@@ -156,19 +162,5 @@ myFunkyExample2 = funkyExample 1 num
 -- tomorrowPlusOne :: O Int -> Int
 -- tomorrowPlusOne laterI = adv laterI + 1
 
--- illegal syntax. However, this is not detected. Can be detected if we keep track of aliases.
--- Thus using this function is equivalent to an untransformed adv.
-tomorrow :: O a -> a
-tomorrow = adv
-
 -- nestedDelay :: O Int -> O (O Int)
 -- nestedDelay k = delay (delay (adv k + 1))
-
-{-
-weirdPlusTwo :: O Int -> O Int
-weirdPlusTwo x = delay (
-        let doAdd = (+) 1
-            newLater = delay (doAdd (adv x))
-        in doAdd (adv newLater)
-    )
--}

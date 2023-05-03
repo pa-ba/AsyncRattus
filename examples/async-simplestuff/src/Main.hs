@@ -73,20 +73,20 @@ main = do
     -}
     
     print $ input "keyboard" (CharValue 'c') describeKeyboard
-    let (x ::: xs) = input "num" (IntValue 8) mappedStr
-    print x
-    let (x2 ::: xs2) = input "num" (IntValue 800) xs
-    print x2
-    let (y ::: ys) = input "num" (IntValue 10) (tl scannedStr)
-    print y
-    let (y2 ::: ys2) = input "num" (IntValue 20) ys
-    print y2
-    let (z ::: zs) = input "num" (IntValue 21) scanMappedStr
-    print z
-    let (z2 ::: zs2) = input "num" (IntValue 43) zs
-    print z2
-    let (z3 ::: zs3) = input "num" (IntValue 1) zs2
-    print z3
+    --let (x ::: xs) = input "num" (IntValue 8) mappedStr
+    --print x
+    --let (x2 ::: xs2) = input "num" (IntValue 800) xs
+    --print x2
+    --let (y ::: ys) = input "num" (IntValue 10) (tl scannedStr)
+    --print y
+    --let (y2 ::: ys2) = input "num" (IntValue 20) ys
+    --print y2
+    --let (z ::: zs) = input "num" (IntValue 21) scanMappedStr
+    --print z
+    --let (z2 ::: zs2) = input "num" (IntValue 43) zs
+    --print z2
+    --let (z3 ::: zs3) = input "num" (IntValue 1) zs2
+    --print z3
 
     print $ input "num" (IntValue 100) const47Later
     print $ input "num" (IntValue 100) const48Later
@@ -99,8 +99,6 @@ main = do
     print $ depend laterLater
     print $ inputMaybe "num2" (IntValue 350) const50Later
     print $ inputMaybe "num" (IntValue 1000) (add 50 num)
-    -- print $ tomorrow num -- crashes the program
-    --print $ inputMaybe "num" (IntValue 2000) (weirdPlusTwo num)
     
     -- Fails as expected
     --print $ input "num2" (IntValue 350) const50Later
