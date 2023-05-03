@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
 module Rattus.Plugin.Utils (
@@ -32,22 +34,27 @@ module Rattus.Plugin.Utils (
   showTree,
   splitForAllTys')
   where
-
-
-
-
-
-
-
+#if __GLASGOW_HASKELL__ >= 906
+import GHC.Builtin.Types.Prim
+import GHC.Tc.Utils.TcType
+#endif
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Data.Strict as Strict
+#endif  
+#if __GLASGOW_HASKELL__ >= 902
 
 import GHC.Utils.Logger
+#endif
 
-
-
+#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
 import GHC.Utils.Error
 import GHC.Utils.Monad
-
+#else
+import GhcPlugins
+import ErrUtils
+import MonadUtils
+#endif
 
 
 import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
@@ -81,6 +88,50 @@ isType (App e _) = isType e
 isType (Cast e _) = isType e
 isType (Tick _ e) = isType e
 isType _ = False
+
+#if __GLASGOW_HASKELL__ >= 906
+isFunTyCon = isArrowTyCon
+repSplitAppTys = splitAppTysNoView
+#endif
+ 
+#if __GLASGOW_HASKELL__ >= 902
+printMessage :: (HasDynFlags m, MonadIO m, HasLogger m) =>
+                Severity -> SrcSpan -> SDoc -> m ()
+#else
+printMessage :: (HasDynFlags m, MonadIO m) =>
+                Severity -> SrcSpan -> MsgDoc -> m ()
+#endif
+
+printMessage sev loc doc = do
+#if __GLASGOW_HASKELL__ >= 906
+  logger <- getLogger
+  liftIO $ putLogMsg logger (logFlags logger)
+    (MCDiagnostic sev (if sev == SevError then ErrorWithoutFlag else WarningWithoutFlag) Nothing) loc doc
+#elif __GLASGOW_HASKELL__ >= 904
+  logger <- getLogger
+  liftIO $ putLogMsg logger (logFlags logger)
+    (MCDiagnostic sev (if sev == SevError then ErrorWithoutFlag else WarningWithoutFlag)) loc doc
+#elif __GLASGOW_HASKELL__ >= 902
+   dflags <- getDynFlags
+   logger <- getLogger
+   liftIO $ putLogMsg logger dflags NoReason sev loc doc
+#elif __GLASGOW_HASKELL__ >= 900  
+  dflags <- getDynFlags
+  liftIO $ putLogMsg dflags NoReason sev loc doc
+#else
+  dflags <- getDynFlags
+  let sty = case sev of
+              SevError   -> defaultErrStyle dflags
+              SevWarning -> defaultErrStyle dflags
+              SevDump    -> defaultDumpStyle dflags
+              _          -> defaultUserStyle dflags
+  liftIO $ putLogMsg dflags NoReason sev loc sty doc
+#endif
+
+#if __GLASGOW_HASKELL__ >= 902
+instance Ord FastString where
+   compare = uniqCompareFS
+#endif
 
 {-
 ******************************************************
@@ -128,17 +179,6 @@ ordIntClass = getVarFromModule "GHC.Classes" "$fOrdInt"
 
 unionVar :: CoreM Var
 unionVar = getVarFromModule "Data.Set.Internal" "union"
-
-printMessage :: (HasDynFlags m, MonadIO m, HasLogger m) =>
-                Severity -> SrcSpan -> SDoc -> m ()
-printMessage sev loc doc = do
-  dflags <- getDynFlags
-  logger <- getLogger
-  liftIO $ putLogMsg logger dflags NoReason sev loc doc
-
-instance Ord FastString where
-  compare = uniqCompareFS
-
 
 rattModules :: Set FastString
 rattModules = Set.fromList ["Rattus.Internal","Rattus.Primitives"
@@ -256,12 +296,12 @@ isStableRec c d pr t = do
 isStrict :: Type -> Bool
 isStrict t = isStrictRec 0 Set.empty t
 
-
+#if __GLASGOW_HASKELL__ >= 902
 splitForAllTys' :: Type -> ([TyCoVar], Type)
 splitForAllTys' = splitForAllTyCoVars
-
-
-
+#else
+splitForAllTys' = splitForAllTys
+#endif
 
 -- | Check whether the given type is stable. This check may use
 -- 'Stable' constraints from the context.
@@ -329,30 +369,52 @@ userFunction v =
 
 
 mkSysLocalFromVar :: MonadUnique m => FastString -> Var -> m Id
+#if __GLASGOW_HASKELL__ >= 900
 
 mkSysLocalFromVar lit v = mkSysLocalM lit (varMult v) (varType v)
-
-
-
-
+#else
+mkSysLocalFromVar lit v = mkSysLocalM lit (varType v)
+#endif
+ 
 mkSysLocalFromExpr :: MonadUnique m => FastString -> CoreExpr -> m Id
-
+#if __GLASGOW_HASKELL__ >= 900
 mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
-
+#else
+mkSysLocalFromExpr lit e = mkSysLocalM lit (exprType e)
+#endif
+ 
+mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
+ 
 fromRealSrcSpan :: RealSrcSpan -> SrcSpan
+#if __GLASGOW_HASKELL__ >= 904
+fromRealSrcSpan span = RealSrcSpan span Strict.Nothing
+#elif __GLASGOW_HASKELL__ >= 900
 fromRealSrcSpan span = RealSrcSpan span Nothing
+#else
+fromRealSrcSpan span = RealSrcSpan span
+#endif
 
+#if __GLASGOW_HASKELL__ >= 900
 instance Ord SrcSpan where
   compare (RealSrcSpan s _) (RealSrcSpan t _) = compare s t
   compare RealSrcSpan{} _ = LT
   compare _ _ = GT
-
+#endif
 
 noLocationInfo :: SrcSpan
+#if __GLASGOW_HASKELL__ >= 900
 noLocationInfo = UnhelpfulSpan UnhelpfulNoLocationInfo
+#else         
+noLocationInfo = UnhelpfulSpan "<no location info>"
+#endif
 
-mkAlt = Alt
+#if __GLASGOW_HASKELL__ >= 902
+mkAlt c args e = Alt c args e
 getAlt (Alt c args e) = (c, args, e)
+#else
+mkAlt c args e = (c, args, e)
+getAlt alt = alt
+#endif
 
 showOutputable :: (Outputable a) => a -> String
 showOutputable = showSDocUnsafe . ppr
