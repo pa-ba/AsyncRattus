@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE RebindableSyntax #-}
 
 module Main (module Main) where
 
@@ -86,6 +85,22 @@ myMap (x ::: xs) = (x + 1) ::: delay (fst' (myMap (adv xs) :* nats never))
 
 nats :: O v Int -> Str v Int
 nats l = 0 ::: delay (let (n ::: ns) = myMap (nats never) in (adv l + n) ::: ns)
+
+--stutter :: (Stable a) => Str v a -> Str v a
+--stutter (a ::: as) = a ::: delay (a ::: delay (adv as))
+
+-- should work since we can extract the clock of the variable at runtime.stutter (a ::: as) = a ::: delay(a ::: as)
+-- because of the toSingleTick pass, the result of the if-expression is bound to a new variable, so we cannot
+-- distinguish between a legal variable and a synthesized one.
+naiveIf :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf b x y = delay (b, adv (if b then x else y))
+
+naiveIf' :: Bool -> O v a -> O v a -> O v (Bool, a)
+naiveIf' b x y = delay (b, adv later)
+    where
+        later = case b of
+            True -> x
+            False -> y
 
 
 {-# ANN main NotRattus #-}

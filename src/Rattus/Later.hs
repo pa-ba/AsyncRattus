@@ -5,15 +5,23 @@ module Rattus.Later (
     selectMany,
 ) where
 
-import Prelude hiding (map, Left, Right)
+import Prelude hiding (map, maybe, Left, Right)
 import Rattus
 import Rattus.Primitives ( O, delay, adv, Select(..), never)
 import Rattus.Strict (List(..), singleton)
+import qualified Data.Maybe as Maybe
 
 {-# ANN module Rattus #-}
 
 map :: Box (a -> b) -> O v a -> O v b
 map f later = delay (unbox f (adv later))
+
+fromMaybe :: Stable a => a -> O v (Maybe a) -> O v a
+fromMaybe d later = delay (Maybe.fromMaybe d (adv later))
+
+maybe :: Stable b => b -> Box (a -> b) -> O v (Maybe a) -> O v b
+maybe d f later =
+    delay (Maybe.maybe d (unbox f) (adv later))
 
 -- Given a list of delayed values, select over them return list of all available values when one arrives.
 selectMany :: List (O v a) -> O v (List (Int, a))

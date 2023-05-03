@@ -81,45 +81,14 @@ constLaterStr = Stream.fromLater
 --id4 :: O Int -> O Int
 --id4 x = delay (adv (delay (adv x)))
 
--- should work since we can extract the clock of the variable at runtime.
--- because of the toSingleTick pass, the result of the if-expression is bound to a new variable, so we cannot
--- distinguish between a legal variable and a synthesized one.
-
--- Right now, we are not ensured that clocks are compatible. This can lead to runtime errors. How to handle this?
--- The general case: if we bind one of several later values to a variable ie. in a case statement,
--- how do we know the clock at compile time?
-
--- possible solution: union clocks. This means that values may be recomputed unnecessarily. It would
--- still be better than Rattus.
-
--- should work
-naiveIf :: Bool -> O a -> O a -> O (Bool, a)
-naiveIf b x y = delay (b, adv later)
-    where
-        later = case b of
-            True -> x
-            False -> x
-
-
-
--- should not work
-naiveIf' :: Bool -> O a -> O a -> O (Bool, a)
-naiveIf' b x y = delay (b, adv (if b then x else y))
  
-describe :: O a -> O b -> O Int
+describe :: O a -> O b -> O String
 describe a b = delay (case select a b of
-            Both _ _ -> 1
-            Left _ _ -> 2
-            Right _ _ -> 3)
+            Both _ _ -> "Both"
+            Left _ _ -> "Left"
+            Right _ _ -> "Right")
 
 
-maybe :: O (Maybe a) -> a -> O a
-maybe later d =
-    delay (
-        case adv later of
-            Nothing -> d
-            Just i -> i
-    )
 
 constIf0 :: Int -> O Int -> O Int
 constIf0 i later =

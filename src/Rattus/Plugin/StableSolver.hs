@@ -8,6 +8,7 @@
 module Rattus.Plugin.StableSolver (tcStable) where
 
 import Rattus.Plugin.Utils
+    ( getNameModule, isRattModule, isStable )
 
 import Prelude hiding ((<>))
 
