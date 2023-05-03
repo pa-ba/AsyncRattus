@@ -21,6 +21,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Data hiding (tyConName)
 import qualified Data.Set as Set
+import Data.Set (Set)
 
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins

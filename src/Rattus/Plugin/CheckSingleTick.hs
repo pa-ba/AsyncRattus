@@ -173,6 +173,7 @@ checkExpr c e = do
   case res of
     Right _ | expectError c -> do
       putMsg $ text "Expected error, but no errors were encountered. Expr: " <> ppr e
+      liftIO exitFailure
     Right _ -> do when (verbose c) $ putMsgS "checkExpr succeeded."
     Left (TypeError src doc) | expectError c -> do
       when (verbose c) $ printMessage SevInfo src $ text "checkExpr: error was expected, and there was an error:" $$ doc

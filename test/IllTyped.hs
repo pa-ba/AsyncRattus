@@ -127,6 +127,21 @@ constS a = a ::: delay (constS a)
 -- constS' :: Input -> Str Input
 -- constS' = const
 
+{-# ANN incompatibleAdv ExpectCoreError #-}
+incompatibleAdv :: O v Int -> O v Int -> O v Int
+incompatibleAdv li lk = delay (adv li + adv lk)
+
+{-# ANN incompatibleAdvSelect ExpectCoreError #-}
+incompatibleAdvSelect :: O v Int -> O v Int -> O v Int
+incompatibleAdvSelect li lk = delay (adv li + adv lk)
+
+{-# ANN intPlusOne ExpectTcError #-}
+intPlusOne :: O v Int -> Int
+intPlusOne laterI = adv laterI + 1
+
+{-# ANN stutter ExpectCoreError #-}
+stutter :: Int -> Str v Int
+stutter n = n ::: delay (n ::: delay (stutter (n+1)))
 
 {-# ANN main NotRattus #-}
 main = putStrLn "This file should not type check"
