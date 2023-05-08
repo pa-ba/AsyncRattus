@@ -89,7 +89,7 @@ nats l = 0 ::: delay (let (n ::: ns) = myMap (nats never) in (adv l + n) ::: ns)
 --stutter :: (Stable a) => Str v a -> Str v a
 --stutter (a ::: as) = a ::: delay (a ::: delay (adv as))
 
--- should work since we can extract the clock of the variable at runtime.stutter (a ::: as) = a ::: delay(a ::: as)
+-- should work since we can extract the clock of the variable at runtime.
 -- because of the toSingleTick pass, the result of the if-expression is bound to a new variable, so we cannot
 -- distinguish between a legal variable and a synthesized one.
 naiveIf :: Bool -> O v a -> O v a -> O v (Bool, a)
@@ -102,6 +102,21 @@ naiveIf' b x y = delay (b, adv later)
             True -> x
             False -> y
 
+doubleAdv :: O v Int -> O v Int
+doubleAdv li = 
+  delay (
+    adv li + adv li
+  )
+
+advOnAliasedVar :: O v Int -> O v Int
+advOnAliasedVar li =
+  let lk = li
+  in delay (
+    adv li + adv lk
+  )
+
+advUnderLambda :: O v Int -> O v (a -> Int)
+advUnderLambda y = delay (\x -> adv y)
 
 {-# ANN main NotRattus #-}
 main = putStrLn "This file should just type check"

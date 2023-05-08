@@ -8,9 +8,6 @@ type InputChannelIdentifier = Int
 
 type Clock = Set InputChannelIdentifier
 
--- A value that arrives on an input channel
-data Value = IntValue Int | CharValue Char | BoolValue Bool deriving (Show)
-
 type InputValue a = (InputChannelIdentifier, a)
 
 -- | The "later" type modality. A value of type @O a@ is a computation

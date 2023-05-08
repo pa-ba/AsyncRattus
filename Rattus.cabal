@@ -138,10 +138,9 @@ library
   exposed-modules:     Rattus
                        Rattus.Stream
                        Rattus.Strict
-                       --Rattus.Event
-                       --Rattus.Future
                        Rattus.Plugin
                        Rattus.Primitives
+                       Rattus.InternalPrimitives
                        Rattus.Later
                        Rattus.Channels
                        Rattus.Plugin.Annotation
@@ -155,11 +154,10 @@ library
                        Rattus.Plugin.StableSolver
                        Rattus.Plugin.Transform
                        Rattus.Plugin.PrimExpr
-                       Rattus.InternalPrimitives
   build-depends:       base >=4.12 && <5, containers, ghc >= 8.6 && < 9.7, ghc-prim, simple-affine-space, transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -W -fplugin-opt Rattus.Plugin:debug
+  ghc-options:         -W
   
 Test-Suite memory-leak
   type:                exitcode-stdio-1.0
@@ -170,14 +168,6 @@ Test-Suite memory-leak
   ghc-options:         -fplugin=Rattus.Plugin -rtsopts
 
 
-Test-Suite time-leak
-  type:                exitcode-stdio-1.0
-  main-is:             TimeLeak.hs
-  hs-source-dirs:      test
-  default-language:    Haskell2010
-  build-depends:       Rattus, base
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
-  
 Test-Suite ill-typed
   type:                exitcode-stdio-1.0
   main-is:             test/IllTyped.hs
@@ -185,13 +175,6 @@ Test-Suite ill-typed
   build-depends:       Rattus, base
   ghc-options:         
                        -fplugin=Rattus.Plugin -rtsopts
-
-Test-Suite newly-typed
-  type:                exitcode-stdio-1.0
-  main-is:             test/NewlyTyped.hs
-  default-language:    Haskell2010
-  build-depends:       Rattus, base
-  ghc-options:         -fplugin=Rattus.Plugin
 
 
 Test-Suite well-typed
@@ -203,11 +186,27 @@ Test-Suite well-typed
   ghc-options:         -fplugin=Rattus.Plugin -rtsopts
 
 
-Test-Suite rewrite
+Test-Suite primitives
   type:                exitcode-stdio-1.0
-  main-is:             Rewrite.hs
+  main-is:             Primitives.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers
+  build-depends:       Rattus, base, containers, HUnit
   ghc-options:         -fplugin=Rattus.Plugin -rtsopts
 
+Test-Suite channels
+  type:                exitcode-stdio-1.0
+  main-is:             Channels.hs
+  hs-source-dirs:      test
+  default-language:    Haskell2010
+  build-depends:       Rattus, base, containers, HUnit
+  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+
+
+Test-Suite stdlib
+  type:                exitcode-stdio-1.0
+  main-is:             StandardLibrary.hs
+  hs-source-dirs:      test
+  default-language:    Haskell2010
+  build-depends:       Rattus, base, containers, HUnit
+  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
