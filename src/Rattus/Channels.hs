@@ -6,6 +6,7 @@ module Rattus.Channels (
 import Prelude hiding (Left, Right, lookup)
 import Rattus.InternalPrimitives
 import qualified Data.Set as Set
+import Data.Set (Set)
 import Data.Map (Map, fromList, lookup)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -14,7 +15,7 @@ import Data.Maybe (fromMaybe)
 --             Channel name | value | later
 type InputFunc v a = String -> v -> O v a -> a
 type InputMaybeFunc v a = String -> v -> O v a -> Maybe a
-type DependFunc v a = O v a -> [String]
+type DependFunc v a = O v a -> Set String
 type InputChannel v = O v v
 
 input :: Map String Int -> String -> v -> O v a -> a
@@ -48,6 +49,6 @@ constructIdToNameMapping [] = Map.empty
 constructIdToNameMapping (name : names) = fromList $ scanl (\(i, _) name -> (i+1, name)) (0, name) names
 
 -- Check which output channels depend
-depend :: Map Int String -> O v a -> [String]
-depend idToName later = foldl (\acc id -> fromMaybe (error "Internal error: id does not exist") (lookup id idToName) : acc) [] clock
+depend :: Map Int String -> O v a -> Set String
+depend idToName later = Set.map (\id -> fromMaybe (error "Internal error: id does not exist") (lookup id idToName)) clock -- foldl (\acc id -> fromMaybe (error "Internal error: id does not exist") (lookup id idToName) : acc) [] clock
     where clock = extractClock later

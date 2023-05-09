@@ -2,6 +2,8 @@
 
 module Rattus.Later (
     map,
+    fromMaybe,
+    maybe,
     selectMany,
 ) where
 

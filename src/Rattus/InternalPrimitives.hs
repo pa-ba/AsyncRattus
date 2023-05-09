@@ -17,7 +17,7 @@ data O v a = Delay Clock (InputValue v -> a)
 
 data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
 
-rattusError = error "Did you forget to mark this as a Rattus module?"
+rattusError = error "Did you forget to mark this as Async Rattus code?"
 
 -- | This is the constructor for the "later" modality 'O':
 --

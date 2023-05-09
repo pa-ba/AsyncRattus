@@ -6,8 +6,7 @@ import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (delay, adv, select, box, unbox)
 import qualified Rattus.Stream as Str
 import qualified Rattus.Later as Later
-import Data.Set as Set
-import Data.List (sort)
+import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
@@ -35,6 +34,10 @@ intChan = Later.map (box (\(IVal i) -> i)) intCh
 doSelect :: O (Select Bool Char)
 doSelect = delay (select boolChan charChan)
 
+{-# ANN nestedSelect Rattus #-}
+nestedSelect :: O (Select (Select Bool Char) Int)
+nestedSelect = delay (select doSelect intChan)
+
 {-# ANN plusOne Rattus #-}
 plusOne :: O Int -> O Int
 plusOne = Later.map (box (+1))
@@ -42,10 +45,11 @@ plusOne = Later.map (box (+1))
 testPlusOne = TestCase (assertEqual "for plusOne:" 100 (input "intCh" (IVal 99) l))
     where l = plusOne intChan
 
-testBoolChDepends = TestCase (assertEqual "boolCh depends:" ["boolCh"] (depends boolCh))
-testNeverDepends = TestCase (assertEqual "never depends:" [] (depends Prim.never))
-testUnionDepends = TestCase (assertEqual "select boolCh charCh:" ["boolCh", "charCh"] (sort $ depends doSelect))
-dependTests = TestLabel "depend tests" $ TestList [testBoolChDepends, testNeverDepends, testUnionDepends]
+testBoolChDepends = TestCase (assertEqual "boolCh depends:" (Set.singleton "boolCh") (depends boolCh))
+testNeverDepends = TestCase (assertEqual "never depends:" Set.empty (depends Prim.never))
+testUnionDepends = TestCase (assertEqual "select boolCh charCh:" (Set.fromList ["boolCh", "charCh"]) (depends doSelect))
+testNestedUnionDepends = TestCase (assertEqual "double select:" (Set.fromList ["boolCh", "charCh", "intCh"]) (depends nestedSelect))
+dependTests = TestLabel "depend tests" $ TestList [testBoolChDepends, testNeverDepends, testUnionDepends, testNestedUnionDepends]
 
 testInputMaybeJust = TestCase (assertEqual "inputMaybe Just case:" (Just 5) (inputMaybe "intCh" (IVal 5) intChan))
 testInputMaybeNothing = TestCase (assertEqual "inputMaybe Nothing case:" Nothing (inputMaybe "boolCh" (IVal 5) intChan))
