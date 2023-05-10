@@ -158,6 +158,7 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -W
+
   
 Test-Suite memory-leak
   type:                exitcode-stdio-1.0
