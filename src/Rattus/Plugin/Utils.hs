@@ -437,11 +437,8 @@ showTree' _ e = showOutputable e
 showAltList :: Int -> [Alt Var] -> String
 showAltList i = foldl (\s a -> indent i s ++ "\n" ++ showAlt (i+1) a) ""
 
-showList2 :: (Show a) => [a] -> String
-showList2 = foldl (\s a -> s ++ show a) ""
-
 showAlt :: Int -> Alt Var -> String
-showAlt i (Alt con bindings rhs) = "Alt {(" ++ showOutputable con ++ ") (BINDINGS) (" ++ showTree' (i+1) rhs ++ ")}"
+showAlt i (Alt con _ rhs) = "Alt {(" ++ showOutputable con ++ ") (BINDINGS) (" ++ showTree' (i+1) rhs ++ ")}"
 
 showVar :: Int -> Var -> String
 showVar i = indent i . getOccString
