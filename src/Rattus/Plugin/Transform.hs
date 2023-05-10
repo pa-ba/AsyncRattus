@@ -12,8 +12,6 @@ import Prelude hiding ((<>))
 import Data.Functor ((<&>))
 import Control.Applicative ((<|>))
 import Data.Tuple (swap)
-import Control.Monad (foldM)
-
 
 data Ctx = Ctx {
     fresh :: Maybe Var
