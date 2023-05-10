@@ -50,10 +50,9 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
   Just (DelayApp _ v t) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
-    let inputValueType = mkTyConTy inputValueV --Change name of variable
+    let inputValueType = mkTyConTy inputValueV 
     let inputValueType' = mkAppTy inputValueType v
     inpVar <- mkSysLocalM (fsLit "inpV") inputValueType' inputValueType'
-    --let inpVarR = lazySetIdInfo inpVar vanillaIdInfo -- Unsure about this - we convert this to a real var with idInfo
     let ctx' = ctx {fresh = Just inpVar}
     (newExpr, maybePrimInfo) <- transform' ctx' e'
     putMsg $ ppr newExpr
@@ -62,11 +61,9 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     clockCode <- constructClockExtractionCode v primInfo
     return (App (App (App (App (Var bigDelayVar) (Type v)) (Type t)) clockCode) lambdaExpr, primInfo)
   Just primInfo -> do
-        --fatalErrorMsgS "CANNOT TRANSFORM NON PRIMITIVES" 
         error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
   Nothing -> error "Cannot transform non-prim applications"
 transformPrim _ _ = do
-  --fatalErrorMsgS "CANNOT TRANSFORM ANYTHING ELSE THAN PRIM EXPRESSIONS"
   error "Cannot transform anything else than prim applications"
 
 
@@ -93,7 +90,6 @@ transform' ctx (Let (NonRec b rhs) e) = do
     (newExpr, primInfo') <- transform' ctx e
     return (Let (NonRec b newRhs) newExpr, primInfo <|> primInfo')
 transform' ctx (Let (Rec binds) e) = do
-    -- expect: [(b, (expr, primInfo))]
     transformedBinds <- mapM (\(b, bindE) -> fmap (b,) (transform' ctx bindE)) binds
     (e', mPi) <- transform' ctx e
     let primInfos = map (\(_, (_, p)) -> p) transformedBinds
@@ -123,7 +119,6 @@ constructClockExtractionCode vt (SelectApp _ arg arg2) =
     clockUnion vt arg arg2
 constructClockExtractionCode _ primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
 
--- takes as args: value type, later type, var we adv on
 createClockCode :: Type -> (Var, Type) -> CoreM CoreExpr
 createClockCode vt (argV, argT) = do
     extractClock <- extractClockVar
