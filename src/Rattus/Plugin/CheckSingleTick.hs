@@ -27,7 +27,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Control.Monad (foldM, when)
-import GHC.Types.Tickish
 import Control.Applicative ((<|>))
 import System.Exit (exitFailure)
 
