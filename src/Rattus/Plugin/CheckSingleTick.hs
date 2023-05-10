@@ -45,7 +45,6 @@ data Ctx = Ctx
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
     allowRecursion :: Bool,
-    --inDelay :: Bool,
     fresh :: Maybe Var
     }
 
@@ -111,7 +110,6 @@ emptyCtx c =
         recDef = recursiveSet c,
         stableTypes = Set.empty,
         allowRecursion = allowRecExp c,
-        -- inDelay = False,
         fresh = Nothing
         }
 
