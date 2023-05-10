@@ -1,12 +1,14 @@
 module Main (module Main) where
 
+import Prelude hiding (Left, Right)
 import Rattus (Rattus(..))
 import Rattus.Channels
 import qualified Rattus.Primitives as Prim
-import Rattus.Primitives (delay, adv, select, box, unbox)
+import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
 import qualified Rattus.Stream as Str
 import qualified Rattus.Later as Later
-import Data.Set as Set
+import Rattus.Strict
+import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
@@ -14,7 +16,7 @@ data Value = BVal Bool | CVal Char | IVal Int | MIVal (Maybe Int)
 
 type O a = Prim.O Value a
 
-(input, inputMaybe, depends, [bChan, cChan, iChan, mIntChan]) = mkChannels ["boolCh", "charCh", "intCh", "maybeIntCh"]
+(input, inputMaybe, depends, [bChan, cChan, iChan, iChan2, iChan3, mIntChan]) = mkChannels ["boolCh", "charCh", "intCh", "intCh2", "intCh3", "maybeIntCh"]
 
 {-# ANN boolChan Rattus #-}
 boolChan :: O Bool
@@ -27,6 +29,14 @@ charChan = Later.map (box (\(CVal c) -> c)) cChan
 {-# ANN intChan Rattus #-}
 intChan :: O Int
 intChan = Later.map (box (\(IVal i) -> i)) iChan
+
+{-# ANN intChan2 Rattus #-}
+intChan2 :: O Int
+intChan2 = Later.map (box (\(IVal i) -> i)) iChan2
+
+{-# ANN intChan3 Rattus #-}
+intChan3 :: O Int
+intChan3 = Later.map (box (\(IVal i) -> i)) iChan3
 
 {-# ANN maybeIntChan Rattus #-}
 maybeIntChan :: O (Maybe Int)
@@ -53,7 +63,47 @@ laterFromMaybeTests = TestLabel "Later:fromMaybe" $ TestList [
         TestCase $ assertEqual "fromMaybe just:" 42 (input "maybeIntCh" (MIVal (Just 42)) getIntOrMinusOneFromChan)
     ]
 
-allTests = TestList [testPlusOne, laterFromMaybeTests]
+{-# ANN showInt Rattus #-}
+showInt :: O (Maybe Int) -> O (List Char)
+showInt = Later.maybe Nil (box (fromList . show))
+
+{-# ANN showMaybeIntChan Rattus #-}
+showMaybeIntChan :: O (List Char)
+showMaybeIntChan = showInt maybeIntChan
+
+laterMaybeTests = TestLabel "Later:maybe" $ TestList [
+        TestCase $ assertEqual "maybe nothing:" "" (toList $ input "maybeIntCh" (MIVal Nothing) showMaybeIntChan),
+        TestCase $ assertEqual "maybe just:" "56" (toList $ input "maybeIntCh" (MIVal (Just 56)) showMaybeIntChan)
+    ]
+
+{-# ANN selectManySameChan Rattus #-}
+selectManySameChan :: O (List (Int, Bool))
+selectManySameChan = Later.selectMany $ boolChan :! boolChan :! boolChan :! Nil
+
+{-# ANN selectManyDiffChan Rattus #-}
+selectManyDiffChan :: O (List (Int, Int))
+selectManyDiffChan = Later.selectMany $ intChan :! intChan2 :! intChan3 :! Nil
+
+{-# ANN twoAndThree Rattus #-}
+twoAndThree :: O Int
+twoAndThree = delay (
+        case select intChan2 intChan3 of
+            Left i _ -> i + 1
+            Right _ i -> i + 2
+            Both _ _ -> error "impossible"
+    )
+
+{-# ANN selectManyOverlap Rattus #-}
+selectManyOverlap :: O (List (Int, Int))
+selectManyOverlap = Later.selectMany $ intChan :! intChan2 :! intChan3 :! twoAndThree :! Nil
+
+selectManyTests = TestLabel "Later:selectMany" $ TestList [
+        TestCase $ assertEqual "selectMany 3xBoolChan" ((0, True) :! (1, True) :! (2, True) :! Nil) (input "boolCh" (BVal True) selectManySameChan),
+        TestCase $ assertEqual "selectMany 3 disjoint chans" ((1, 78) :! Nil) (input "intCh2" (IVal 78) selectManyDiffChan),
+        TestCase $ assertEqual "selectMany 3 overlapping chans" ((1, 100) :! (3, 101) :! Nil) (input "intCh2" (IVal 100) selectManyOverlap)
+    ]
+
+allTests = TestList [testPlusOne, laterFromMaybeTests, laterMaybeTests, selectManyTests]
 
 main :: IO ()
 main = do

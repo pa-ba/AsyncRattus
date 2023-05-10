@@ -13,6 +13,8 @@
 module Rattus.Strict
   ( List(..),
     singleton,
+    fromList,
+    toList,
     init',
     reverse',
     (+++),
@@ -37,13 +39,21 @@ infixr 8 :!
 -- | Strict list type.
 data List a = Nil | !a :! !(List a)
 
-singleton :: a -> List a
-singleton x = x :! Nil
-
 {-# ANN module Rattus #-}
 -- All recursive functions in this module are defined by structural
 -- induction on a strict type.
 {-# ANN module AllowRecursion #-}
+
+singleton :: a -> List a
+singleton x = x :! Nil
+
+fromList :: [a] -> List a
+fromList [] = Nil
+fromList (x : xs) = x :! fromList xs
+
+toList :: List a -> [a]
+toList Nil = []
+toList (x :! xs) = x : toList xs
 
 -- | Remove the last element from a list if there is one, otherwise
 -- return 'Nil'.
@@ -108,7 +118,15 @@ instance Foldable List where
 instance Functor List where
   fmap = map'
 
+instance Eq a => Eq (List a) where
+  Nil == Nil = True
+  Nil == _ = False
+  _ == Nil = False
+  (x :! xs) == (y :! ys) = if x == y then xs == ys else False
 
+instance Show a => Show (List a) where
+  show Nil = "Nil"
+  show (x :! xs) = show x ++ " :! " ++ show xs
 
 -- | Strict variant of 'Maybe'.
 data Maybe' a = Just' !a | Nothing'
