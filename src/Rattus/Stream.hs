@@ -16,14 +16,11 @@ module Rattus.Stream
   , scan
   , scanAwait
   , scanMap
---  , scanMap2
   , Str(..)
   , zipWith
   , zipWithAwait
   , zip
---  , unfold
   , filter
---  , integral
   )
 
 where
@@ -97,14 +94,6 @@ scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
   where acc' = unbox f acc a
 
 
--- | 'scanMap2' is similar to 'scanMap' but takes two input streams.
-{-
-scanMap2 :: (Stable b) => Box(b -> a1 -> a2 -> b) -> Box (b -> c) -> b -> Str a1 -> Str a2 -> Str c
-scanMap2 f p acc (a1 ::: as1) (a2 ::: as2) =
-    unbox p acc' ::: delay (scanMap2 f p acc' (adv as1) (adv as2))
-  where acc' = unbox f acc a1 a2
--}
-
 -- | Similar to 'Prelude.zipWith' on Haskell lists.
 -- | Inspired by 'zip' in the Async RaTT paper.
 zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> Str v a -> Str v b -> Str v c
@@ -153,14 +142,6 @@ shiftMany l xs = run l Nil xs where
       b :! bs -> b ::: delay (run bs (x :! Nil) (adv xs))
       Nil -> x ::: xs
     
--- | Calculates an approximation of an integral of the stream of type
--- @Str a@ (the y-axis), where the stream of type @Str s@ provides the
--- distance between measurements (i.e. the distance along the y axis).
-{-
-integral :: (Stable a, VectorSpace a s) => a -> Str s -> Str a -> Str a
-integral acc (t ::: ts) (a ::: as) = acc' ::: delay (integral acc' (adv ts) (adv as))
-  where acc' = acc ^+^ (t *^ a)
--}
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
