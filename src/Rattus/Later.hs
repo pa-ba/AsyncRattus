@@ -9,8 +9,7 @@ module Rattus.Later (
 
 import Prelude hiding (map, maybe, Left, Right)
 import Rattus
-import Rattus.Primitives ( O, delay, adv, Select(..), never)
-import qualified Data.Maybe as Maybe
+
 
 {-# ANN module Rattus #-}
 
