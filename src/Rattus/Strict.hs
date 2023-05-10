@@ -29,7 +29,6 @@ module Rattus.Strict
    snd',
   )where
 
-import Data.VectorSpace
 import Rattus.Primitives
 import Rattus.Plugin.Annotation
 import Prelude hiding (map)
@@ -163,22 +162,6 @@ fst' (a:*_) = a
 -- | Second projection function.
 snd' :: (a :* b) -> b
 snd' (_:*b) = b
-
-
-instance RealFloat a => VectorSpace (a :* a) a where
-    zeroVector = 0 :* 0
-
-    a *^ (x :* y) = (a * x) :* (a * y)
-
-    (x :* y) ^/ a = (x / a) :* (y / a)
-
-    negateVector (x :* y) = (-x) :* (-y)
-
-    (x1 :* y1) ^+^ (x2 :* y2) = (x1 + x2) :* (y1 + y2)
-
-    (x1 :* y1) ^-^ (x2 :* y2) = (x1 - x2) :* (y1 - y2)
-
-    (x1 :* y1) `dot` (x2 :* y2) = x1 * x2 + y1 * y2
 
 instance Functor ((:*) a) where
   fmap f (x:*y) = (x :* f y)
