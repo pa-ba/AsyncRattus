@@ -12,39 +12,37 @@ import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
+{-# ANN module Rattus #-}
+
 data Value = BVal !Bool | CVal !Char | IVal !Int | MIVal !(Maybe' Int)
+
+getI :: Value -> Int
+getI (IVal i) = i
+getI _ = error "not an IVal"
 
 type O a = Prim.O Value a
 type Stream a = Stream.Str Value a
 
 (input, inputMaybe, depends, [bChan, cChan, iChan, iChan2, iChan3, mIntChan]) = mkChannels ["boolCh", "charCh", "intCh", "intCh2", "intCh3", "maybeIntCh"]
 
-{-# ANN boolChan Rattus #-}
 boolChan :: O Bool
 boolChan = Later.map (box (\(BVal b) -> b)) (unbox bChan)
 
-{-# ANN charChan Rattus #-}
 charChan :: O Char
 charChan = Later.map (box (\(CVal c) -> c)) (unbox cChan)
 
-{-# ANN intChan Rattus #-}
 intChan :: O Int
 intChan = Later.map (box (\(IVal i) -> i)) (unbox iChan)
 
-{-# ANN intChan2 Rattus #-}
 intChan2 :: O Int
 intChan2 = Later.map (box (\(IVal i) -> i)) (unbox iChan2)
 
-{-# ANN intChan3 Rattus #-}
 intChan3 :: O Int
 intChan3 = Later.map (box (\(IVal i) -> i)) (unbox iChan3)
 
-{-# ANN maybeIntChan Rattus #-}
 maybeIntChan :: O (Maybe' Int)
 maybeIntChan = Later.map (box (\(MIVal mi) -> mi)) (unbox mIntChan)
 
-
-{-# ANN plusOne Rattus #-}
 plusOne :: O Int -> O Int
 plusOne = Later.map (box (+1))
 
@@ -52,7 +50,6 @@ testPlusOne = TestCase (assertEqual "for plusOne:" 100 (input "intCh" (IVal 99) 
     where l = plusOne intChan
 
 
-{-# ANN getIntOrMinusOne Rattus #-}
 getIntOrMinusOne :: O (Maybe' Int) -> O Int
 getIntOrMinusOne l = Later.fromMaybe (-1) l
 
@@ -64,11 +61,9 @@ laterFromMaybeTests = TestLabel "Later:fromMaybe" $ TestList [
         TestCase $ assertEqual "fromMaybe just:" 42 (input "maybeIntCh" (MIVal (Just' 42)) getIntOrMinusOneFromChan)
     ]
 
-{-# ANN showL Rattus #-}
 showL :: Show a => O (Maybe' a) -> O (List Char)
 showL = Later.maybe Nil (box (fromList . show))
 
-{-# ANN showMaybeIntChan Rattus #-}
 showMaybeIntChan :: O (List Char)
 showMaybeIntChan = showL maybeIntChan
 
@@ -77,15 +72,12 @@ laterMaybeTests = TestLabel "Later:maybe" $ TestList [
         TestCase $ assertEqual "maybe just:" "56" (toList $ input "maybeIntCh" (MIVal (Just' 56)) showMaybeIntChan)
     ]
 
-{-# ANN selectManySameChan Rattus #-}
 selectManySameChan :: O (List (Int, Bool))
 selectManySameChan = Later.selectMany $ boolChan :! boolChan :! boolChan :! Nil
 
-{-# ANN selectManyDiffChan Rattus #-}
 selectManyDiffChan :: O (List (Int, Int))
 selectManyDiffChan = Later.selectMany $ intChan :! intChan2 :! intChan3 :! Nil
 
-{-# ANN twoAndThree Rattus #-}
 twoAndThree :: O Int
 twoAndThree = delay (
         case select intChan2 intChan3 of
@@ -94,7 +86,6 @@ twoAndThree = delay (
             Both _ _ -> error "impossible"
     )
 
-{-# ANN selectManyOverlap Rattus #-}
 selectManyOverlap :: O (List (Int, Int))
 selectManyOverlap = Later.selectMany $ intChan :! intChan2 :! intChan3 :! twoAndThree :! Nil
 
@@ -104,7 +95,63 @@ selectManyTests = TestLabel "Later:selectMany" $ TestList [
         TestCase $ assertEqual "selectMany 3 overlapping chans" ((1, 100) :! (3, 101) :! Nil) (input "intCh2" (IVal 100) selectManyOverlap)
     ]
 
-allTests = TestList [testPlusOne, laterFromMaybeTests, laterMaybeTests, selectManyTests]
+laterTests = TestLabel "Later tests" $ TestList [testPlusOne, laterFromMaybeTests, laterMaybeTests, selectManyTests]
+
+intStrL :: O (Stream Int)
+intStrL = Stream.mapL (box getI) $ Stream.fromLater iChan
+
+intStr :: Stream Int
+intStr = 0 Stream.::: intStrL
+
+intStr' :: Stream Int
+intStr' = 1 Stream.::: intStrL
+
+intStrPlusOne :: Stream Int
+intStrPlusOne = Stream.map (box (+1)) intStr
+
+strMapTests = TestLabel "Stream:map(L)" $ TestList [
+        TestCase $ assertEqual "stream map head" 1 (Stream.hd intStrPlusOne),
+        TestCase $ assertEqual "stream map next" 48 (Stream.hd (input "intCh" (IVal 47) (Stream.tl intStrPlusOne)))
+    ]
+
+strConstTests = TestLabel "Stream:const(Box)" $ TestList [
+        TestCase $ assertEqual "const 47 hd" 47 (Stream.hd (Stream.const (47 :: Int))),
+        TestCase $ assertEqual "const 47 never" Set.empty (depends (Stream.tl (Stream.const (47 :: Int))))
+    ]
+
+timesStr :: Stream Int
+timesStr = Stream.scan (box (*)) 1 intStr'
+
+timesStr' :: Stream Int
+timesStr' = Stream.scanAwait (box (*)) 1 intStrL
+
+testTimesStr :: Stream Int -> Assertion
+testTimesStr tStr = do
+    let (x Stream.::: xs) = input "intCh" (IVal 5) (Stream.tl tStr)
+    assertEqual "timesStr 2nd elem" 5 x
+    let (x2 Stream.::: xs2) = input "intCh" (IVal 12) xs
+    assertEqual "timesStr 3rd elem" 60 x2
+
+timesStrShow :: Stream (List Char)
+timesStrShow = Stream.scanMap (box (*)) (box (fromList . show)) 1 intStr'
+
+testTimesStr' :: Stream (List Char) -> Assertion
+testTimesStr' tStr = do
+    let (x Stream.::: xs) = input "intCh" (IVal 5) (Stream.tl tStr)
+    assertEqual "timesStr 2nd elem" ('5' :! Nil) x
+    let (x2 Stream.::: xs2) = input "intCh" (IVal 12) xs
+    assertEqual "timesStr 3rd elem" ('6' :! '0' :! Nil) x2
+
+
+scanTests = TestLabel "Stream:scanAwait" $ TestList [
+        TestCase (testTimesStr timesStr),
+        TestCase (testTimesStr timesStr'),
+        TestCase (testTimesStr' timesStrShow)
+    ]
+
+streamTests = TestLabel "Stream tests" $ TestList [strMapTests, strConstTests, scanTests]
+
+allTests = TestList [laterTests, streamTests]
 
 main :: IO ()
 main = do

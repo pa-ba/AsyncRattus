@@ -9,7 +9,8 @@ module Rattus.Stream
   , hd
   , tl
   , fromLater
---  , constBox
+  , const
+  , constBox
   , shift
   , shiftMany
   , scan
