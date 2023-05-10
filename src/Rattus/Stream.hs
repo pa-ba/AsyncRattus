@@ -53,9 +53,9 @@ map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
 
 -- Construct a stream which just yields values from a later
--- fromLater :: (Stable a) => O v a -> O v (Str v a)
--- fromLater l = delay (let x = adv l in x ::: fromLater l)
-fromLater = undefined
+fromLater :: (Stable a) => Box (O v a) -> O v (Str v a)
+fromLater l = delay (let x = adv (unbox l) in x ::: fromLater l)
+--fromLater = undefined
 
 -- | Construct a stream that has the given value and then never ticks.
 -- | From the Async RaTT paper
