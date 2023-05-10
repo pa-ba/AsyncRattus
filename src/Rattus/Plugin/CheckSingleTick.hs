@@ -8,12 +8,15 @@
 module Rattus.Plugin.CheckSingleTick
   (checkExpr, CheckExpr (..)) where
 
+#if __GLASGOW_HASKELL__ >= 902
+import GHC.Types.Tickish
+#endif
 
-
+#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
-
-
-
+#else
+import GhcPlugins
+#endif
 
 import Rattus.Plugin.Utils
 import qualified Rattus.Plugin.PrimExpr as Prim
