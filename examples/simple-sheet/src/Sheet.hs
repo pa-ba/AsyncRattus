@@ -29,7 +29,7 @@ inputCells = ["A1", "A2", "B1", "B2"]
 
 (input, inputMaybe, depend, channels) = mkChannels inputCells
 
-([a1, a2, b1, b2]) = channels
+([a1, a2, b1, b2]) = map (Stream.fromLater) channels
 
 c1 :: Stream Int
 c1 = Stream.zipWithAwait (box (+)) a1 b1 0 0

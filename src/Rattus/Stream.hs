@@ -5,6 +5,7 @@
 
 module Rattus.Stream
   ( map
+  , mapL
   , hd
   , tl
   , fromLater
@@ -51,11 +52,12 @@ tl (_ ::: xs) = xs
 map :: Box (a -> b) -> Str v a -> Str v b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
+mapL :: Box (a -> b) -> O v (Str v a) -> O v (Str v b)
+mapL f s = delay (map f (adv s))
 
 -- Construct a stream which just yields values from a later
 fromLater :: (Stable a) => Box (O v a) -> O v (Str v a)
 fromLater l = delay (let x = adv (unbox l) in x ::: fromLater l)
---fromLater = undefined
 
 -- | Construct a stream that has the given value and then never ticks.
 -- | From the Async RaTT paper

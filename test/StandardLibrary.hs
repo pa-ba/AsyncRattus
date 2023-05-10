@@ -5,42 +5,43 @@ import Rattus (Rattus(..))
 import Rattus.Channels
 import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
-import qualified Rattus.Stream as Str
+import qualified Rattus.Stream as Stream
 import qualified Rattus.Later as Later
 import Rattus.Strict
 import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
-data Value = BVal Bool | CVal Char | IVal Int | MIVal (Maybe Int)
+data Value = BVal !Bool | CVal !Char | IVal !Int | MIVal !(Maybe' Int)
 
 type O a = Prim.O Value a
+type Stream a = Stream.Str Value a
 
 (input, inputMaybe, depends, [bChan, cChan, iChan, iChan2, iChan3, mIntChan]) = mkChannels ["boolCh", "charCh", "intCh", "intCh2", "intCh3", "maybeIntCh"]
 
 {-# ANN boolChan Rattus #-}
 boolChan :: O Bool
-boolChan = Later.map (box (\(BVal b) -> b)) bChan
+boolChan = Later.map (box (\(BVal b) -> b)) (unbox bChan)
 
 {-# ANN charChan Rattus #-}
 charChan :: O Char
-charChan = Later.map (box (\(CVal c) -> c)) cChan
+charChan = Later.map (box (\(CVal c) -> c)) (unbox cChan)
 
 {-# ANN intChan Rattus #-}
 intChan :: O Int
-intChan = Later.map (box (\(IVal i) -> i)) iChan
+intChan = Later.map (box (\(IVal i) -> i)) (unbox iChan)
 
 {-# ANN intChan2 Rattus #-}
 intChan2 :: O Int
-intChan2 = Later.map (box (\(IVal i) -> i)) iChan2
+intChan2 = Later.map (box (\(IVal i) -> i)) (unbox iChan2)
 
 {-# ANN intChan3 Rattus #-}
 intChan3 :: O Int
-intChan3 = Later.map (box (\(IVal i) -> i)) iChan3
+intChan3 = Later.map (box (\(IVal i) -> i)) (unbox iChan3)
 
 {-# ANN maybeIntChan Rattus #-}
-maybeIntChan :: O (Maybe Int)
-maybeIntChan = Later.map (box (\(MIVal mi) -> mi)) mIntChan
+maybeIntChan :: O (Maybe' Int)
+maybeIntChan = Later.map (box (\(MIVal mi) -> mi)) (unbox mIntChan)
 
 
 {-# ANN plusOne Rattus #-}
@@ -52,28 +53,28 @@ testPlusOne = TestCase (assertEqual "for plusOne:" 100 (input "intCh" (IVal 99) 
 
 
 {-# ANN getIntOrMinusOne Rattus #-}
-getIntOrMinusOne :: O (Maybe Int) -> O Int
+getIntOrMinusOne :: O (Maybe' Int) -> O Int
 getIntOrMinusOne l = Later.fromMaybe (-1) l
 
 getIntOrMinusOneFromChan :: O Int
 getIntOrMinusOneFromChan = getIntOrMinusOne maybeIntChan
 
 laterFromMaybeTests = TestLabel "Later:fromMaybe" $ TestList [
-        TestCase $ assertEqual "fromMaybe nothing:" (-1) (input "maybeIntCh" (MIVal Nothing) getIntOrMinusOneFromChan),
-        TestCase $ assertEqual "fromMaybe just:" 42 (input "maybeIntCh" (MIVal (Just 42)) getIntOrMinusOneFromChan)
+        TestCase $ assertEqual "fromMaybe nothing:" (-1) (input "maybeIntCh" (MIVal Nothing') getIntOrMinusOneFromChan),
+        TestCase $ assertEqual "fromMaybe just:" 42 (input "maybeIntCh" (MIVal (Just' 42)) getIntOrMinusOneFromChan)
     ]
 
-{-# ANN showInt Rattus #-}
-showInt :: O (Maybe Int) -> O (List Char)
-showInt = Later.maybe Nil (box (fromList . show))
+{-# ANN showL Rattus #-}
+showL :: Show a => O (Maybe' a) -> O (List Char)
+showL = Later.maybe Nil (box (fromList . show))
 
 {-# ANN showMaybeIntChan Rattus #-}
 showMaybeIntChan :: O (List Char)
-showMaybeIntChan = showInt maybeIntChan
+showMaybeIntChan = showL maybeIntChan
 
 laterMaybeTests = TestLabel "Later:maybe" $ TestList [
-        TestCase $ assertEqual "maybe nothing:" "" (toList $ input "maybeIntCh" (MIVal Nothing) showMaybeIntChan),
-        TestCase $ assertEqual "maybe just:" "56" (toList $ input "maybeIntCh" (MIVal (Just 56)) showMaybeIntChan)
+        TestCase $ assertEqual "maybe nothing:" "" (toList $ input "maybeIntCh" (MIVal Nothing') showMaybeIntChan),
+        TestCase $ assertEqual "maybe just:" "56" (toList $ input "maybeIntCh" (MIVal (Just' 56)) showMaybeIntChan)
     ]
 
 {-# ANN selectManySameChan Rattus #-}

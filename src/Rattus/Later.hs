@@ -17,12 +17,12 @@ import qualified Data.Maybe as Maybe
 map :: Box (a -> b) -> O v a -> O v b
 map f later = delay (unbox f (adv later))
 
-fromMaybe :: Stable a => a -> O v (Maybe a) -> O v a
-fromMaybe d later = delay (Maybe.fromMaybe d (adv later))
+fromMaybe :: Stable a => a -> O v (Maybe' a) -> O v a
+fromMaybe d later = delay (fromMaybe' d (adv later))
 
-maybe :: Stable b => b -> Box (a -> b) -> O v (Maybe a) -> O v b
+maybe :: Stable b => b -> Box (a -> b) -> O v (Maybe' a) -> O v b
 maybe d f later =
-    delay (Maybe.maybe d (unbox f) (adv later))
+    delay (maybe' d (unbox f) (adv later))
 
 -- Given a list of delayed values, select over them return list of all available values when one arrives.
 selectMany :: List (O v a) -> O v (List (Int, a))

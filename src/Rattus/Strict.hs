@@ -24,6 +24,7 @@ module Rattus.Strict
     (:*)(..),
     Maybe'(..),
     maybe',
+    fromMaybe',
    fst',
    snd',
   )where
@@ -138,6 +139,10 @@ data Maybe' a = Just' !a | Nothing'
 maybe' :: b -> (a -> b) -> Maybe' a -> b
 maybe' n _ Nothing'  = n
 maybe' _ f (Just' x) = f x
+
+fromMaybe' :: a -> Maybe' a -> a
+fromMaybe' _ (Just' x) = x
+fromMaybe' d Nothing' = d
 
 -- | Strict pair type.
 data a :* b = !a :* !b

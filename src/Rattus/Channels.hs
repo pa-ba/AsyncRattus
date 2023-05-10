@@ -17,7 +17,7 @@ import qualified Rattus.Stream as Stream
 type InputFunc v a = String -> v -> O v a -> a
 type InputMaybeFunc v a = String -> v -> O v a -> Maybe a
 type DependFunc v a = O v a -> Set String
-type InputChannel v = O v (Stream.Str v v)
+type InputChannel v = Box (O v v)
 
 input :: Map String Int -> String -> v -> O v a -> a
 input nameToId name v later = 
@@ -37,7 +37,7 @@ index :: [a] -> [Int]
 index = zipWith const [0..]
 
 mkChannels :: (Stable v) => [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [InputChannel v])
-mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map (Stream.fromLater . box . mkChannelFromId) $ index names)
+mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map (box . mkChannelFromId) $ index names)
     where nameMapping = constructNameMapping names
           idMapping = constructIdToNameMapping names
           
