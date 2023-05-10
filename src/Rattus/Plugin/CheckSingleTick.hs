@@ -53,7 +53,6 @@ data Ctx = Ctx
 hasTick :: Ctx -> Bool
 hasTick = isJust . earlier
 
-
 stabilize :: HiddenReason -> Ctx -> Ctx
 stabilize hr c = c
   {current = Set.empty,
@@ -61,7 +60,6 @@ stabilize hr c = c
    hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid
   }
   where ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
-
 
 data Scope = Hidden SDoc | Visible
 
@@ -277,41 +275,3 @@ combine c eRes1 eRes2 = do
     (CheckResult (Just (_, cl1)), CheckResult (Just (_, cl2))) | cl1 == cl2 -> Right res2
     (CheckResult (Just _), CheckResult (Just (p, _))) -> Left $ typeError c p "Only one adv/select allowed in a delay"
     (CheckResult maybeP, CheckResult maybeP') -> Right $ CheckResult {prim = maybeP <|> maybeP'}
-
-
-{-
-countAdvSelect' :: Ctx -> Expr Var -> Either String CheckResult
-countAdvSelect' ctx (App e e') = case isPrimExpr ctx e of
-      Just (p, _) -> case D.trace ("we have met a prim: " ++ showSDocUnsafe (ppr p)) p of
-        Adv | not (isVar e') -> Left "Can only adv on variables"
-            | hasSeenAdvSelect ctx -> Left "Only one adv/select allowed in a delay"
-            | otherwise -> Right CheckResult { foundClock = Just (Clock (getVar e')) }
-        Select -> Left "Select not implemented"
-                    -- | not $ all isVar args -> Left "Can only select on variables"
-                    -- | hasSeenAdvSelect ctx -> Left "Only one adv/select allowed in a delay"
-                    -- | otherwise -> Right CheckResult { foundClock = let [first, second] = map (Clock . getVar) args in Just $ Union first second}
-        Delay | inDelay ctx -> Left "Nested delays not allowed"
-              | otherwise -> case countAdvSelect' (ctx {inDelay = True}) e' of
-                Right r | isJust (foundClock r) -> D.trace ("Delay: found correct clock " ++ show r) (Right r)
-                Left s -> Left s
-                _ -> Left "Each delay must contain an adv or select"
-        _ -> Right emptyCheckResult   -- what about box/unbox?
-      _ -> case checkAndUpdate ctx e of
-          Left s -> Left s
-          Right ctx' -> countAdvSelect' ctx' e'
-countAdvSelect' ctx (Lam _ rhs) = countAdvSelect' ctx rhs
-countAdvSelect' ctx (Let (NonRec _ e') e) =
-  case fmap (updateCtxFromResult ctx) (countAdvSelect' ctx e) of
-        Left s -> Left s
-        Right ctx' -> countAdvSelect' ctx' e'
-countAdvSelect' ctx (Case e _ _ alts) = case countAdvSelect' ctx e of
-  Left s -> Left s
-  Right res -> snd <$> foldM (\(c, r) (Alt _ _ e') ->
-    case countAdvSelect' c e' of
-      Left s -> Left s
-      Right r' | advSelect r && advSelect r' -> Left "Only one adv/select allowed in a delay"
-      Right r' -> Right (updateCtxFromResult c r', r')) (updateCtxFromResult ctx res, res) alts
-countAdvSelect' ctx (Cast e _) = countAdvSelect' ctx e
-countAdvSelect' ctx (Tick _ e) = countAdvSelect' ctx e
-countAdvSelect' _ _ = Right emptyCheckResult
--}
