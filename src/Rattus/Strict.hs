@@ -132,6 +132,15 @@ instance Show a => Show (List a) where
 -- | Strict variant of 'Maybe'.
 data Maybe' a = Just' !a | Nothing'
 
+instance Eq a => Eq (Maybe' a) where
+  Nothing' == Nothing' = True
+  Just' x == Just' y = x == y
+  _ == _ = False
+
+instance Show a => Show (Maybe' a) where
+  show Nothing' = "Nothing'"
+  show (Just' x) = "Just' " ++ show x
+
 -- | takes a default value, a function, and a 'Maybe'' value.  If the
 -- 'Maybe'' value is 'Nothing'', the function returns the default
 -- value.  Otherwise, it applies the function to the value inside the
@@ -176,3 +185,6 @@ instance Functor ((:*) a) where
   
 instance (Show a, Show b) => Show (a:*b) where
   show (a :* b) = "(" ++ show a ++ " :* " ++ show b ++ ")"
+
+instance (Eq a, Eq b) => Eq (a :* b) where
+  (x1 :* y1) == (x2 :* y2) = x1 == x2 && y1 == y2

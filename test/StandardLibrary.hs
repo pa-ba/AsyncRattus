@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeOperators #-}
+
 module Main (module Main) where
 
 import Prelude hiding (Left, Right)
@@ -15,6 +17,14 @@ import System.Exit
 {-# ANN module Rattus #-}
 
 data Value = BVal !Bool | CVal !Char | IVal !Int | MIVal !(Maybe' Int)
+
+getB :: Value -> Bool
+getB (BVal b) = b
+getB _ = error "not a BVal"
+
+getC :: Value -> Char
+getC (CVal c) = c
+getC _ = error "not a CVal"
 
 getI :: Value -> Int
 getI (IVal i) = i
@@ -97,6 +107,13 @@ selectManyTests = TestLabel "Later:selectMany" $ TestList [
 
 laterTests = TestLabel "Later tests" $ TestList [testPlusOne, laterFromMaybeTests, laterMaybeTests, selectManyTests]
 
+boolStrL :: O (Stream Bool)
+boolStrL = Stream.mapL (box getB) $ Stream.fromLater bChan
+
+charStrL :: O (Stream Char)
+charStrL = Stream.mapL (box getC) $ Stream.fromLater cChan
+
+
 intStrL :: O (Stream Int)
 intStrL = Stream.mapL (box getI) $ Stream.fromLater iChan
 
@@ -143,13 +160,91 @@ testTimesStr' tStr = do
     assertEqual "timesStr 3rd elem" ('6' :! '0' :! Nil) x2
 
 
-scanTests = TestLabel "Stream:scanAwait" $ TestList [
+scanTests = TestLabel "Stream:scan" $ TestList [
         TestCase (testTimesStr timesStr),
         TestCase (testTimesStr timesStr'),
         TestCase (testTimesStr' timesStrShow)
     ]
 
-streamTests = TestLabel "Stream tests" $ TestList [strMapTests, strConstTests, scanTests]
+zipped :: Stream (Bool :* Char)
+zipped = Stream.zip (False Stream.::: boolStrL) ('\0' Stream.::: charStrL) 
+
+zipAwaited :: Stream (Bool :* Char)
+zipAwaited = Stream.zipWithAwait (box (:*)) boolStrL charStrL False '\0'
+
+testZipped :: Stream (Bool :* Char) -> Assertion
+testZipped zipped = do
+    assertEqual "initial zipped value" (False :* '\0') (Stream.hd zipped)
+    let (x Stream.::: xs) = input "boolCh" (BVal True) (Stream.tl zipped)
+    assertEqual "2nd zipped" (True :* '\0') x
+    let (x2 Stream.::: xs2) = input "charCh" (CVal '.') xs
+    assertEqual "3rd zipped" (True :* '.') x2
+
+selfZipped :: Stream (Bool :* Bool)
+selfZipped = Stream.zipWithAwait (box (:*)) boolStrL boolStrL True False
+
+testZippedBoth :: Assertion
+testZippedBoth = do
+    assertEqual "initial self-zipped value" (True :* False) (Stream.hd selfZipped)
+    let (x Stream.::: xs) = input "boolCh" (BVal True) (Stream.tl selfZipped)
+    assertEqual "2nd self-zipped" (True :* True) x
+    let (x2 Stream.::: xs2) = input "boolCh" (BVal False) xs
+    assertEqual "3rd self-zipped" (False :* False) x2
+    
+
+zipTests = TestLabel "Stream:zip" $ TestList [
+        TestCase $ testZipped zipped,
+        TestCase $ testZipped zipAwaited,
+        TestCase testZippedBoth
+    ]
+
+filtered :: Stream (Maybe' Int)
+filtered = Stream.filter (box (>10)) intStr
+
+testFiltered :: Assertion
+testFiltered = do
+    assertEqual "initial filtered" Nothing' (Stream.hd filtered)
+    let (x Stream.::: xs) = input "intCh" (IVal 15) (Stream.tl filtered)
+    assertEqual "2nd filtered" (Just' 15) x
+    let (x2 Stream.::: xs2) = input "intCh" (IVal 10) xs
+    assertEqual "3rd filtered" Nothing' x2
+
+filterTests = TestLabel "filter tests" (TestCase testFiltered)
+
+shifted :: Stream Int
+shifted = Stream.shift 47 intStr
+
+shiftedOne :: Stream Int
+shiftedOne = Stream.shiftMany (47 :! Nil) intStr
+
+testShifted :: Stream Int -> Assertion
+testShifted shifted = do
+    assertEqual "initial shifted value" 47 (Stream.hd shifted)
+    let (x Stream.::: xs) = input "intCh" (IVal 5) (Stream.tl shifted)
+    assertEqual "2nd shifted" 0 x
+    let (x2 Stream.::: xs2) = input "intCh" (IVal 67) xs
+    assertEqual "3rd shifted" 5 x2
+
+shiftedTwo :: Stream Int
+shiftedTwo = Stream.shiftMany (47 :! 78 :! Nil) intStr
+
+testShiftedMany :: Assertion
+testShiftedMany = do
+    assertEqual "initial shifted value" 47 (Stream.hd shiftedTwo)
+    let (x Stream.::: xs) = input "intCh" (IVal 5) (Stream.tl shiftedTwo)
+    assertEqual "2nd shifted" 78 x
+    let (x2 Stream.::: xs2) = input "intCh" (IVal 67) xs
+    assertEqual "3rd shifted" 0 x2
+    let (x3 Stream.::: xs3) = input "intCh" (IVal 99) xs2
+    assertEqual "4th shifted" 5 x3
+
+shiftTests = TestLabel "shift tests" $ TestList [
+        TestCase (testShifted shifted),
+        TestCase (testShifted shiftedOne),
+        TestCase testShiftedMany
+    ]
+
+streamTests = TestLabel "Stream tests" $ TestList [strMapTests, strConstTests, scanTests, zipTests, filterTests, shiftTests]
 
 allTests = TestList [laterTests, streamTests]
 
