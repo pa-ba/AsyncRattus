@@ -232,7 +232,7 @@ checkExpr' c (Tick (SourceNote span _name) e) =
   checkExpr' c{srcLoc = fromRealSrcSpan span} e
 checkExpr' c (Tick _ e) = checkExpr' c e
 checkExpr' c (Cast e _) = checkExpr' c e
-checkExpr' c (Let (NonRec v e1) e2) = do
+checkExpr' c (Let (NonRec _ e1) e2) = do
   res1 <- checkExpr' c e1
   res2 <- checkExpr' c e2
   return $ combine c res1 res2
