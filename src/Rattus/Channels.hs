@@ -10,13 +10,14 @@ import Data.Set (Set)
 import Data.Map (Map, fromList, lookup)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import qualified Rattus.Stream as Stream
 
 -- Function for providing input to a later
 --             Channel name | value | later
 type InputFunc v a = String -> v -> O v a -> a
 type InputMaybeFunc v a = String -> v -> O v a -> Maybe a
 type DependFunc v a = O v a -> Set String
-type InputChannel v = O v v
+type InputChannel v = O v (Stream.Str v v)
 
 input :: Map String Int -> String -> v -> O v a -> a
 input nameToId name v later = 
@@ -29,14 +30,14 @@ inputMaybe nameToId name v later =
     where id = fromMaybe (error "No such input channel") (lookup name nameToId)
           compatible = Set.member id $ extractClock later
 
-mkChannelFromId :: InputChannelIdentifier -> InputChannel v
+mkChannelFromId :: InputChannelIdentifier -> O v v
 mkChannelFromId id = Delay (Set.singleton id) snd
 
 index :: [a] -> [Int]
 index = zipWith const [0..]
 
-mkChannels :: [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [InputChannel v])
-mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map mkChannelFromId $ index names)
+mkChannels :: (Stable v) => [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [InputChannel v])
+mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map (Stream.fromLater . box . mkChannelFromId) $ index names)
     where nameMapping = constructNameMapping names
           idMapping = constructIdToNameMapping names
           
