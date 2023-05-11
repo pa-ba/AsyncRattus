@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeOperators #-}
+
 module Rattus.Channels (
     mkChannels,
     InputFunc,
@@ -7,10 +9,10 @@ import Prelude hiding (Left, Right, lookup)
 import Rattus.InternalPrimitives
 import qualified Data.Set as Set
 import Data.Set (Set)
-import Data.Map (Map, fromList, lookup)
+import Data.Map (Map, lookup)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import qualified Rattus.Stream as Stream
+import Rattus.Strict 
 
 -- Function for providing input to a later
 --             Channel name | value | later
@@ -33,21 +35,22 @@ inputMaybe nameToId name v later =
 mkChannelFromId :: InputChannelIdentifier -> O v v
 mkChannelFromId id = Delay (Set.singleton id) snd
 
-index :: [a] -> [Int]
-index = zipWith const [0..]
+index :: List a -> List (Int :* a)
+index Nil = Nil
+index (name :! names) = reverse' $ foldl (\acc@((lastId :* _) :! _) name -> (lastId + 1 :* name) :! acc) ((0 :* name) :! Nil) names   
 
-mkChannels :: (Stable v) => [String] -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, [InputChannel v])
-mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map (box . mkChannelFromId) $ index names)
-    where nameMapping = constructNameMapping names
-          idMapping = constructIdToNameMapping names
+mkChannels :: (Stable v) => List String -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, List (InputChannel v))
+mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map' (box . mkChannelFromId) . map' fst' $ indexed)
+    where nameMapping = constructNameMapping indexed
+          idMapping = constructIdToNameMapping indexed
+          indexed = index names
           
-constructNameMapping :: [String] -> Map String Int
-constructNameMapping [] = Map.empty
-constructNameMapping (name : names) = fromList $ scanl (\(_, i) name -> (name, i+1)) (name, 0) names
+constructNameMapping :: List (Int :* String) -> Map String Int
+constructNameMapping = foldl (\acc (id :* name) -> Map.insert name id acc) Map.empty
 
-constructIdToNameMapping :: [String] -> Map Int String
-constructIdToNameMapping [] = Map.empty
-constructIdToNameMapping (name : names) = fromList $ scanl (\(i, _) name -> (i+1, name)) (0, name) names
+constructIdToNameMapping :: List (Int :* String) -> Map Int String
+constructIdToNameMapping = foldl (\acc (id :* name) -> Map.insert id name acc) Map.empty 
+
 
 -- Check which output channels depend
 depend :: Map Int String -> O v a -> Set String
