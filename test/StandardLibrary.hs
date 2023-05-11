@@ -83,10 +83,10 @@ laterMaybeTests = TestLabel "Later:maybe" $ TestList [
         TestCase $ assertEqual "maybe just:" "56" (toList $ input "maybeIntCh" (MIVal (Just' 56)) showMaybeIntChan)
     ]
 
-selectManySameChan :: O (List (Int, Bool))
+selectManySameChan :: O (List (Int :* Bool))
 selectManySameChan = Later.selectMany $ boolChan :! boolChan :! boolChan :! Nil
 
-selectManyDiffChan :: O (List (Int, Int))
+selectManyDiffChan :: O (List (Int :* Int))
 selectManyDiffChan = Later.selectMany $ intChan :! intChan2 :! intChan3 :! Nil
 
 twoAndThree :: O Int
@@ -97,13 +97,13 @@ twoAndThree = delay (
             Both _ _ -> error "impossible"
     )
 
-selectManyOverlap :: O (List (Int, Int))
+selectManyOverlap :: O (List (Int :* Int))
 selectManyOverlap = Later.selectMany $ intChan :! intChan2 :! intChan3 :! twoAndThree :! Nil
 
 selectManyTests = TestLabel "Later:selectMany" $ TestList [
-        TestCase $ assertEqual "selectMany 3xBoolChan" ((0, True) :! (1, True) :! (2, True) :! Nil) (input "boolCh" (BVal True) selectManySameChan),
-        TestCase $ assertEqual "selectMany 3 disjoint chans" ((1, 78) :! Nil) (input "intCh2" (IVal 78) selectManyDiffChan),
-        TestCase $ assertEqual "selectMany 3 overlapping chans" ((1, 100) :! (3, 101) :! Nil) (input "intCh2" (IVal 100) selectManyOverlap)
+        TestCase $ assertEqual "selectMany 3xBoolChan" ((0 :* True) :! (1 :* True) :! (2 :* True) :! Nil) (input "boolCh" (BVal True) selectManySameChan),
+        TestCase $ assertEqual "selectMany 3 disjoint chans" ((1 :* 78) :! Nil) (input "intCh2" (IVal 78) selectManyDiffChan),
+        TestCase $ assertEqual "selectMany 3 overlapping chans" ((1 :* 100) :! (3 :* 101) :! Nil) (input "intCh2" (IVal 100) selectManyOverlap)
     ]
 
 laterTests = TestLabel "Later tests" $ TestList [testPlusOne, laterFromMaybeTests, laterMaybeTests, selectManyTests]
