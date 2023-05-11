@@ -160,5 +160,9 @@ advAlias = adv
 selectAlias :: O v a -> O v b -> Select v a b
 selectAlias = select
 
+{-# ANN partialSelectApp ExpectTcError #-}
+partialSelectApp :: O v a -> (O v b -> Select v a b)
+partialSelectApp l = select l
+
 {-# ANN main NotRattus #-}
 main = putStrLn "This file should not type check"

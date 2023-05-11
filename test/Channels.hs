@@ -50,6 +50,7 @@ inputMaybeTests = TestLabel "inputMaybe tests" $ TestList [testInputMaybeJust, t
 
 allTests = TestList [dependTests, inputMaybeTests]
 
+{-# ANN main NotRattus #-}
 main :: IO ()
 main = do
     counts <- runTestTT allTests
