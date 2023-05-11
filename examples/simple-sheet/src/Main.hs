@@ -2,9 +2,9 @@
 
 module Main where
 
-import qualified Rattus.Primitives as Prim
-import qualified Rattus.Stream as Stream
-import Rattus.Stream (Str(..))
+import qualified AsyncRattus.Primitives as Prim
+import qualified AsyncRattus.Stream as Stream
+import AsyncRattus.Stream (Str(..))
 import Debug.Trace as D
 import qualified Data.Set as Set
 import qualified Data.Map as Map

@@ -6,7 +6,7 @@ version:             0.1.0.0
 -- description:
 -- bug-reports:
 -- license:
-author:              Emil and Gregers
+author:              Emil Houlborg & Gregers Rørdam
 maintainer:          ehou@itu.dk | grtr@itu.dk
 -- copyright:
 -- category:
@@ -19,5 +19,5 @@ executable testprog
   main-is:             Main.hs
   other-modules:       Sheet
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers, megaparsec, parser-combinators
-  ghc-options:         -fplugin=Rattus.Plugin
+  build-depends:       AsyncRattus, base, containers
+  ghc-options:         -fplugin=AsyncRattus.Plugin

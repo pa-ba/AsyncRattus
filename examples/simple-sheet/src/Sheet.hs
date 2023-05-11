@@ -2,16 +2,16 @@
 
 module Sheet where 
 
-import Rattus (Rattus(..))
-import qualified Rattus.Channels as Channels
-import Rattus.Channels (mkChannels)
-import qualified Rattus.Primitives as Prim
-import Rattus.Primitives (box, unbox, select, delay, adv)
-import qualified Rattus.Stream as Stream
-import Rattus.Stream(Str(..))
-import qualified Rattus.Later as Later
-import qualified Rattus.Strict as Strict
-import Rattus.Strict (List(..), (+++), (:*))
+import AsyncRattus (AsyncRattus(..))
+import qualified AsyncRattus.Channels as Channels
+import AsyncRattus.Channels (mkChannels)
+import qualified AsyncRattus.Primitives as Prim
+import AsyncRattus.Primitives (box, unbox, select, delay, adv)
+import qualified AsyncRattus.Stream as Stream
+import AsyncRattus.Stream(Str(..))
+import qualified AsyncRattus.Later as Later
+import qualified AsyncRattus.Strict as Strict
+import AsyncRattus.Strict (List(..), (+++), (:*))
 import qualified Data.Set
 import qualified Data.Map as Map
 import Data.Map ((!))
@@ -23,7 +23,7 @@ type O a = Prim.O Input a
 type Stream a = Str Input a
 type InputChannel = Channels.InputChannel Input
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 inputCells = ["A1", "A2", "B1", "B2"]
 
