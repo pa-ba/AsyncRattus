@@ -18,8 +18,7 @@ render' (_, str) = Translate (-(fromIntegral sizex)/2.0) 0 (Text (toList (hd str
 
 handleEvent' :: Event -> World -> World
 handleEvent' (EventKey (Char c) Down _ _) (_, s) = (Just ("kb", Kb c), s)
-handleEvent' (EventKey (MouseButton LeftButton) Down _ _) (_, s) = (Just ("mouse", Mouse True), s)
-handleEvent' (EventKey (MouseButton RightButton) Down _ _) (_, s) = (Just ("mouse", Mouse False), s)
+handleEvent' (EventKey (MouseButton LeftButton) Down _ _) (_, s) = (Just ("mouse", Mouse), s)
 handleEvent' e world = world
 
 step' :: Float -> World -> World
