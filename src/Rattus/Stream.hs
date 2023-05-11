@@ -28,7 +28,6 @@ where
 import Rattus
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 
-import Data.VectorSpace
 
 -- | @Str a@ is a stream of values of type @a@.
 data Str v a = !a ::: !(O v (Str v a))
