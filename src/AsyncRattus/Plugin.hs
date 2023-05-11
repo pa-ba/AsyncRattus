@@ -5,15 +5,15 @@
 
 -- | The plugin to make it all work.
 
-module Rattus.Plugin (plugin, Rattus(..)) where
-import Rattus.Plugin.StableSolver
-import Rattus.Plugin.ScopeCheck
-import Rattus.Plugin.Strictify
-import Rattus.Plugin.SingleTick
-import Rattus.Plugin.CheckSingleTick
-import Rattus.Plugin.Utils
-import Rattus.Plugin.Annotation
-import Rattus.Plugin.Transform
+module AsyncRattus.Plugin (plugin, AsyncRattus(..)) where
+import AsyncRattus.Plugin.StableSolver
+import AsyncRattus.Plugin.ScopeCheck
+import AsyncRattus.Plugin.Strictify
+import AsyncRattus.Plugin.SingleTick
+import AsyncRattus.Plugin.CheckSingleTick
+import AsyncRattus.Plugin.Utils
+import AsyncRattus.Plugin.Annotation
+import AsyncRattus.Plugin.Transform
 
 import Prelude hiding ((<>))
 
@@ -31,11 +31,11 @@ import GhcPlugins
 import TcRnTypes
 #endif
 
--- | Use this to enable Rattus' plugin, either by supplying the option
--- @-fplugin=Rattus.Plugin@ directly to GHC. or by including the
+-- | Use this to enable Asynchronous Rattus' plugin, either by supplying the option
+-- @-fplugin=AsyncRattus.Plugin@ directly to GHC, or by including the
 -- following pragma in each source file:
 -- 
--- > {-# OPTIONS -fplugin=Rattus.Plugin #-}
+-- > {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 plugin :: Plugin
 plugin = defaultPlugin {
   installCoreToDos = install,
@@ -52,10 +52,10 @@ typechecked _ _ env = checkAll env >> return env
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install opts todo = return (strPass : todo)
-    where strPass = CoreDoPluginPass "Rattus strictify" (strictifyProgram Options{debugMode = dmode})
+    where strPass = CoreDoPluginPass "Asynchronous Rattus strictify" (strictifyProgram Options{debugMode = dmode})
           dmode = "debug" `elem` opts
 
--- | Apply the following operations to all Rattus definitions in the
+-- | Apply the following operations to all Asynchronous Rattus definitions in the
 -- program:
 --
 -- * Transform into single tick form (see SingleTick module)
@@ -127,12 +127,12 @@ getModuleAnnotations guts = anns'
 
 allowLazyData :: ModGuts -> CoreBndr -> CoreM Bool
 allowLazyData guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [Rattus]
+  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
   return (AllowLazyData `elem` l)
 
 allowRecursion :: ModGuts -> CoreBndr -> CoreM Bool
 allowRecursion guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [Rattus]
+  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
   return (AllowRecursion `elem` l)
 
 expectCoreError :: ModGuts -> CoreBndr -> CoreM Bool
@@ -147,9 +147,9 @@ expectTcError guts bndr = do
 
 shouldProcessCore :: ModGuts -> CoreBndr -> CoreM Bool
 shouldProcessCore guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [Rattus]
+  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
   expectTcError <- expectTcError guts bndr
-  return (Rattus `elem` l && notElem NotRattus l && userFunction bndr && not expectTcError)
+  return (AsyncRattus `elem` l && notElem NotAsyncRattus l && userFunction bndr && not expectTcError)
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do

@@ -1,4 +1,4 @@
-{-# OPTIONS -fplugin=Rattus.Plugin #-}
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -10,7 +10,7 @@
 
 
 
-module Rattus.Strict
+module AsyncRattus.Strict
   ( List(..),
     singleton,
     fromList,
@@ -31,7 +31,8 @@ module Rattus.Strict
    snd',
   )where
 
-import Rattus.Plugin.Annotation
+import AsyncRattus.Primitives
+import AsyncRattus.Plugin.Annotation
 import Prelude hiding (map)
 
 infixr 2 :*
@@ -40,7 +41,7 @@ infixr 8 :!
 -- | Strict list type.
 data List a = Nil | !a :! !(List a)
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 -- All recursive functions in this module are defined by structural
 -- induction on a strict type.
 {-# ANN module AllowRecursion #-}

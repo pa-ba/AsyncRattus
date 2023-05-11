@@ -2,13 +2,13 @@
 
 module Main (module Main) where
 
-import Rattus
-import Rattus.Stream
+import AsyncRattus
+import AsyncRattus.Stream
 import Data.Set as Set
 import Prelude
 
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 boxedInt :: Box Int
 boxedInt = box 8
@@ -118,5 +118,5 @@ advOnAliasedVar li =
 advUnderLambda :: O v Int -> O v (a -> Int)
 advUnderLambda y = delay (\x -> adv y)
 
-{-# ANN main NotRattus #-}
+{-# ANN main NotAsyncRattus #-}
 main = putStrLn "This file should just type check"

@@ -1,17 +1,16 @@
-{-# OPTIONS -fplugin=Rattus.Plugin #-}
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
 
--- | The bare-bones Rattus language. To program with streams and
--- events, you can use "Rattus.Stream" and "Rattus.Events"; to program with
--- Yampa-style signal functions, you can use "Rattus.Yampa".
+-- | The bare-bones Asynchronous Rattus language. To program with streams,
+-- you can use "AsyncRattus.Stream".
 
-module Rattus (
-  -- * Rattus language primitives
-  module Rattus.Primitives,
+module AsyncRattus (
+  -- * Asynchronous Rattus language primitives
+  module AsyncRattus.Primitives,
   -- * Strict data types
-  module Rattus.Strict,
+  module AsyncRattus.Strict,
   -- * Annotation
-  Rattus(..),
+  AsyncRattus(..),
   -- * Applicative operators
   (|#|),
   (|##),
@@ -21,12 +20,12 @@ module Rattus (
   )
   where
 
-import Rattus.Plugin
-import Rattus.Strict
-import Rattus.Primitives
+import AsyncRattus.Plugin
+import AsyncRattus.Strict
+import AsyncRattus.Primitives
 
--- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+-- all functions in this module are in Asynchronous Rattus 
+{-# ANN module AsyncRattus #-}
 
 
 -- | Variant of '<#>' where the argument is of a stable type..

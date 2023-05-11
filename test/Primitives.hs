@@ -3,10 +3,10 @@
 module Main (module Main) where
 
 import Prelude hiding (Left, Right)
-import Rattus (Rattus(..))
-import qualified Rattus.Primitives as Prim
-import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
-import qualified Rattus.InternalPrimitives as InternalPrim
+import AsyncRattus (AsyncRattus(..))
+import qualified AsyncRattus.Primitives as Prim
+import AsyncRattus.Primitives (delay, adv, select, box, unbox, Select(..))
+import qualified AsyncRattus.InternalPrimitives as InternalPrim
 import Data.Set as Set
 import Test.HUnit
 import System.Exit
@@ -26,26 +26,26 @@ ch2 = InternalPrim.Delay (Set.singleton 2) snd
 ch3 :: O Value
 ch3 = InternalPrim.Delay (Set.singleton 3) snd
 
-{-# ANN boolChan Rattus #-}
+{-# ANN boolChan AsyncRattus #-}
 boolChan :: O Bool
 boolChan = delay (let (BVal b) = adv ch1 in b)
 
-{-# ANN charChan Rattus #-}
+{-# ANN charChan AsyncRattus #-}
 charChan :: O Char
 charChan = delay (let (CVal c) = adv ch2 in c)
 
-{-# ANN intChan Rattus #-}
+{-# ANN intChan AsyncRattus #-}
 intChan :: O Int
 intChan = delay (let (IVal i) = adv ch3 in i)
 
-{-# ANN plusOne Rattus #-}
+{-# ANN plusOne AsyncRattus #-}
 plusOne :: O Int -> O Int
 plusOne l = delay (1 + adv l)
 
 testPlusOne = TestCase (assertEqual "for plusOne:" 42 (InternalPrim.adv' l (3, IVal 41)))
     where l = plusOne intChan
 
-{-# ANN doSelect Rattus #-}
+{-# ANN doSelect AsyncRattus #-}
 doSelect :: O Int
 doSelect = delay (
     case select boolChan charChan of
@@ -54,7 +54,7 @@ doSelect = delay (
         Both _ _ -> error "impossible"
     )
 
-{-# ANN nestedSelect Rattus #-}
+{-# ANN nestedSelect AsyncRattus #-}
 nestedSelect :: O Int
 nestedSelect = delay (
     case select doSelect intChan of
@@ -63,7 +63,7 @@ nestedSelect = delay (
         Both _ _ -> error "impossible"
     )
 
-{-# ANN nonDisjoint Rattus #-}
+{-# ANN nonDisjoint AsyncRattus #-}
 nonDisjoint :: O Int
 nonDisjoint = delay (
     case select doSelect nestedSelect of

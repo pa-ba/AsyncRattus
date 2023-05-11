@@ -2,13 +2,13 @@
 
 module Main (module Main) where
 
-import Rattus
-import Rattus.Stream as S
+import AsyncRattus
+import AsyncRattus.Stream as S
 import Prelude
-import Rattus.Plugin.Annotation (InternalAnn (..))
+import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 
 {-# ANN loopIndirect ExpectTcError #-}
@@ -164,5 +164,5 @@ selectAlias = select
 partialSelectApp :: O v a -> (O v b -> Select v a b)
 partialSelectApp l = select l
 
-{-# ANN main NotRattus #-}
+{-# ANN main NotAsyncRattus #-}
 main = putStrLn "This file should not type check"

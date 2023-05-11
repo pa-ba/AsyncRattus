@@ -1,17 +1,17 @@
 module Main (module Main) where
 
-import Rattus (Rattus(..))
-import Rattus.Channels
-import Rattus.Strict
-import qualified Rattus.Primitives as Prim
-import Rattus.Primitives (delay, adv, select, box, unbox)
-import qualified Rattus.Stream as Stream
-import qualified Rattus.Later as Later
+import AsyncRattus (AsyncRattus(..))
+import AsyncRattus.Channels
+import AsyncRattus.Strict
+import qualified AsyncRattus.Primitives as Prim
+import AsyncRattus.Primitives (delay, adv, select, box, unbox)
+import qualified AsyncRattus.Stream as Stream
+import qualified AsyncRattus.Later as Later
 import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 data Value = BVal !Bool | CVal !Char | IVal !Int
 
@@ -50,7 +50,7 @@ inputMaybeTests = TestLabel "inputMaybe tests" $ TestList [testInputMaybeJust, t
 
 allTests = TestList [dependTests, inputMaybeTests]
 
-{-# ANN main NotRattus #-}
+{-# ANN main NotAsyncRattus #-}
 main :: IO ()
 main = do
     counts <- runTestTT allTests

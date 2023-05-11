@@ -9,7 +9,7 @@
 -- (mutual) recursive. To this end, this module also provides
 -- functions to compute, bound variables and variable occurrences.
 
-module Rattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
+module AsyncRattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
 
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins

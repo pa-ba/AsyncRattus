@@ -5,7 +5,7 @@
 -- | This module implements the check that the transformed code is
 -- typable in the single tick calculus.
 
-module Rattus.Plugin.CheckSingleTick
+module AsyncRattus.Plugin.CheckSingleTick
   (checkExpr, CheckExpr (..)) where
 
 #if __GLASGOW_HASKELL__ >= 902
@@ -18,8 +18,8 @@ import GHC.Plugins
 import GhcPlugins
 #endif
 
-import Rattus.Plugin.Utils
-import qualified Rattus.Plugin.PrimExpr as Prim
+import AsyncRattus.Plugin.Utils
+import qualified AsyncRattus.Plugin.PrimExpr as Prim
 import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -176,7 +176,7 @@ checkExpr c e = do
     Left (TypeError src doc) | expectError c -> do
       when (verbose c) $ printMessage SevInfo src $ text "checkExpr: error was expected, and there was an error:" $$ doc
     Left (TypeError src doc) ->
-      let printErrMsg = if verbose c
+      let printErrMsg = if verbose c || True
           then do
             printMessage SevError src ("Ill-typed Async Rattus program:" $$ doc)
             putMsgS "-------- old --------"
@@ -185,7 +185,7 @@ checkExpr c e = do
             putMsg (ppr e)
             
           else do
-            printMessage SevError noSrcSpan ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$
+            printMessage SevError noSrcSpan ("Internal error in Asynchronous Rattus Plugin: single tick transformation did not preserve typing." $$
                                   "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
       in do
         printErrMsg

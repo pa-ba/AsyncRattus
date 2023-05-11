@@ -1,18 +1,19 @@
 {-# LANGUAGE TypeOperators #-}
 
-module Rattus.Channels (
+module AsyncRattus.Channels (
     mkChannels,
     InputFunc,
     InputChannel,
 ) where
 import Prelude hiding (Left, Right, lookup)
-import Rattus.InternalPrimitives
+import AsyncRattus.InternalPrimitives
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Data.Map (Map, lookup)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Rattus.Strict 
+import AsyncRattus.Strict 
+import qualified AsyncRattus.Stream as Stream
 
 -- Function for providing input to a later
 --             Channel name | value | later
