@@ -4,6 +4,7 @@ module Main (module Main) where
 
 import Prelude hiding (Left, Right)
 import Rattus (Rattus(..))
+import Rattus.Strict
 import Rattus.Channels
 import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
@@ -33,7 +34,7 @@ getI _ = error "not an IVal"
 type O a = Prim.O Value a
 type Stream a = Stream.Str Value a
 
-(input, inputMaybe, depends, [bChan, cChan, iChan, iChan2, iChan3, mIntChan]) = mkChannels ["boolCh", "charCh", "intCh", "intCh2", "intCh3", "maybeIntCh"]
+(input, inputMaybe, depends, (bChan :! cChan :! iChan :! iChan2 :! iChan3 :! mIntChan :! Nil)) = mkChannels ("boolCh" :! "charCh" :! "intCh" :! "intCh2" :! "intCh3" :! "maybeIntCh" :! Nil)
 
 boolChan :: O Bool
 boolChan = Later.map (box (\(BVal b) -> b)) (unbox bChan)
