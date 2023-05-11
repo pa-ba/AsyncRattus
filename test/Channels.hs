@@ -2,6 +2,7 @@ module Main (module Main) where
 
 import Rattus (Rattus(..))
 import Rattus.Channels
+import Rattus.Strict
 import qualified Rattus.Primitives as Prim
 import Rattus.Primitives (delay, adv, select, box, unbox)
 import qualified Rattus.Stream as Stream
@@ -18,7 +19,7 @@ type O a = Prim.O Value a
 type Select a b = Prim.Select Value a b
 type Stream a = Stream.Str Value a
 
-(input, inputMaybe, depends, [boolCh, charCh, intCh]) = mkChannels ["boolCh", "charCh", "intCh"]
+(input, inputMaybe, depends, (boolCh :! charCh :! intCh :! Nil)) = mkChannels ("boolCh" :! "charCh" :! "intCh" :! Nil)
 
 boolChan :: O Bool
 boolChan = Later.map (box (\(BVal b) -> b)) (unbox boolCh)
