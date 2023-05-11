@@ -382,7 +382,6 @@ mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
 mkSysLocalFromExpr lit e = mkSysLocalM lit (exprType e)
 #endif
  
-mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
  
 fromRealSrcSpan :: RealSrcSpan -> SrcSpan
 #if __GLASGOW_HASKELL__ >= 904
