@@ -37,4 +37,4 @@ data AsyncRattus = AsyncRattus | NotAsyncRattus | AllowLazyData | AllowRecursion
 
 
 -- | This annotation type is for internal use only.
-data InternalAnn = ExpectTcError | ExpectCoreError | ExpectWarning deriving (Typeable, Data, Show, Eq, Ord)
+data InternalAnn = ExpectScopeError | ExpectClockError | ExpectWarning deriving (Typeable, Data, Show, Eq, Ord)
