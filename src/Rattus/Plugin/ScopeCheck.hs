@@ -102,7 +102,7 @@ data Ctxt = Ctxt
     primAlias :: Map Var Prim,
     -- | This flag indicates whether the context was 'stabilized'
     -- (stripped of all non-stable stuff). It is set when typechecking
-    -- 'box', 'arr' and guarded recursion.
+    -- 'box' and guarded recursion.
     stabilized :: Maybe StableReason,
     -- | Allow general recursion.
     allowRecursion :: Bool}
@@ -138,7 +138,7 @@ type RecDef = (Set Var, SrcSpan)
 
 
 
-data StableReason = StableRec SrcSpan | StableBox | StableArr deriving Show
+data StableReason = StableRec SrcSpan | StableBox deriving Show
 
 -- | Indicates, why a variable has fallen out of scope.
 data HiddenReason = Stabilize StableReason | FunDef | DelayApp | AdvApp | SelectApp deriving Show
@@ -150,8 +150,8 @@ data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
 -- context along with the reason why they have.
 type Hidden = Map Var HiddenReason
 
--- | The 4 primitive Rattus operations plus 'arr'.
-data Prim = Delay | Adv | Select | Box | Unbox | Arr deriving Show
+-- | The 4 primitive Rattus operations plus 'unbox'.
+data Prim = Delay | Adv | Select | Box | Unbox  deriving Show
 
 -- | This constraint is used to pass along the context implicitly via
 -- an implicit parameter.
@@ -374,7 +374,7 @@ checkRecursiveBinds bs vs = do
           recReason :: StableReason -> SDoc
           recReason (StableRec _) = "nested recursive definitions"
           recReason StableBox = "recursive definitions nested under box"
-          recReason StableArr = "recursive definitions nested under arr"
+          
 
 
 #if __GLASGOW_HASKELL__ >= 902
@@ -458,12 +458,7 @@ instance Show Var where
 
 
 boxReason StableBox = "Nested use of box"
-boxReason StableArr = "The use of box in the scope of arr"
 boxReason (StableRec _ ) = "The use of box in a recursive definition"
-
-arrReason StableArr = "Nested use of arr"
-arrReason StableBox = "The use of arr in the scope of box"
-arrReason (StableRec _) = "The use of arr in a recursive definition"
 
 tickHidden :: HiddenReason -> SDoc
 tickHidden FunDef = "a function definition"
@@ -471,7 +466,6 @@ tickHidden DelayApp = "a nested application of delay"
 tickHidden AdvApp = "an application of adv"
 tickHidden SelectApp = "an application of select"
 tickHidden (Stabilize StableBox) = "an application of box"
-tickHidden (Stabilize StableArr) = "an application of arr"
 tickHidden (Stabilize (StableRec src)) = "a nested recursive definition (at " <> ppr src <> ")"
 
 isSelect :: GetCtxt => LHsExpr GhcTc -> Bool
@@ -518,14 +512,6 @@ instance Scope (HsExpr GhcTc) where
           Just reason | ch ->
             (printMessage' SevWarning (boxReason reason <> " can cause time leaks")) >> return ch
           _ -> return ch
-      Arr -> do
-        ch <- stabilize StableArr `modifyCtxt` check e2
-        -- don't bother with a warning if the scopecheck fails
-        case stabilized ?ctxt of
-          Just reason | ch ->
-            printMessage' SevWarning (arrReason reason <> " can cause time leaks") >> return ch
-          _ -> return ch
-
       Unbox -> check e2
       Delay ->  ((\c -> c{current = Set.empty,
                           earlier = case earlier c of
@@ -602,8 +588,7 @@ instance Scope (HsExpr GhcTc) where
 #else
   check HsSpliceE{} = notSupported "Template Haskell"
 #endif
-  check (HsProc _ p e) = mod `modifyCtxt` check e
-    where mod c = addVars (getBV p) (stabilize StableArr c)
+  check (HsProc _ _ e) = check e
   check (HsStatic _ e) = check e
   check (HsDo _ _ e) = fst <$> checkBind e
   check (XExpr e) = check e
@@ -840,7 +825,7 @@ checkSCC allowRec errm (CyclicSCC bs) = (fmap and (mapM check' bs'))
         check' b@(L l _) = setCtxt (emptyCtxt errm (Just (vs,getLocAnn' l)) allowRec) (checkRec b)
 
 -- | Stabilizes the given context, i.e. remove all non-stable types
--- and any tick. This is performed on checking 'box', 'arr' and
+-- and any tick. This is performed on checking 'box', and
 -- guarded recursive definitions. To provide better error messages a
 -- reason has to be given as well.
 stabilize :: StableReason -> Ctxt -> Ctxt
@@ -876,10 +861,6 @@ getScope v =
               if (isStable (stableTypes ?ctxt) (varType v)) then Visible
               else Hidden ("Variable " <> ppr v <> " is no longer in scope:" $$
                        "It occurs under " <> keyword "box" $$ "and is of type " <> ppr (varType v) <> ", which is not stable.")
-            Just (Stabilize StableArr) ->
-              if (isStable (stableTypes ?ctxt) (varType v)) then Visible
-              else Hidden ("Variable " <> ppr v <> " is no longer in scope:" $$
-                       "It occurs inside an arrow notation and is of type " <> ppr (varType v) <> ", which is not stable.")
             Just AdvApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under adv.")
             Just SelectApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under select.")
             Just DelayApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope due to repeated application of delay")
@@ -903,7 +884,6 @@ primMap = Map.fromList
    ("adv", Adv),
    ("select", Select),
    ("box", Box),
-   ("arr", Arr),
    ("unbox", Unbox)]
 
 
