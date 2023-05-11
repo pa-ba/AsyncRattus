@@ -1,9 +1,9 @@
-{-# OPTIONS -fplugin=Rattus.Plugin #-}
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE CPP #-}
 -- | Programming with streams.
 
-module Rattus.Stream
+module AsyncRattus.Stream
   ( map
   , mapL
   , hd
@@ -25,7 +25,7 @@ module Rattus.Stream
 
 where
 
-import Rattus
+import AsyncRattus
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 
 import Data.VectorSpace
@@ -33,8 +33,8 @@ import Data.VectorSpace
 -- | @Str a@ is a stream of values of type @a@.
 data Str v a = !a ::: !(O v (Str v a))
 
--- all functions in this module are in Rattus 
-{-# ANN module Rattus #-}
+-- all functions in this module are in Asynchronous Rattus 
+{-# ANN module AsyncRattus #-}
 
 -- | Get the first element (= head) of a stream.
 hd :: Str v a -> a

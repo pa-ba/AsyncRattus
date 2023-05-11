@@ -2,8 +2,8 @@
 
 module Main (module Main) where
 
-import Rattus
-import Rattus.Stream
+--import Rattus
+--import Rattus.Stream
 
 {-
 {-# ANN module Rattus #-}

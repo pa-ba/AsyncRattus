@@ -1,4 +1,4 @@
-module Rattus.InternalPrimitives where
+module AsyncRattus.InternalPrimitives where
 
 import Prelude hiding (Left, Right)
 import Data.Set (Set, empty)
@@ -17,7 +17,7 @@ data O v a = Delay Clock (InputValue v -> a)
 
 data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
 
-rattusError = error "Did you forget to mark this as Async Rattus code?"
+asyncRattusError = error "Did you forget to mark this as Async Rattus code?"
 
 -- | This is the constructor for the "later" modality 'O':
 --
@@ -27,7 +27,7 @@ rattusError = error "Did you forget to mark this as Async Rattus code?"
 --
 {-# INLINE [1] delay #-}
 delay :: a -> O v a
-delay x = Delay rattusError (const x)
+delay x = Delay asyncRattusError (const x)
 
 delay' :: Clock -> a -> O v a
 delay' cl a = Delay cl (const a)
@@ -37,7 +37,7 @@ extractClock (Delay cl _) = cl
 
 adv' :: O v a -> InputValue v -> a
 adv' (Delay cl f) inpVal@(chId, _) | chId `elem` cl = f inpVal
-adv' (Delay cl _) (chId, _) = error $ "Rattus internal error: inpVal chId " ++ show chId ++ " not in clock for delay: " ++ show cl
+adv' (Delay cl _) (chId, _) = error $ "Asynchronous Rattus internal error: inpVal chId " ++ show chId ++ " not in clock for delay: " ++ show cl
 
 
 -- | This is the eliminator for the "later" modality 'O':
@@ -48,11 +48,11 @@ adv' (Delay cl _) (chId, _) = error $ "Rattus internal error: inpVal chId " ++ s
 --
 {-# INLINE [1] adv #-}
 adv :: O v a -> a
-adv (Delay _ _) = rattusError
+adv (Delay _ _) = asyncRattusError
 
 
 select :: O v a -> O v b -> Select v a b
-select a b = select' a b rattusError
+select a b = select' a b asyncRattusError
 
 select' :: O v a -> O v b -> InputValue v -> Select v a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)

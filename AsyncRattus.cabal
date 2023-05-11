@@ -1,14 +1,17 @@
 cabal-version:       1.18
-name:                Rattus
-version:             0.5.1
+name:                AsyncRattus
+version:             0.1
 category:            FRP
-synopsis:            A modal FRP language
+synopsis:            An asynchronous modal FRP language
 description:
 
-            This library implements the Rattus programming language as
+            This library implements the Asynchronous Rattus programming language as
             an embedded DSL. To this end the library provides a GHC
-            plugin that performs the additional checks that are
-            necessary for Rattus. What follows is a brief
+            plugin that checks the stricter typing rules
+            of Asynchronous Rattus. It is based on the Rattus programming language.
+            
+            
+            What follows is a brief
             introduction to the language and its usage. A more
             detailed introduction can be found in this
             <src/docs/paper.pdf paper>.
@@ -113,13 +116,13 @@ description:
             <docs/src/Rattus.Stream.html source code of the Rattus.Stream module>
             provides more examples on how to program in Rattus.
 
-homepage:            https://github.com/pa-ba/Rattus
-bug-reports:         https://github.com/pa-ba/Rattus/issues
+homepage:            https://github.com/GregersSR/Asynchronous-Rattus
+bug-reports:         https://github.com/GregersSR/Asynchronous-Rattus/issues
 License:             BSD3
 License-file:        LICENSE
-copyright:           Copyright (C) 2020 Patrick Bahr
-Author:              Patrick Bahr
-maintainer:          Patrick Bahr <paba@itu.dk>
+copyright:           Copyright (C) 2023 Emil Houlborg & Gregers Rørdam
+Author:              Emil Houlborg & Gregers Rørdam
+maintainer:          Gregers Rørdam <grtr@itu.dk>
 stability:           experimental
 
 build-type:          Custom
@@ -135,29 +138,29 @@ custom-setup
 
 
 library
-  exposed-modules:     Rattus
-                       Rattus.Stream
-                       Rattus.Strict
-                       Rattus.Plugin
-                       Rattus.Primitives
-                       Rattus.InternalPrimitives
-                       Rattus.Later
-                       Rattus.Channels
-                       Rattus.Plugin.Annotation
+  exposed-modules:     AsyncRattus
+                       AsyncRattus.Stream
+                       AsyncRattus.Strict
+                       AsyncRattus.Plugin
+                       AsyncRattus.Primitives
+                       AsyncRattus.InternalPrimitives
+                       AsyncRattus.Later
+                       AsyncRattus.Channels
+                       AsyncRattus.Plugin.Annotation
                                               
-  other-modules:       Rattus.Plugin.ScopeCheck
-                       Rattus.Plugin.SingleTick
-                       Rattus.Plugin.CheckSingleTick
-                       Rattus.Plugin.Strictify
-                       Rattus.Plugin.Utils
-                       Rattus.Plugin.Dependency
-                       Rattus.Plugin.StableSolver
-                       Rattus.Plugin.Transform
-                       Rattus.Plugin.PrimExpr
+  other-modules:       AsyncRattus.Plugin.ScopeCheck
+                       AsyncRattus.Plugin.SingleTick
+                       AsyncRattus.Plugin.CheckSingleTick
+                       AsyncRattus.Plugin.Strictify
+                       AsyncRattus.Plugin.Utils
+                       AsyncRattus.Plugin.Dependency
+                       AsyncRattus.Plugin.StableSolver
+                       AsyncRattus.Plugin.Transform
+                       AsyncRattus.Plugin.PrimExpr
   build-depends:       base >=4.12 && <5, containers, ghc >= 8.6 && < 9.7, ghc-prim, simple-affine-space, transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -W
+  ghc-options:         -W -fplugin-opt AsyncRattus.Plugin:debug
 
   
 Test-Suite memory-leak
@@ -165,17 +168,16 @@ Test-Suite memory-leak
   main-is:             MemoryLeak.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
 
 
 Test-Suite ill-typed
   type:                exitcode-stdio-1.0
   main-is:             test/IllTyped.hs
   default-language:    Haskell2010
-  build-depends:       Rattus, base
-  ghc-options:         
-                       -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
 
 
 Test-Suite well-typed
@@ -183,8 +185,8 @@ Test-Suite well-typed
   main-is:             WellTyped.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base, containers
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
 
 
 Test-Suite primitives
@@ -192,16 +194,16 @@ Test-Suite primitives
   main-is:             Primitives.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers, HUnit
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base, containers, HUnit
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
 
 Test-Suite channels
   type:                exitcode-stdio-1.0
   main-is:             Channels.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers, HUnit
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base, containers, HUnit
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
 
 
 Test-Suite stdlib
@@ -209,5 +211,5 @@ Test-Suite stdlib
   main-is:             StandardLibrary.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       Rattus, base, containers, HUnit
-  ghc-options:         -fplugin=Rattus.Plugin -rtsopts
+  build-depends:       AsyncRattus, base, containers, HUnit
+  ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts

@@ -5,9 +5,9 @@
 -- | This module implements a constraint solver plugin for the
 -- 'Stable' type class.
 
-module Rattus.Plugin.StableSolver (tcStable) where
+module AsyncRattus.Plugin.StableSolver (tcStable) where
 
-import Rattus.Plugin.Utils
+import AsyncRattus.Plugin.Utils
     ( getNameModule, isRattModule, isStable )
 
 import Prelude hiding ((<>))

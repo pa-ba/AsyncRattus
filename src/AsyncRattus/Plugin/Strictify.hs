@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
-module Rattus.Plugin.Strictify
+module AsyncRattus.Plugin.Strictify
   (strictifyExpr, SCxt (..)) where
 import Prelude hiding ((<>))
-import Rattus.Plugin.Utils
+import AsyncRattus.Plugin.Utils
 
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins

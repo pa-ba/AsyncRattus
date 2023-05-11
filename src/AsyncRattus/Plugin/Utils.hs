@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
-module Rattus.Plugin.Utils (
+module AsyncRattus.Plugin.Utils (
   printMessage,
   Severity(..),
   isRattModule,
@@ -159,19 +159,19 @@ getTyConFromModule :: String -> String -> CoreM TyCon
 getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
 
 adv'Var :: CoreM Var
-adv'Var = getVarFromModule "Rattus.InternalPrimitives" "adv'"
+adv'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
 
 select'Var :: CoreM Var
-select'Var = getVarFromModule "Rattus.InternalPrimitives" "select'"
+select'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
 
 bigDelay :: CoreM Var
-bigDelay = getVarFromModule "Rattus.InternalPrimitives" "Delay"
+bigDelay = getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
 
 inputValueVar :: CoreM TyCon
-inputValueVar = getTyConFromModule "Rattus.InternalPrimitives" "InputValue"
+inputValueVar = getTyConFromModule "AsyncRattus.InternalPrimitives" "InputValue"
 
 extractClockVar :: CoreM Var
-extractClockVar = getVarFromModule "Rattus.InternalPrimitives" "extractClock"
+extractClockVar = getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
 
 ordIntClass :: CoreM Var
 ordIntClass = getVarFromModule "GHC.Classes" "$fOrdInt"
@@ -180,8 +180,7 @@ unionVar :: CoreM Var
 unionVar = getVarFromModule "Data.Set.Internal" "union"
 
 rattModules :: Set FastString
-rattModules = Set.fromList ["Rattus.Internal","Rattus.Primitives"
-                           ,"Rattus.Stable", "Rattus.InternalPrimitives"]
+rattModules = Set.fromList ["AsyncRattus.InternalPrimitives"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName

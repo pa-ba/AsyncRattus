@@ -1,12 +1,12 @@
--- | The language primitives of Rattus. Note that the Rattus types
---  'delay', 'adv', and 'box' are more restrictive that the Haskell
---  types that are indicated. The more stricter Rattus typing rules
+-- | The language primitives of Asynchronous Rattus. Note that the Asynchronous Rattus types
+--  'delay', 'adv','select' and 'box' are more restrictive that the Haskell
+--  types that are indicated. The stricter Asynchronous Rattus typing rules
 --  for these primitives are given. To ensure that your program
 --  adheres to these stricter typing rules, use the plugin in
---  "Rattus.Plugin" so that GHC will check these stricter typing
+--  "AsyncRattus.Plugin" so that GHC will check these stricter typing
 --  rules.
 {-# LANGUAGE TypeOperators #-}
-module Rattus.Primitives
+module AsyncRattus.Primitives
   (O
   ,Box
   ,Select(..)
@@ -19,4 +19,4 @@ module Rattus.Primitives
   ,never
   ,Stable
   ) where
-import Rattus.InternalPrimitives
+import AsyncRattus.InternalPrimitives

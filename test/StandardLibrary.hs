@@ -3,18 +3,18 @@
 module Main (module Main) where
 
 import Prelude hiding (Left, Right)
-import Rattus (Rattus(..))
-import Rattus.Channels
-import qualified Rattus.Primitives as Prim
-import Rattus.Primitives (delay, adv, select, box, unbox, Select(..))
-import qualified Rattus.Stream as Stream
-import qualified Rattus.Later as Later
-import Rattus.Strict
+import AsyncRattus (AsyncRattus(..))
+import AsyncRattus.Channels
+import qualified AsyncRattus.Primitives as Prim
+import AsyncRattus.Primitives (delay, adv, select, box, unbox, Select(..))
+import qualified AsyncRattus.Stream as Stream
+import qualified AsyncRattus.Later as Later
+import AsyncRattus.Strict
 import qualified Data.Set as Set
 import Test.HUnit
 import System.Exit
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 data Value = BVal !Bool | CVal !Char | IVal !Int | MIVal !(Maybe' Int)
 
@@ -248,6 +248,7 @@ streamTests = TestLabel "Stream tests" $ TestList [strMapTests, strConstTests, s
 
 allTests = TestList [laterTests, streamTests]
 
+{-# ANN main NotAsyncRattus #-}
 main :: IO ()
 main = do
     counts <- runTestTT allTests

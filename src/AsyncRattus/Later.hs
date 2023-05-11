@@ -1,6 +1,6 @@
-{-# OPTIONS -fplugin=Rattus.Plugin #-}
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
-module Rattus.Later (
+module AsyncRattus.Later (
     map,
     fromMaybe,
     maybe,
@@ -8,10 +8,10 @@ module Rattus.Later (
 ) where
 
 import Prelude hiding (map, maybe, Left, Right)
-import Rattus
+import AsyncRattus
 
 
-{-# ANN module Rattus #-}
+{-# ANN module AsyncRattus #-}
 
 map :: Box (a -> b) -> O v a -> O v b
 map f later = delay (unbox f (adv later))

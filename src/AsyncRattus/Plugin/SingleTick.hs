@@ -3,7 +3,7 @@
 
 {-# LANGUAGE CPP #-}
 
-module Rattus.Plugin.SingleTick
+module AsyncRattus.Plugin.SingleTick
   (toSingleTick) where
 
 #if __GLASGOW_HASKELL__ >= 900
@@ -13,7 +13,7 @@ import GhcPlugins
 #endif
 
   
-import Rattus.Plugin.Utils
+import AsyncRattus.Plugin.Utils
 import Prelude hiding ((<>))
 import Control.Monad.Trans.Writer.Strict
 import Control.Monad.Trans.Class
@@ -224,5 +224,4 @@ isPrimVar p v = maybe False id $ do
   mod <- nameModule_maybe name
   let occ = getOccString name
   return (p occ
-          && ((moduleNameString (moduleName mod) == "Rattus.Internal") ||
-          moduleNameString (moduleName mod) == "Rattus.InternalPrimitives"))
+          && moduleNameString (moduleName mod) == "AsyncRattus.InternalPrimitives")

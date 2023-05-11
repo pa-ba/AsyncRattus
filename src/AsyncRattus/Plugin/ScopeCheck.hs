@@ -12,13 +12,13 @@
 
 
 -- | This module implements the source plugin that checks the variable
--- scope of of Rattus programs.
+-- scope of of Asynchronous Rattus programs.
 
-module Rattus.Plugin.ScopeCheck (checkAll) where
+module AsyncRattus.Plugin.ScopeCheck (checkAll) where
 
-import Rattus.Plugin.Utils
-import Rattus.Plugin.Dependency
-import Rattus.Plugin.Annotation
+import AsyncRattus.Plugin.Utils
+import AsyncRattus.Plugin.Dependency
+import AsyncRattus.Plugin.Annotation
 
 import Data.IORef
 
@@ -150,7 +150,7 @@ data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
 -- context along with the reason why they have.
 type Hidden = Map Var HiddenReason
 
--- | The 4 primitive Rattus operations plus 'arr'.
+-- | The 5 primitive Asynchronous Rattus operations plus 'arr'.
 data Prim = Delay | Adv | Select | Box | Unbox | Arr deriving Show
 
 -- | This constraint is used to pass along the context implicitly via
@@ -159,7 +159,7 @@ type GetCtxt = ?ctxt :: Ctxt
 
 
 -- | This type class is implemented for each AST type @a@ for which we
--- can check whether it adheres to the scoping rules of Rattus.
+-- can check whether it adheres to the scoping rules of Asynchronous Rattus.
 class Scope a where
   -- | Check whether the argument is a scope correct piece of syntax
   -- in the given context.
@@ -222,9 +222,9 @@ printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
 
 -- | This function checks whether a given top-level definition (either
 -- a single non-recursive definition or a group of mutual recursive
--- definitions) is marked as Rattus code (via an annotation). In a
+-- definitions) is marked as Asynchronous Rattus code (via an annotation). In a
 -- group of mutual recursive definitions, the whole group is
--- considered Rattus code if at least one of its constituents is
+-- considered Asynchronous Rattus code if at least one of its constituents is
 -- marked as such.
 filterBinds :: Module -> AnnEnv -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> Bool
 filterBinds mod anEnv scc =
@@ -233,11 +233,11 @@ filterBinds mod anEnv scc =
     (CyclicSCC bs) -> any (any checkVar . snd) bs
   where checkVar :: Var -> Bool
         checkVar v =
-          let anns = findAnns deserializeWithData anEnv (NamedTarget name) :: [Rattus]
-              annsMod = findAnns deserializeWithData anEnv (ModuleTarget mod) :: [Rattus]
+          let anns = findAnns deserializeWithData anEnv (NamedTarget name) :: [AsyncRattus]
+              annsMod = findAnns deserializeWithData anEnv (ModuleTarget mod) :: [AsyncRattus]
               name :: Name
               name = varName v
-          in Rattus `elem` anns || (not (NotRattus `elem` anns)  && Rattus `elem` annsMod)
+          in AsyncRattus `elem` anns || (not (NotAsyncRattus `elem` anns)  && AsyncRattus `elem` annsMod)
 
 
 
@@ -338,7 +338,7 @@ checkPatBind (L l b) = updateLoc l $ checkPatBind' b
 
 checkPatBind' :: GetCtxt => HsBindLR GhcTc GhcTc -> TcM Bool
 checkPatBind' PatBind{} = do
-  printMessage' SevError ("(Mutual) recursive pattern binding definitions are not supported in Rattus")
+  printMessage' SevError ("(Mutual) recursive pattern binding definitions are not supported in Asynchronous Rattus")
   return False
 #if __GLASGOW_HASKELL__ < 904
 checkPatBind' AbsBinds {abs_binds = binds} = 
@@ -508,7 +508,7 @@ instance Scope (HsExpr GhcTc) where
       Left NoDelay -> printMessageCheck SevError "select may only be used in the scope of a delay."
       Left (TickHidden hr) -> printMessageCheck SevError ("select may only be used in the scope of a delay. "
                         <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
-    _ -> error "Rattus: internal error"
+    _ -> error "Asynchronous Rattus: internal error"
   check (HsApp _ e1 e2) =
     case isPrimExpr e1 of
     Just (p,_) -> case p of
@@ -895,7 +895,7 @@ getScope v =
                 -> ImplUnboxed
               | otherwise -> Visible
 
--- | A map from the syntax of a primitive of Rattus to 'Prim'.
+-- | A map from the syntax of a primitive of Asynchronous Rattus to 'Prim'.
 primMap :: Map FastString Prim
 primMap = Map.fromList
   [("Delay", Delay),
@@ -907,7 +907,7 @@ primMap = Map.fromList
    ("unbox", Unbox)]
 
 
--- | Checks whether a given variable is in fact a Rattus primitive.
+-- | Checks whether a given variable is in fact an Asynchronous Rattus primitive.
 isPrim :: GetCtxt => Var -> Maybe Prim
 isPrim v
   | Just p <- Map.lookup v (primAlias ?ctxt) = Just p
@@ -917,7 +917,7 @@ isPrim v
   else Nothing
 
 
--- | Checks whether a given expression is in fact a Rattus primitive.
+-- | Checks whether a given expression is in fact a Asynchronous Rattus primitive.
 isPrimExpr :: GetCtxt => LHsExpr GhcTc -> Maybe (Prim,Var)
 isPrimExpr (L _ e) = isPrimExpr' e where
   isPrimExpr' :: GetCtxt => HsExpr GhcTc -> Maybe (Prim,Var)
@@ -960,7 +960,7 @@ class NotSupported a where
   notSupported :: GetCtxt => SDoc -> TcM a
 
 instance NotSupported Bool where
-  notSupported doc = printMessageCheck SevError ("Rattus does not support " <> doc)
+  notSupported doc = printMessageCheck SevError ("Asynchronous Rattus does not support " <> doc)
 
 instance NotSupported (Bool,Set Var) where
   notSupported doc = (,Set.empty) <$> notSupported doc
