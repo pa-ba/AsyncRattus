@@ -20,6 +20,8 @@ module Rattus.Strict
     (+++),
     listToMaybe',
     map',
+    zip',
+    zipWith',
     mapMaybe',
     (:*)(..),
     Maybe'(..),
@@ -29,7 +31,6 @@ module Rattus.Strict
    snd',
   )where
 
-import Rattus.Primitives
 import Rattus.Plugin.Annotation
 import Prelude hiding (map)
 
@@ -83,6 +84,16 @@ listToMaybe' = foldr (const . Just') Nothing'
 map' :: (a -> b) -> List a -> List b
 map' _ Nil = Nil
 map' f (x :! xs) = f x :! map' f xs
+
+zip' :: List a -> List b -> List (a :* b)
+zip' Nil _ = Nil
+zip' _ Nil = Nil
+zip' (x :! xs) (y :! ys) = (x :* y) :! zip' xs ys
+
+zipWith' :: (a -> b -> c) -> List a -> List b -> List c
+zipWith' _ Nil _ = Nil
+zipWith' _ _ Nil = Nil
+zipWith' f (x :! xs) (y :! ys) = f x y :! zipWith' f xs ys
 
 
 -- | A version of 'map' which can throw out elements.  In particular,
