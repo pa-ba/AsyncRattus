@@ -27,10 +27,7 @@ asyncRattusError = error "Did you forget to mark this as Async Rattus code?"
 --
 {-# INLINE [1] delay #-}
 delay :: a -> O v a
-delay x = Delay asyncRattusError (const x)
-
-delay' :: Clock -> a -> O v a
-delay' cl a = Delay cl (const a)
+delay _ = asyncRattusError
 
 extractClock :: O v a -> Clock
 extractClock (Delay cl _) = cl
@@ -48,11 +45,11 @@ adv' (Delay cl _) (chId, _) = error $ "Asynchronous Rattus internal error: inpVa
 --
 {-# INLINE [1] adv #-}
 adv :: O v a -> a
-adv (Delay _ _) = asyncRattusError
+adv _ = asyncRattusError
 
 
 select :: O v a -> O v b -> Select v a b
-select a b = select' a b asyncRattusError
+select _ _ = asyncRattusError
 
 select' :: O v a -> O v b -> InputValue v -> Select v a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
