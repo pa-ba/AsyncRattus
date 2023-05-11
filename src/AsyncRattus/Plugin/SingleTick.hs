@@ -159,7 +159,6 @@ extractAdv' e@(App e1 e2)
        tell [(x,e1,e2)]
        return (Var x)
   | isSelectApp e1 = do
-      lift $ putMsg $ text "isSelectApp called with: " <> ppr e
       x <- lift (mkSysLocalFromExpr (fsLit "select") e)
       tell [(x,e1,e2)]
       return (Var x)

@@ -55,7 +55,6 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     inpVar <- mkSysLocalM (fsLit "inpV") inputValueType' inputValueType'
     let ctx' = ctx {fresh = Just inpVar}
     (newExpr, maybePrimInfo) <- transform' ctx' e'
-    putMsg $ ppr newExpr
     let primInfo = fromJust maybePrimInfo
     let lambdaExpr = Lam inpVar newExpr
     clockCode <- constructClockExtractionCode v primInfo

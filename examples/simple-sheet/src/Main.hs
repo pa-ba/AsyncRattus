@@ -5,7 +5,6 @@ module Main where
 import qualified AsyncRattus.Primitives as Prim
 import qualified AsyncRattus.Stream as Stream
 import AsyncRattus.Stream (Str(..))
-import Debug.Trace as D
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Map (Map)
