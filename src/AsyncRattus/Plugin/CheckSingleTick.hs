@@ -29,7 +29,6 @@ import Data.Maybe (isJust)
 import Control.Monad (foldM, when)
 import Control.Applicative ((<|>))
 import System.Exit (exitFailure)
-import qualified Debug.Trace as D
 
 type LCtx = Set Var
 data HiddenReason = BoxApp | AdvApp | NestedRec Var | FunDef | DelayApp
@@ -131,7 +130,7 @@ isStableConstr t =
       case getNameModule con of
         Just (name, mod) ->
           if isRattModule mod && name == "Stable"
-          then D.trace "Saw Stable" $ return (getTyVar_maybe args)
+          then return (getTyVar_maybe args)
           else return Nothing
         _ -> return Nothing
     _ ->  return Nothing
