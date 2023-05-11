@@ -73,7 +73,8 @@ reverse' l =  rev l Nil
 -- | Returns @'Nothing''@ on an empty list or @'Just'' a@ where @a@ is the
 -- first element of the list.
 listToMaybe' :: List a -> Maybe' a
-listToMaybe' = foldr (const . Just') Nothing'
+listToMaybe' Nil = Nothing'
+listToMaybe' (x :! _) = Just' x
 
 -- | Append two lists.
 (+++) :: List a -> List a -> List a

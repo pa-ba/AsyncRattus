@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main (module Main) where
 
@@ -247,7 +248,67 @@ shiftTests = TestLabel "shift tests" $ TestList [
 
 streamTests = TestLabel "Stream tests" $ TestList [strMapTests, strConstTests, scanTests, zipTests, filterTests, shiftTests]
 
-allTests = TestList [laterTests, streamTests]
+lst :: List Int
+lst = 1 :! 2 :! 3 :! 4 :! Nil
+
+toFromListTests = TestLabel "to/from List" $ TestList [
+        TestCase $ assertEqual "toList" [1, 2, 3, 4] (toList lst),
+        TestCase $ assertEqual "fromList" lst (fromList [1, 2, 3, 4])
+    ]
+
+initTests = TestLabel "init' tests" $ TestCase $ assertEqual "init' test" (1 :! 2 :! 3 :! Nil) (init' lst)
+
+reverseTests = TestLabel "reverse tests" $ TestList [
+        TestCase $ assertEqual "double-reverse = original" lst (reverse' (reverse' lst)),
+        TestCase $ assertEqual "direct reverse test" (fromList [4, 3, 2, 1]) (reverse' lst),
+        TestCase $ assertEqual "test same as [] reverse" (reverse (toList lst)) (toList (reverse' lst))
+    ]
+
+listToMaybeTests = TestLabel "listToMaybe tests" $ TestList [
+        TestCase $ assertEqual "0 elements" (Nothing' :: Maybe' Int) (listToMaybe' Nil),
+        TestCase $ assertEqual "1 element" (Just' 3) (listToMaybe' (3 :! Nil)),
+        TestCase $ assertEqual "2 elements" (Just' 4) (listToMaybe' (4 :! 5 :! Nil))
+    ]
+
+appendTests = TestLabel "+++ tests" $ TestList [
+        TestCase $ assertEqual "same as []" (toList lst ++ toList lst) (toList (lst +++ lst)),
+        TestCase $ assertEqual "0, 0 elements" (Nil :: List Int) (Nil +++ Nil),
+        TestCase $ assertEqual "0, 1 elements" (7 :! Nil) (Nil +++ (7 :! Nil)),
+        TestCase $ assertEqual "1, 0 elements" (8 :! Nil) ((8 :! Nil) +++ Nil),
+        TestCase $ assertEqual "1, 1 elements" (10 :! 11 :! Nil) ((10 :! Nil) +++ (11 :! Nil)),
+        TestCase $ assertEqual "2, 1 elements" (20 :! 21 :! 22 :! Nil) ((20 :! 21 :! Nil) +++ (22 :! Nil)),
+        TestCase $ assertEqual "2, 1 elements" (30 :! 31 :! 32 :! Nil) ((30 :! Nil) +++ (31 :! 32 :! Nil)),
+        TestCase $ assertEqual "2, 2 elements" (40 :! 41 :! 42 :! 43 :! Nil) ((40 :! 41 :! Nil) +++ (42 :! 43 :! Nil))
+    ]
+
+-- Given a label and a mapping function over Lists, test the mapping function.
+mkMapTests :: String -> (forall a. forall b. (a -> b) -> List a -> List b) -> Test
+mkMapTests label mapF = TestLabel label $ TestList [
+        TestCase $ assertEqual "nil -> nil" Nil (mapF (+1) Nil),
+        TestCase $ assertEqual "singleton" ("3" :! Nil) (mapF show (3 :! Nil)),
+        TestCase $ assertEqual "same as []" (map (+2) $ toList lst) (toList $ mapF (+2) lst)
+    ]
+
+mapTests = TestLabel "map(Maybe) tests" $ TestList [
+        mkMapTests "map' tests" map',
+        mkMapTests "fmap on List tests" fmap,
+        TestCase $ assertEqual "mapMaybe nil" (Nil :: List Int) (mapMaybe' Just' Nil),
+        TestCase $ assertEqual "single Just" (1 :! Nil) (mapMaybe' Just' (1 :! Nil)),
+        TestCase $ assertEqual "single Nothing" (Nil :: List Int) (mapMaybe' (const Nothing') ((2 :: Int) :! Nil)),
+        TestCase $ assertEqual "filterMap" ("3" :! "4" :! Nil) (mapMaybe' (\x -> if x > 2 then Just' (show x) else Nothing') lst)
+        
+    ]
+
+maybeTests = TestLabel "maybe tests" $ TestList [
+        TestCase $ assertEqual "maybe' Nothing" "" (maybe' "" show (Nothing' :: Maybe' Int)),
+        TestCase $ assertEqual "maybe' Just" "42" (maybe' "" show (Just' 42)),
+        TestCase $ assertEqual "fromMaybe' Nothing" (-1) (fromMaybe' (-1) Nothing'),
+        TestCase $ assertEqual "fromMaybe' Just" 43 (fromMaybe' (-1) (Just' 43))
+    ]
+
+strictTests = TestLabel "Strict tests" $ TestList [toFromListTests, initTests, reverseTests, listToMaybeTests, appendTests, mapTests, maybeTests]
+
+allTests = TestList [laterTests, streamTests, strictTests]
 
 main :: IO ()
 main = do
