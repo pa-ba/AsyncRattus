@@ -145,39 +145,41 @@ origNameCache = do
   nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
   return $ nsNames nameCache
 
-getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
+getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM (Maybe TyThing)
 getNamedThingFromModuleAndOccName moduleName occName = do
   origNameCache <- origNameCache
   let [mod] = filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let name = fromJust $ lookupOrigNameCache origNameCache mod occName
-  lookupThing name
+  let name = lookupOrigNameCache origNameCache mod occName
+  case name of
+    Just name' -> lookupThing name' >>= return . Just
+    Nothing -> return $ Nothing
 
-getVarFromModule :: String -> String -> CoreM Var
-getVarFromModule moduleName = fmap tyThingId . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
+getVarFromModule :: String -> String -> CoreM (Maybe Var)
+getVarFromModule moduleName = fmap (fmap tyThingId) . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
 
 getTyConFromModule :: String -> String -> CoreM TyCon
-getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
+getTyConFromModule moduleName = fmap (tyThingTyCon . fromJust) . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
 
 adv'Var :: CoreM Var
-adv'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
+adv'Var = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
 
 select'Var :: CoreM Var
-select'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
+select'Var = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
 
 bigDelay :: CoreM Var
-bigDelay = getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
+bigDelay = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
 
 inputValueVar :: CoreM TyCon
 inputValueVar = getTyConFromModule "AsyncRattus.InternalPrimitives" "InputValue"
 
 extractClockVar :: CoreM Var
-extractClockVar = getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
+extractClockVar = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
 
 ordIntClass :: CoreM Var
-ordIntClass = getVarFromModule "GHC.Classes" "$fOrdInt"
+ordIntClass = fromMaybe typeClassUnavailableError <$> getVarFromModule "GHC.Classes" "$fOrdInt"
 
 unionVar :: CoreM Var
-unionVar = getVarFromModule "Data.Set.Internal" "union"
+unionVar = fromMaybe typeClassUnavailableError <$> getVarFromModule "Data.Set.Internal" "union"
 
 rattModules :: Set FastString
 rattModules = Set.fromList ["AsyncRattus.InternalPrimitives"]
@@ -191,6 +193,8 @@ isRattModule = (`Set.member` rattModules)
 isGhcModule :: FastString -> Bool
 isGhcModule = (== "GHC.Types")
 
+typeClassUnavailableError :: a
+typeClassUnavailableError = error "Type class varaible: $fOrdInt is not available. To fix this insert following piece of code into the file: _ = Set.fromList [1]"
 
 getNameModule :: NamedThing a => a -> Maybe (FastString, FastString)
 getNameModule v = do

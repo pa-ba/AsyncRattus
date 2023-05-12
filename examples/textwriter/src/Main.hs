@@ -2,7 +2,6 @@ module Main where
 
 import AsyncRattus.Strict
 import AsyncRattus.Stream (Str(..), tl, hd)
-import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 import Graphics.Gloss.Interface.Pure.Game
 import TextField
