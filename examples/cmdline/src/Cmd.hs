@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 
-module Cmd where 
+module TextField where 
 
 import Prelude hiding (Left, Right)
 import AsyncRattus (AsyncRattus(..), (|#|))
@@ -27,19 +27,25 @@ type InputChannel = Channels.InputChannel Input
 kb :: O (Stream Char)
 kb = Stream.mapL (box (\(Kb c) -> c)) (Stream.fromLater kbInp)
 
-command :: O (Stream Char) -> Stream (List Char)
-command keyboardInput = Stream.scanAwait (box (\s c -> s +++ (c :! Nil))) Nil keyboardInput
+text :: O (Stream Char) -> Stream (List Char)
+text = text' Nil
 
-commandLine' :: Stream (List Char) -> Box (O Input) -> Stream (List Char)
-commandLine' (cmd ::: cmds) mouseClick = cmd ::: delay (
-        case select cmds (unbox mouseClick) of
-            Left cmds' _ -> commandLine' cmds' mouseClick
-            Right cmds' _ -> commandLine' (command kb) mouseClick
-            Both _ _ -> commandLine' (command kb) mouseClick
+text' :: List Char -> O (Stream Char) -> Stream (List Char)
+text' previous keyboardInput = previous ::: delay (
+    let (char ::: chars) = adv keyboardInput
+    in text' (previous +++ (Strict.singleton char)) chars
     )
 
-commandLine :: Stream (List Char)
-commandLine = commandLine' (command kb) mouse
+resettableText' :: Stream (List Char) -> Box (O Input) -> Stream (List Char)
+resettableText' (txt ::: txts) mouseClick = txt ::: delay (
+        case select txts (unbox mouseClick) of
+            Left txts' _ -> resettableText' txts' mouseClick
+            Right txts' _ -> resettableText' (text kb) mouseClick
+            Both _ _ -> resettableText' (text kb) mouseClick
+    )
+
+resettableText :: Stream (List Char)
+resettableText = resettableText' (text kb) mouse
 
 -- Workaround for known bug which causes compiler panic when the Int implementation of the Ord typeclass is never used.
 _ = Set.fromList [1]

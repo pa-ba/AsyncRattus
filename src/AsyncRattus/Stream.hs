@@ -111,8 +111,6 @@ zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
       Right las bs' -> zipWith f (defaultA ::: las) bs'
   )
 
--- | Combines two signals by picking the most recent value from each.
--- | From the Async RaTT paper.
 zip :: (Stable a, Stable b) => Str v a -> Str v b -> Str v (a:*b)
 zip = zipWith (box (:*))
 

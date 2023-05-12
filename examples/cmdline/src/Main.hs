@@ -5,13 +5,13 @@ import AsyncRattus.Stream (Str(..), tl, hd)
 import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 import Graphics.Gloss.Interface.Pure.Game
-import Cmd
+import TextField
 
 
 type World = (Maybe (String, Input), Str Input (List Char))
 
 initial' :: World
-initial' = (Nothing, commandLine)
+initial' = (Nothing, resettableText)
 
 render' :: World -> Picture
 render' (_, str) = Translate (-(fromIntegral sizex)/2.0) 0 (Text (toList (hd str)))
