@@ -4,12 +4,7 @@ Asynchronous Rattus is a programming language embedded into GHC. It is built on 
 
 # Usage
 
-Asynchronous Rattus has been tested with GHC version 9.2.5. To install
-it, run the following command:
-
-	cabal install
-	
-Asynchronous Rattus also includes two different examples; a simple spreadsheet and a text writer. They can be accessed through following commands:
+Asynchronous Rattus has been tested with GHC version 9.2.5. To get started with Asynchronous Rattus two different examples are included; a simple spreadsheet and a text writer. They can be accessed through following commands:
 ```
 cd examples/simple-sheet
 cabal run

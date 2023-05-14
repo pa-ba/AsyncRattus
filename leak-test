@@ -1,2 +1,0 @@
-#!/bin/sh
-cabal test memory-leak --test-option "+RTS -M10m -RTS"
