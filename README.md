@@ -11,13 +11,13 @@ it, run the following command:
 	
 Asynchronous Rattus also includes two different examples; a simple spreadsheet and a text writer. They can be accessed through following commands:
 ```
-	cd examples/simple-sheet
-	cabal run
+cd examples/simple-sheet
+cabal run
 ```
 and
 ```
-	cd examples/textwriter
-	cabal run
+cd examples/textwriter
+cabal run
 ```
 
 To run the test-suite of Asynchronous Rattus, simply run the the command `cabal test`
