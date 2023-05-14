@@ -1,31 +1,23 @@
-# Introduction [![CI](https://github.com/pa-ba/Rattus/actions/workflows/ci.yml/badge.svg)](https://github.com/pa-ba/Rattus/actions/workflows/ci.yml)
+# Introduciton
 
-This library implements the Rattus programming language as an embedded
-DSL. To this end the library provides a GHC plugin that performs the
-additional checks that are necessary for Rattus.
-
-Rattus is a functional reactive programming (FRP) language that uses
-modal types to ensure operational properties that are crucial for
-reactive programs: productivity (in each computation step, the program
-makes progress), causality (output depends only on current and earlier
-input), and no implicit space leaks (programs do not implicitly retain
-memory over time).
-
-A detailed introduction to the language with examples can be found in
-this [paper](docs/paper.pdf), sections 2 and 3.
+Asynchronous Rattus is a programming language embedded into GHC. It is built on top of [Rattus](https://github.com/pa-ba/Rattus) by utilizing the [Async RaTT](https://arxiv.org/abs/2303.03170) calculus.
 
 # Usage
 
-This library has been tested with GHC versions 8.6 to 9.6. To install
-it, issue the following command:
+Asynchronous Rattus has been tested with GHC version 9.2.5. To install
+it, run the following command:
 
 	cabal install
 	
-Independently of installing the library as described above you can
-also run the example games in the `examples` folder, for example
-
-	cd examples/game
+Asynchronous Rattus also includes two different examples; a simple spreadsheet and a text writer. They can be accessed through following commands:
+```
+	cd examples/simple-sheet
 	cabal run
+```
+and
+```
+	cd examples/textwriter
+	cabal run
+```
 
-However, compiling these examples might take a while since it requires
-installing the required graphics library.
+To run the test-suite of Asynchronous Rattus, simply run the the command `cabal test`
