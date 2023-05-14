@@ -5,7 +5,7 @@
 -- | This module implements the check that the transformed code is
 -- typable in the single tick calculus.
 
-module AsyncRattus.Plugin.CheckSingleTick
+module AsyncRattus.Plugin.CheckClockCompatibility
   (checkExpr, CheckExpr (..)) where
 
 #if __GLASGOW_HASKELL__ >= 902

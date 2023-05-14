@@ -150,7 +150,7 @@ library
                                               
   other-modules:       AsyncRattus.Plugin.ScopeCheck
                        AsyncRattus.Plugin.SingleTick
-                       AsyncRattus.Plugin.CheckSingleTick
+                       AsyncRattus.Plugin.CheckClockCompatibility
                        AsyncRattus.Plugin.Strictify
                        AsyncRattus.Plugin.Utils
                        AsyncRattus.Plugin.Dependency

@@ -10,7 +10,7 @@ import AsyncRattus.Plugin.StableSolver
 import AsyncRattus.Plugin.ScopeCheck
 import AsyncRattus.Plugin.Strictify
 import AsyncRattus.Plugin.SingleTick
-import AsyncRattus.Plugin.CheckSingleTick
+import AsyncRattus.Plugin.CheckClockCompatibility
 import AsyncRattus.Plugin.Utils
 import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Plugin.Transform
