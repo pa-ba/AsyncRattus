@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StrictData #-}
 
 -- | This module contains strict versions of some standard data
 -- structures.
@@ -35,7 +36,7 @@ infixr 2 :*
 infixr 8 :!
 
 -- | Strict list type.
-data List a = Nil | !a :! !(List a)
+data List a = Nil | a :! List a
 
 singleton :: a -> List a
 singleton x = x :! Nil
@@ -133,7 +134,7 @@ instance Show a => Show (List a) where
   show (x :! xs) = show x ++ " :! " ++ show xs
 
 -- | Strict variant of 'Maybe'.
-data Maybe' a = Just' !a | Nothing'
+data Maybe' a = Just' a | Nothing'
 
 instance Eq a => Eq (Maybe' a) where
   Nothing' == Nothing' = True
@@ -157,7 +158,7 @@ fromMaybe' _ (Just' x) = x
 fromMaybe' d Nothing' = d
 
 -- | Strict pair type.
-data a :* b = !a :* !b
+data a :* b = a :* b
 
 -- | First projection function.
 fst' :: (a :* b) -> a

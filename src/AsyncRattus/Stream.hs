@@ -1,6 +1,8 @@
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE StrictData #-}
+
 -- | Programming with streams.
 
 module AsyncRattus.Stream
@@ -33,7 +35,7 @@ import Prelude hiding (map, const, zipWith, zip, filter)
 
 
 -- | @Str a@ is a stream of values of type @a@.
-data Str a = !a ::: !(O (Str a))
+data Str a = a ::: O (Str a)
 
 -- all functions in this module are in Asynchronous Rattus 
 {-# ANN module AsyncRattus #-}

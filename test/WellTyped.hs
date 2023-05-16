@@ -1,4 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE StrictData #-}
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
 module Main (module Main) where
 
@@ -71,16 +73,14 @@ patternBinding str = (x + 1) ::: (delay (patternBinding (adv xs)))
   where (x ::: xs) = sumBox str
 
 
-data Input a = Input {jump :: !a, move :: !Move}
+data Input a = Input {jump :: a, move :: Move}
 data Move = StartLeft | EndLeft | StartRight | EndRight | NoMove
-
-type Inp a b = Input a
 
 
 
 -- The compiler plugin should detect that Input is a stable type and
 -- thus remains in scope under the delay.
-constS :: Stable a => (Inp a b) -> O Int -> Str (Int :* Inp a b)
+constS :: Stable a => Input a -> O Int -> Str (Int :* Input a)
 constS a l = (0 :* a) ::: delay ((adv l :* a) ::: never)
 
 -- make sure that unit is recognized as stable
@@ -136,7 +136,7 @@ naiveIf' b x y = delay (b :* adv later)
 --   )
 
 advUnderLambda :: O Int -> O (a -> Int)
-advUnderLambda y = delay (\x -> adv y)
+advUnderLambda y = delay (\_ -> adv y)
 
 
 dblAdv :: O (O a) -> O (O a)

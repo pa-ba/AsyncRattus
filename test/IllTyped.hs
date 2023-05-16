@@ -120,20 +120,13 @@ constS :: Input -> Str Input
 constS a = a ::: delay (constS a)
 
 
--- Since Input is not strict, we cannot instantiate the 'const'
--- function.
--- Uncomment the definition below to check this.
-
--- constS' :: Input -> Str Input
--- constS' = const
-
 {-# ANN incompatibleAdv ExpectError #-}
 incompatibleAdv :: O Int -> O Int -> O Int
 incompatibleAdv li lk = delay (adv li + adv lk)
 
 {-# ANN incompatibleAdvSelect ExpectError #-}
 incompatibleAdvSelect :: O Int -> O Int -> O Int
-incompatibleAdvSelect li lk = delay (adv li + adv lk)
+incompatibleAdvSelect li lk = delay (select li lk `seq` adv li)
 
 {-# ANN intPlusOne ExpectError #-}
 intPlusOne :: O Int -> Int
