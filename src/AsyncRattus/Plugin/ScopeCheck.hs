@@ -20,6 +20,7 @@ import AsyncRattus.Plugin.Utils
 import AsyncRattus.Plugin.Dependency
 import AsyncRattus.Plugin.Annotation
 
+import Control.Monad.Trans.State.Strict
 import Data.IORef
 
 import Prelude hiding ((<>))
@@ -158,19 +159,21 @@ data Prim = Delay | Adv | Select | Box | Unbox deriving Show
 type GetCtxt = ?ctxt :: Ctxt
 
 
+type CheckM = StateT ([Maybe (Prim, SrcSpan)]) TcM
+
 -- | This type class is implemented for each AST type @a@ for which we
 -- can check whether it adheres to the scoping rules of Asynchronous Rattus.
 class Scope a where
   -- | Check whether the argument is a scope correct piece of syntax
   -- in the given context.
-  check :: GetCtxt => a -> TcM Bool
+  check :: GetCtxt => a -> CheckM Bool
 
 -- | This is a variant of 'Scope' for syntax that can also bind
 -- variables.
 class ScopeBind a where
   -- | 'checkBind' checks whether its argument is scope-correct and in
   -- addition returns the the set of variables bound by it.
-  checkBind :: GetCtxt => a -> TcM (Bool,Set Var)
+  checkBind :: GetCtxt => a -> CheckM (Bool,Set Var)
 
 
 -- | set the current context.
@@ -330,13 +333,13 @@ instance Scope a => Scope (GRHS GhcTc a) where
   check XGRHS{} = return True
 #endif
 
-checkRec :: GetCtxt => LHsBindLR GhcTc GhcTc -> TcM Bool
+checkRec :: GetCtxt => LHsBindLR GhcTc GhcTc -> CheckM Bool
 checkRec b =  liftM2 (&&) (checkPatBind b) (check b)
 
-checkPatBind :: GetCtxt => LHsBindLR GhcTc GhcTc -> TcM Bool
+checkPatBind :: GetCtxt => LHsBindLR GhcTc GhcTc -> CheckM Bool
 checkPatBind (L l b) = updateLoc l $ checkPatBind' b
 
-checkPatBind' :: GetCtxt => HsBindLR GhcTc GhcTc -> TcM Bool
+checkPatBind' :: GetCtxt => HsBindLR GhcTc GhcTc -> CheckM Bool
 checkPatBind' PatBind{} = do
   printMessage' SevError ("(Mutual) recursive pattern binding definitions are not supported in Asynchronous Rattus")
   return False
@@ -353,7 +356,7 @@ checkPatBind' _ = return True
 -- | Check the scope of a list of (mutual) recursive bindings. The
 -- second argument is the set of variables defined by the (mutual)
 -- recursive bindings
-checkRecursiveBinds :: GetCtxt => [LHsBindLR GhcTc GhcTc] -> Set Var -> TcM (Bool, Set Var)
+checkRecursiveBinds :: GetCtxt => [LHsBindLR GhcTc GhcTc] -> Set Var -> CheckM (Bool, Set Var)
 checkRecursiveBinds bs vs = do
     res <- fmap and (mapM check' bs)
     case stabilized ?ctxt of
@@ -490,9 +493,15 @@ instance Scope (HsExpr GhcTc) where
     case isPrimExpr f of
     Just (Select,_) -> case earlier ?ctxt of
       Right (er :| ers) -> do
-        b1 <- mod `modifyCtxt` check arg
-        b2 <- mod `modifyCtxt` check arg2
-        return $ b1 && b2
+        res <- get
+        case res of
+            Just _ : _ -> printMessageCheck SevError ("only one adv or select may be used in the scope of a delay.")
+            Nothing : pre -> do put pre
+                                b1 <- mod `modifyCtxt` check arg
+                                b2 <- mod `modifyCtxt` check arg2
+                                modify (Just (Select, srcLoc ?ctxt) :)
+                                return $ b1 && b2
+            _ -> error "Asynchronous Rattus: internal error"
         where mod c =  c{earlier = case nonEmpty ers of
                                     Nothing -> Left $ TickHidden SelectApp
                                     Just ers' -> Right ers',
@@ -513,13 +522,27 @@ instance Scope (HsExpr GhcTc) where
             (printMessage' SevWarning (boxReason reason <> " can cause time leaks")) >> return ch
           _ -> return ch
       Unbox -> check e2
-      Delay ->  ((\c -> c{current = Set.empty,
-                          earlier = case earlier c of
+      Delay -> do modify (Nothing :)
+                  b <- (\c -> c{current = Set.empty,
+                           earlier = case earlier c of
                                       Left _ -> Right (current c :| [])
-                                      Right cs -> Right (current c <| cs)}))
-                  `modifyCtxt` check  e2
+                                      Right cs -> Right (current c <| cs)})
+                     `modifyCtxt` check e2
+                  res <- get
+                  case res of
+                    Nothing : _ -> printMessageCheck SevError "No adv or select found in the scope of this occurrence of delay"
+                    _ : pre -> put pre >> return b
+                    _ -> error "Asynchronous Rattus: internal error"
       Adv -> case earlier ?ctxt of
-        Right (er :| ers) -> mod `modifyCtxt` check e2
+        Right (er :| ers) -> do
+          res <- get
+          case res of
+            Just _ : _ -> printMessageCheck SevError ("only one adv or select may be used in the scope of a delay.")
+            Nothing : pre -> do put pre
+                                b <- mod `modifyCtxt` check e2
+                                modify (Just (Adv,srcLoc ?ctxt) :)
+                                return b
+            _ -> error "Asynchronous Rattus: internal error"
           where mod c =  c{earlier = case nonEmpty ers of
                                        Nothing -> Left $ TickHidden AdvApp
                                        Just ers' -> Right ers',
@@ -817,12 +840,12 @@ getAnn mod anEnv scc =
 -- definitions.
 
 checkSCC :: Bool -> ErrorMsgsRef -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> TcM Bool
-checkSCC allowRec errm (AcyclicSCC (b,_)) = setCtxt (emptyCtxt errm Nothing allowRec) (check b)
+checkSCC allowRec errm (AcyclicSCC (b,_)) = setCtxt (emptyCtxt errm Nothing allowRec) (evalStateT (check b) [])
 
 checkSCC allowRec errm (CyclicSCC bs) = (fmap and (mapM check' bs'))
   where bs' = map fst bs
         vs = foldMap snd bs
-        check' b@(L l _) = setCtxt (emptyCtxt errm (Just (vs,getLocAnn' l)) allowRec) (checkRec b)
+        check' b@(L l _) = setCtxt (emptyCtxt errm (Just (vs,getLocAnn' l)) allowRec) (evalStateT (checkRec b) [])
 
 -- | Stabilizes the given context, i.e. remove all non-stable types
 -- and any tick. This is performed on checking 'box', and
@@ -937,7 +960,7 @@ isPrimExpr (L _ e) = isPrimExpr' e where
 -- 'checkBind' for Haskell syntax that is not supported. These default
 -- implementations simply print an error message.
 class NotSupported a where
-  notSupported :: GetCtxt => SDoc -> TcM a
+  notSupported :: GetCtxt => SDoc -> CheckM a
 
 instance NotSupported Bool where
   notSupported doc = printMessageCheck SevError ("Asynchronous Rattus does not support " <> doc)
@@ -951,13 +974,13 @@ addVars :: Set Var -> Ctxt -> Ctxt
 addVars vs c = c{current = vs `Set.union` current c }
 
 -- | Print a message with the current location.
-printMessage' :: GetCtxt => Severity -> SDoc ->  TcM ()
+printMessage' :: GetCtxt => Severity -> SDoc ->  CheckM ()
 printMessage' sev doc =
   liftIO (modifyIORef (errorMsgs ?ctxt) ((sev ,srcLoc ?ctxt, doc) :))
 
 -- | Print a message with the current location. Returns 'False', if
 -- the severity is 'SevError' and otherwise 'True.
-printMessageCheck :: GetCtxt =>  Severity -> SDoc -> TcM Bool
+printMessageCheck :: GetCtxt =>  Severity -> SDoc -> CheckM Bool
 printMessageCheck sev doc = printMessage' sev doc >>
   case sev of
     SevError -> return False
