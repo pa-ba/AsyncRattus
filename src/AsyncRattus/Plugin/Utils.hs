@@ -283,7 +283,7 @@ isStableRec c d pr t = do
               DataTyCon {data_cons = cons, is_enum = enum}
                 | enum -> True
                 | and $ concatMap (map isSrcStrict'
-                                   . dataConImplBangs) $ cons ->
+                                   . dataConSrcBangs) $ cons ->
                   and  (map check cons)
                 | otherwise -> False
                 where check con = case dataConInstSig con args of
@@ -350,13 +350,12 @@ isStrictRec d pr t = do
 
 
 areSrcStrict :: [Type] -> DataCon -> Bool
-areSrcStrict args con = and (zipWith check tys (dataConImplBangs con))
+areSrcStrict args con = and (zipWith check tys (dataConSrcBangs con))
   where (_, _,tys) = dataConInstSig con args
         check _ b = isSrcStrict' b
 
-isSrcStrict' :: HsImplBang -> Bool
-isSrcStrict' HsStrict {} = True
-isSrcStrict' HsUnpack {} = True
+isSrcStrict' :: HsSrcBang -> Bool
+isSrcStrict' (HsSrcBang _ _ SrcStrict) = True
 isSrcStrict' _ = False
 
 

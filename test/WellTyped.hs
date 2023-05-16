@@ -73,7 +73,7 @@ patternBinding str = (x + 1) ::: (delay (patternBinding (adv xs)))
   where (x ::: xs) = sumBox str
 
 
-data Input a = Input {jump :: a, move :: Move}
+data Input a = Input {jump :: !a, move :: !Move}
 data Move = StartLeft | EndLeft | StartRight | EndRight | NoMove
 
 
