@@ -19,6 +19,7 @@ import Prelude hiding ((<>))
 
 import Control.Monad
 import Data.Maybe
+import Data.List
 import Data.Data hiding (tyConName)
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -51,9 +52,15 @@ typechecked :: [CommandLineOption] -> ModSummary -> TcGblEnv -> TcM TcGblEnv
 typechecked _ _ env = checkAll env >> return env
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
-install opts todo = return (strPass : todo)
-    where strPass = CoreDoPluginPass "Asynchronous Rattus strictify" (strictifyProgram Options{debugMode = dmode})
+install opts todo = case find findSamePass todo of -- check that we don't run the transformation twice
+                      Nothing -> return todo       -- (e.g. if the "-fplugin" option is used twice)
+                      _ -> return (strPass : todo)
+    where name = "Async Rattus strictify"
+          strPass = CoreDoPluginPass name (strictifyProgram Options{debugMode = dmode})
           dmode = "debug" `elem` opts
+          findSamePass (CoreDoPluginPass s _) = s == name
+          findSamePass _ = False
+          
 
 -- | Apply the following operations to all Asynchronous Rattus definitions in the
 -- program:

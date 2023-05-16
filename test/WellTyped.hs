@@ -13,6 +13,21 @@ import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 boxedInt :: Box Int
 boxedInt = box 8
 
+
+lambdaUnderDelay :: O Int -> O ((Int -> Int -> Int) :* Int)
+lambdaUnderDelay d = delay ((\x _ -> x) :* adv d)
+
+sneakyLambdaUnderDelay :: O Int -> O ((Int -> Int -> Int) :* Int)
+sneakyLambdaUnderDelay d = delay (let f x _ =  x in f :* adv d)
+
+
+lambdaUnderDelay' :: Int -> O Int -> O ((Int -> Int) :* Int)
+lambdaUnderDelay' x d = delay ((\_ -> x) :* adv d)
+
+sneakyLambdaUnderDelay' :: Int -> O Int -> O ((Int -> Int) :* Int)
+sneakyLambdaUnderDelay' x d = delay ((let f _ =  x in f) :* adv d)
+
+
 scanBox :: Box(b -> a -> Box b) -> b -> Str a -> Str b
 scanBox f acc (a ::: as) =  unbox acc' ::: delay (scanBox f (unbox acc') (adv as))
   where acc' = unbox f acc a
@@ -23,6 +38,11 @@ sumBox = scanBox (box (\x y -> box (x + y))) 0
 
 strMap :: Box (a -> b) -> Str a -> Str b
 strMap f (x ::: xs) = unbox f x ::: delay (strMap f (adv xs))
+
+strMap' :: Box (a -> b) -> Str a -> Str b
+strMap' f = run
+  where run (x ::: xs) = unbox f x ::: delay (run (adv xs))
+
 
 
 -- local mutual recursive definition
@@ -117,6 +137,18 @@ naiveIf' b x y = delay (b :* adv later)
 
 advUnderLambda :: O Int -> O (a -> Int)
 advUnderLambda y = delay (\x -> adv y)
+
+
+dblAdv :: O (O a) -> O (O a)
+dblAdv y = delay (delay (adv (adv y)))
+
+delayAdvUnderLambda :: O () -> O (O Int -> O Int)
+delayAdvUnderLambda d = delay (adv d `seq` \x -> delay (adv x))
+
+-- This function is leaky unless the single tick transformation is
+-- performed
+leaky :: Str () -> (() -> Bool) -> Str Bool
+leaky (() ::: d) p = p () ::: delay (let d' = adv d in (leaky d' (\ _ -> hd (leaky d' (\ _ -> True)))))
 
 {-# ANN main NotAsyncRattus #-}
 main = putStrLn "This file should just type check"

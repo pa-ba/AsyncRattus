@@ -44,7 +44,8 @@ data Ctx = Ctx
     srcLoc :: SrcSpan,
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
-    allowRecursion :: Bool
+    allowRecursion :: Bool,
+    allowGuardedRec :: Bool
     }
 
 hasTick :: Ctx -> Bool
@@ -54,7 +55,8 @@ stabilize :: HiddenReason -> Ctx -> Ctx
 stabilize hr c = c
   {current = Set.empty,
    earlier = Nothing,
-   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid
+   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid,
+   allowGuardedRec = False
   }
   where ctxHid = maybe (current c) (Set.union (current c)) (earlier c)
 
@@ -63,7 +65,7 @@ data Scope = Hidden SDoc | Visible
 getScope  :: Ctx -> Var -> Scope
 getScope c v =
     if v `Set.member` recDef c then
-      if hasTick c || allowRecursion c then Visible
+      if allowGuardedRec c || allowRecursion c then Visible
       else Hidden ("(Mutually) recursive call to " <> ppr v <> " must occur under delay")
     else case Map.lookup v (hidden c) of
       Just reason ->
@@ -108,7 +110,8 @@ emptyCtx c =
         srcLoc = noLocationInfo,
         recDef = recursiveSet c,
         stableTypes = Set.empty,
-        allowRecursion = allowRecExp c
+        allowRecursion = allowRecExp c,
+        allowGuardedRec = False
         }
 
 stabilizeLater :: Ctx -> Ctx
@@ -167,15 +170,15 @@ checkExpr c e = do
     Left (TypeError src doc) ->
       let printErrMsg = if verbose c
           then do
-            printMessage SevError src ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
+            printMessage SevError src ("Internal error in Async Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
             putMsgS "-------- old --------"
             putMsg $ ppr (oldExpr c)
             putMsgS "-------- new --------"
             putMsg (ppr e)
             
           else do
-            printMessage SevError noSrcSpan ("Internal error in Asynchronous Rattus Plugin: single tick transformation did not preserve typing." $$
-                                  "Compile with flags \"-fplugin-opt Rattus.Plugin:debug\" and \"-g2\" for detailed information")
+            printMessage SevError noSrcSpan ("Internal error in Async Rattus Plugin: single tick transformation did not preserve typing." $$
+                                  "Compile with flags \"-fplugin-opt AsyncRattus.Plugin:debug\" and \"-g2\" for detailed information")
       in do
         printErrMsg
         liftIO exitFailure
@@ -190,8 +193,8 @@ checkExpr' c@Ctx{current = cur, earlier = earl} expr@(App e e') =
       checkExpr' (stabilize BoxApp c) e'
     Just (Prim.DelayApp f _) -> do
       let c' = case earl of
-                 Nothing -> c{current = Set.empty, earlier = Just cur}
-                 Just earl' -> c{ current = Set.empty, earlier = Just cur,
+                 Nothing -> c{current = Set.empty, earlier = Just cur, allowGuardedRec = True}
+                 Just earl' -> c{ current = Set.empty, earlier = Just cur, allowGuardedRec = True,
                                   hidden = hidden c `Map.union` Map.fromSet (const DelayApp) earl'}
       eRes <- checkExpr' c' e'
       case eRes of
