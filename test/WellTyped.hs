@@ -5,8 +5,8 @@ module Main (module Main) where
 import AsyncRattus
 import AsyncRattus.Stream
 import Data.Set as Set
-import Prelude
 
+import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 
 {-# ANN module AsyncRattus #-}
 
@@ -17,7 +17,7 @@ scanBox :: Box(b -> a -> Box b) -> b -> Str a -> Str b
 scanBox f acc (a ::: as) =  unbox acc' ::: delay (scanBox f (unbox acc') (adv as))
   where acc' = unbox f acc a
 
-
+{-# ANN sumBox ExpectWarning #-}
 sumBox :: Str Int -> Str Int
 sumBox = scanBox (box (\x y -> box (x + y))) 0
 
@@ -102,18 +102,18 @@ naiveIf' b x y = delay (b :* adv later)
             True -> x
             False -> y
 
-doubleAdv :: O Int -> O Int
-doubleAdv li = 
-  delay (
-    adv li + adv li
-  )
+-- doubleAdv :: O Int -> O Int
+-- doubleAdv li = 
+--   delay (
+--     adv li + adv li
+--   )
 
-advOnAliasedVar :: O Int -> O Int
-advOnAliasedVar li =
-  let lk = li
-  in delay (
-    adv li + adv lk
-  )
+-- advOnAliasedVar :: O Int -> O Int
+-- advOnAliasedVar li =
+--   let lk = li
+--   in delay (
+--     adv li + adv lk
+--   )
 
 advUnderLambda :: O Int -> O (a -> Int)
 advUnderLambda y = delay (\x -> adv y)

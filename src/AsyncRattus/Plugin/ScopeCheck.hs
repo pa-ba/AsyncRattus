@@ -810,12 +810,12 @@ checkSCC' mod anEnv scc = do
   msgs <- liftIO (readIORef err)
   let anns = getAnn mod anEnv scc
   if ExpectWarning `Set.member` anns 
-    then if ExpectScopeError `Set.member` anns
+    then if ExpectError `Set.member` anns
          then return (False,[(SevError, getSCCLoc scc, "Annotation to expect both warning and error is not allowed.")])
          else if any (\(s,_,_) -> case s of SevWarning -> True; _ -> False) msgs
               then return (res, filter (\(s,_,_) -> case s of SevWarning -> False; _ -> True) msgs)
               else return (False,[(SevError, getSCCLoc scc, "Warning was expected, but typechecking produced no warning.")])
-    else if ExpectScopeError `Set.member` anns
+    else if ExpectError `Set.member` anns
          then if res
               then return (False,[(SevError, getSCCLoc scc, "Error was expected, but typechecking produced no error.")])
               else return (True,[])

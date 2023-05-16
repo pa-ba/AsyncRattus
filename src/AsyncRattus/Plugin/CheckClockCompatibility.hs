@@ -154,7 +154,6 @@ emptyCheckResult = CheckResult {prim = Nothing}
 data CheckExpr = CheckExpr{
   recursiveSet :: Set Var,
   oldExpr :: Expr Var,
-  expectError :: Bool,
   verbose :: Bool,
   allowRecExp :: Bool
   }
@@ -164,12 +163,7 @@ checkExpr c e = do
   when (verbose c) $ putMsg $ text "checkExpr: " <> ppr e
   res <- checkExpr' (emptyCtx c) e
   case res of
-    Right _ | expectError c -> do
-      putMsg $ text "Expected error, but no errors were encountered. Expr: " <> ppr e
-      liftIO exitFailure
     Right _ -> do when (verbose c) $ putMsgS "checkExpr succeeded."
-    Left (TypeError src doc) | expectError c -> do
-      when (verbose c) $ printMessage SevInfo src $ text "checkExpr: error was expected, and there was an error:" $$ doc
     Left (TypeError src doc) ->
       let printErrMsg = if verbose c
           then do

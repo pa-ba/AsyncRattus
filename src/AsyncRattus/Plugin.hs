@@ -102,18 +102,15 @@ checkAndTransform guts recursiveSet debug v e = do
   when debug $ putMsg $ text "Processing binding: " <> ppr v
   when debug $ putMsg $ text "Expr: " <> ppr e
   allowRec <- allowRecursion guts v
-  expectCheckError <- expectClockError guts v
   singleTick <- toSingleTick e
   when debug $ putMsg $ text "Single-tick: " <> ppr singleTick
   lazy <- allowLazyData guts v
   strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
   when debug $ putMsg $ text "Strict single-tick: " <> ppr strict
   checkExpr CheckExpr{ recursiveSet = recursiveSet, oldExpr = e,
-                        expectError = expectCheckError, verbose = debug,
+                        verbose = debug,
                         allowRecExp = allowRec} strict
-  if expectCheckError
-  then return strict -- don't attempt to transform an ill-typed program
-  else transform strict
+  transform strict
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
 getModuleAnnotations guts = anns'
@@ -135,20 +132,16 @@ allowRecursion guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
   return (AllowRecursion `elem` l)
 
-expectClockError :: ModGuts -> CoreBndr -> CoreM Bool
-expectClockError guts bndr = do
+expectError :: ModGuts -> CoreBndr -> CoreM Bool
+expectError guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [InternalAnn]
-  return $ ExpectClockError `elem` l
+  return $ ExpectError `elem` l
 
-expectScopeError :: ModGuts -> CoreBndr -> CoreM Bool
-expectScopeError guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [InternalAnn]
-  return $ ExpectScopeError `elem` l
 
 shouldProcessCore :: ModGuts -> CoreBndr -> CoreM Bool
 shouldProcessCore guts bndr = do
   l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
-  expectScopeError <- expectScopeError guts bndr
+  expectScopeError <- expectError guts bndr
   return (AsyncRattus `elem` l && notElem NotAsyncRattus l && userFunction bndr && not expectScopeError)
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
