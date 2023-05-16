@@ -8,7 +8,7 @@ module AsyncRattus.Later (
     selectMany,
 ) where
 
-import Prelude hiding (maybe)
+import Prelude hiding (maybe, map)
 import AsyncRattus
 
 

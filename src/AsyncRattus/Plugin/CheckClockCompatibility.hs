@@ -44,8 +44,7 @@ data Ctx = Ctx
     srcLoc :: SrcSpan,
     recDef :: Set Var, -- ^ recursively defined variables 
     stableTypes :: Set Var,
-    allowRecursion :: Bool,
-    fresh :: Maybe Var
+    allowRecursion :: Bool
     }
 
 hasTick :: Ctx -> Bool
@@ -109,12 +108,8 @@ emptyCtx c =
         srcLoc = noLocationInfo,
         recDef = recursiveSet c,
         stableTypes = Set.empty,
-        allowRecursion = allowRecExp c,
-        fresh = Nothing
+        allowRecursion = allowRecExp c
         }
-
-inDelay :: Ctx -> Bool
-inDelay = isJust . earlier
 
 stabilizeLater :: Ctx -> Ctx
 stabilizeLater c =
@@ -176,9 +171,9 @@ checkExpr c e = do
     Left (TypeError src doc) | expectError c -> do
       when (verbose c) $ printMessage SevInfo src $ text "checkExpr: error was expected, and there was an error:" $$ doc
     Left (TypeError src doc) ->
-      let printErrMsg = if verbose c || True
+      let printErrMsg = if verbose c
           then do
-            printMessage SevError src ("Ill-typed Async Rattus program:" $$ doc)
+            printMessage SevError src ("Internal error in Rattus Plugin: single tick transformation did not preserve typing." $$ doc)
             putMsgS "-------- old --------"
             putMsg $ ppr (oldExpr c)
             putMsgS "-------- new --------"
@@ -195,21 +190,23 @@ checkExpr c e = do
 checkExpr' :: Ctx -> Expr Var -> CoreM (Either TypeError CheckResult)
 checkExpr' c (App e e') | isType e' || (not $ tcIsLiftedTypeKind $ typeKind $ exprType e')
   = checkExpr' c e
-checkExpr' c@Ctx{current = cur} expr@(App e e') =
+checkExpr' c@Ctx{current = cur, earlier = earl} expr@(App e e') =
   case Prim.isPrimExpr expr of
     Just (Prim.BoxApp _) ->
       checkExpr' (stabilize BoxApp c) e'
-    Just (Prim.DelayApp f _) ->
-      if inDelay c then return $ Left $ typeError c f (text "Nested delays not allowed")
-      else do
-        eRes <- checkExpr' c{current = Set.empty, earlier = Just cur} e'
-        case eRes of
-          Left err -> return $ Left err
-          Right (CheckResult {prim = Nothing}) -> return $ Left $ typeError c f (text "Each delay must contain an adv or select")
-          Right _ -> return $ Right emptyCheckResult
-    Just (Prim.AdvApp f _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use adv under delay")
+    Just (Prim.DelayApp f _) -> do
+      let c' = case earl of
+                 Nothing -> c{current = Set.empty, earlier = Just cur}
+                 Just earl' -> c{ current = Set.empty, earlier = Just cur,
+                                  hidden = hidden c `Map.union` Map.fromSet (const DelayApp) earl'}
+      eRes <- checkExpr' c' e'
+      case eRes of
+        Left err -> return $ Left err
+        Right (CheckResult {prim = Nothing}) -> return $ Left $ typeError c f (text "Each delay must contain an adv or select")
+        Right _ -> return $ Right emptyCheckResult
+    Just (Prim.AdvApp f _) | not (hasTick c) -> return $ Left $ typeError c f (text "can only use adv under delay")
     Just (Prim.AdvApp f (arg, _)) -> return $ Right $ CheckResult {prim = Just (f, mkClock1 arg)}
-    Just (Prim.SelectApp f _ _) | not (inDelay c) -> return $ Left $ typeError c f (text "can only use select under delay")
+    Just (Prim.SelectApp f _ _) | not (hasTick c) -> return $ Left $ typeError c f (text "can only use select under delay")
     Just (Prim.SelectApp f (arg1, _) (arg2, _))-> return $ Right $ CheckResult {prim = Just (f, mkClock2 arg1 arg2)}
     Nothing -> checkBoth c e e'
 checkExpr' c (Case e v _ alts) = do

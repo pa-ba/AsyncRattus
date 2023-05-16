@@ -12,7 +12,7 @@
 
 
 -- | This module implements the source plugin that checks the variable
--- scope of of Asynchronous Rattus programs.
+-- scope of of Async Rattus programs.
 
 module AsyncRattus.Plugin.ScopeCheck (checkAll) where
 
