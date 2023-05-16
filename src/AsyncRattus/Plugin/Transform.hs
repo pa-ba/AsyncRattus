@@ -47,18 +47,17 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
     return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
-  Just (DelayApp _ v t) -> do
+  Just (DelayApp _ t) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
     let inputValueType = mkTyConTy inputValueV 
-    let inputValueType' = mkAppTy inputValueType v
-    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType' inputValueType'
+    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
     let ctx' = ctx {fresh = Just inpVar}
     (newExpr, maybePrimInfo) <- transform' ctx' e'
     let primInfo = fromJust maybePrimInfo
     let lambdaExpr = Lam inpVar newExpr
-    clockCode <- constructClockExtractionCode v primInfo
-    return (App (App (App (App (Var bigDelayVar) (Type v)) (Type t)) clockCode) lambdaExpr, primInfo)
+    clockCode <- constructClockExtractionCode primInfo
+    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, primInfo)
   Just primInfo -> do
         error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
   Nothing -> error "Cannot transform non-prim applications"
@@ -112,40 +111,33 @@ transform' ctx (Cast e _) = transform' ctx e
 transform' ctx (Tick _ e) = transform' ctx e
 transform' _ e = return (e, Nothing)
 
-constructClockExtractionCode :: Type -> PrimInfo -> CoreM CoreExpr
-constructClockExtractionCode vt (AdvApp _ arg) = createClockCode vt arg
-constructClockExtractionCode vt (SelectApp _ arg arg2) =
-    clockUnion vt arg arg2
-constructClockExtractionCode _ primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
+constructClockExtractionCode :: PrimInfo -> CoreM CoreExpr
+constructClockExtractionCode (AdvApp _ arg) = createClockCode arg
+constructClockExtractionCode (SelectApp _ arg arg2) =
+    clockUnion arg arg2
+constructClockExtractionCode primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
 
-createClockCode :: Type -> (Var, Type) -> CoreM CoreExpr
-createClockCode vt (argV, argT) = do
+
+createClockCode :: (Var, Type) -> CoreM CoreExpr
+createClockCode (argV, argT) = do
     extractClock <- extractClockVar
-    return $ App (App (App (Var extractClock) (Type vt)) (Type argT)) (Var argV)
+    return $ App (App (Var extractClock) (Type argT)) (Var argV)
 
 -- Generate code for union of two clocks.
 -- clockUnion (aVar, aType) (bVar, bType) returns the AST for:
 --  Set.union (extractClock aVar) (extractClock bVar)
-clockUnion :: Type -> (Var,Type) -> (Var, Type) -> CoreM CoreExpr
-clockUnion vt arg1 arg2 = do
-    unionVar' <- unionVar
-    ordInt <- ordIntClass
-    clockUnion' unionVar' ordInt vt arg1 arg2
 
-clockUnion' :: Var -> Var -> Type -> (Var,Type) -> (Var, Type) -> CoreM CoreExpr
-clockUnion' unionVar ordInt vt arg arg2 = do
-    clock1Code <- createClockCode vt arg
-    clock2Code <- createClockCode vt arg2
+clockUnion :: (Var,Type) -> (Var, Type) -> CoreM CoreExpr
+clockUnion arg arg2 = do
+    clock1Code <- createClockCode arg
+    clock2Code <- createClockCode arg2
+    unionVar' <- unionVar
     return $
         App
         (
             App
             (
-                App
-                (
-                    App (Var unionVar) (Type intTy)
-                )
-                (Var ordInt)
+                   (Var unionVar')
             )
             clock1Code
         )

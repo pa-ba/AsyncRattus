@@ -12,7 +12,6 @@ module AsyncRattus.Plugin.Utils (
   bigDelay,
   inputValueVar,
   extractClockVar,
-  ordIntClass,
   unionVar,
   isGhcModule,
   getNameModule,
@@ -145,41 +144,36 @@ origNameCache = do
   nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
   return $ nsNames nameCache
 
-getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM (Maybe TyThing)
+getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
 getNamedThingFromModuleAndOccName moduleName occName = do
   origNameCache <- origNameCache
   let [mod] = filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let name = lookupOrigNameCache origNameCache mod occName
-  case name of
-    Just name' -> lookupThing name' >>= return . Just
-    Nothing -> return $ Nothing
+  let name = fromJust $ lookupOrigNameCache origNameCache mod occName
+  lookupThing name
 
-getVarFromModule :: String -> String -> CoreM (Maybe Var)
-getVarFromModule moduleName = fmap (fmap tyThingId) . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
+getVarFromModule :: String -> String -> CoreM Var
+getVarFromModule moduleName = fmap tyThingId . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
 
 getTyConFromModule :: String -> String -> CoreM TyCon
-getTyConFromModule moduleName = fmap (tyThingTyCon . fromJust) . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
+getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
 
 adv'Var :: CoreM Var
-adv'Var = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
+adv'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
 
 select'Var :: CoreM Var
-select'Var = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
+select'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
 
 bigDelay :: CoreM Var
-bigDelay = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
+bigDelay = getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
 
 inputValueVar :: CoreM TyCon
 inputValueVar = getTyConFromModule "AsyncRattus.InternalPrimitives" "InputValue"
 
 extractClockVar :: CoreM Var
-extractClockVar = fromJust <$> getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
-
-ordIntClass :: CoreM Var
-ordIntClass = fromMaybe typeClassUnavailableError <$> getVarFromModule "GHC.Classes" "$fOrdInt"
+extractClockVar = getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
 
 unionVar :: CoreM Var
-unionVar = fromMaybe typeClassUnavailableError <$> getVarFromModule "Data.Set.Internal" "union"
+unionVar = getVarFromModule "AsyncRattus.InternalPrimitives" "clockUnion"
 
 rattModules :: Set FastString
 rattModules = Set.fromList ["AsyncRattus.InternalPrimitives"]
@@ -192,9 +186,6 @@ isRattModule = (`Set.member` rattModules)
 
 isGhcModule :: FastString -> Bool
 isGhcModule = (== "GHC.Types")
-
-typeClassUnavailableError :: a
-typeClassUnavailableError = error "Type class varaible: $fOrdInt is not available. To fix this insert following piece of code into the file: _ = Set.fromList [1]"
 
 getNameModule :: NamedThing a => a -> Maybe (FastString, FastString)
 getNameModule v = do

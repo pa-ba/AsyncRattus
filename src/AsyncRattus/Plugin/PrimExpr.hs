@@ -18,7 +18,7 @@ data Prim = Delay | Adv | Box | Select
 
 -- DelayApp has the following fields: Var = delay f, T1 = value type, T2 = later type (O v a)
 -- AdvApp has the following fields: Var = adv f, TypedArg = var and type for arg
-data PrimInfo = DelayApp Var Type Type | AdvApp Var TypedArg | BoxApp Var | SelectApp Var TypedArg TypedArg
+data PrimInfo = DelayApp Var Type | AdvApp Var TypedArg | BoxApp Var | SelectApp Var TypedArg TypedArg
 
 type TypedArg = (Var, Type)
 
@@ -40,7 +40,7 @@ instance Outputable Prim where
   ppr Box = "box"
 
 instance Outputable PrimInfo where
-  ppr (DelayApp f _ _) = text "DelayApp - function " <> ppr f 
+  ppr (DelayApp f _) = text "DelayApp - function " <> ppr f 
   ppr (BoxApp f) = text "BoxApp - function " <> ppr f
   ppr (AdvApp f arg) = text "AdvApp - function " <> ppr f <> text " | arg " <> ppr arg
   ppr (SelectApp f arg arg2) = text "SelectApp - function " <> ppr f <> text " | arg " <> ppr arg <> text " | arg2 " <> ppr arg2
@@ -69,7 +69,7 @@ createPartialPrimInfo prim function =
   }
 
 function :: PrimInfo -> Var
-function (DelayApp f _ _) = f
+function (DelayApp f _) = f
 function (BoxApp f) = f
 function (AdvApp f _) = f
 function (SelectApp f _ _) = f
@@ -81,10 +81,10 @@ prim (AdvApp {}) = Adv
 prim (SelectApp {}) = Select
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
-validatePartialPrimInfo (PartialPrimInfo Select f [arg2V, argV] [arg2T, argT, _]) = Just $ SelectApp f (argV, argT) (arg2V, arg2T)
-validatePartialPrimInfo (PartialPrimInfo Delay f [_] [argT, vt]) = Just $ DelayApp f vt argT
+validatePartialPrimInfo (PartialPrimInfo Select f [arg2V, argV] [arg2T, argT]) = Just $ SelectApp f (argV, argT) (arg2V, arg2T)
+validatePartialPrimInfo (PartialPrimInfo Delay f [_] [argT]) = Just $ DelayApp f argT
 validatePartialPrimInfo (PartialPrimInfo {primPart = Box, functionPart = f}) = Just $ BoxApp f
-validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT, _]) = Just $ AdvApp f (argV, argT)
+validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT]) = Just $ AdvApp f (argV, argT)
 validatePartialPrimInfo _ = Nothing
 
 isPrimExpr :: Expr Var -> Maybe PrimInfo

@@ -1,5 +1,3 @@
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
-
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
@@ -31,8 +29,6 @@ module AsyncRattus.Strict
    snd',
   )where
 
-import AsyncRattus.Primitives
-import AsyncRattus.Plugin.Annotation
 import Prelude hiding (map)
 
 infixr 2 :*
@@ -40,11 +36,6 @@ infixr 8 :!
 
 -- | Strict list type.
 data List a = Nil | !a :! !(List a)
-
-{-# ANN module AsyncRattus #-}
--- All recursive functions in this module are defined by structural
--- induction on a strict type.
-{-# ANN module AllowRecursion #-}
 
 singleton :: a -> List a
 singleton x = x :! Nil

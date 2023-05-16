@@ -1,59 +1,92 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GADTs #-}
 
 module AsyncRattus.Channels (
-    mkChannels,
-    InputFunc,
-    InputChannel,
+  registerInput,
+  registerOutput,
+  startEventLoop
 ) where
-import Prelude hiding (Left, Right, lookup)
+
 import AsyncRattus.InternalPrimitives
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Data.Map (Map, lookup)
-import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
-import AsyncRattus.Strict 
-import qualified AsyncRattus.Stream as Stream
 
--- Function for providing input to a later
---             Channel name | value | later
-type InputFunc v a = String -> v -> O v a -> a
-type InputMaybeFunc v a = String -> v -> O v a -> Maybe a
-type DependFunc v a = O v a -> Set String
-type InputChannel v = Box (O v v)
+import AsyncRattus.Stream
+import Control.Concurrent.MVar
+import Control.Monad
+import System.IO.Unsafe
+import Data.IORef
+import Unsafe.Coerce
+import qualified Data.HashTable.IO as H
+import Data.HashTable.IO (BasicHashTable)
+import qualified Data.IntSet as IntSet
 
-input :: Map String Int -> String -> v -> O v a -> a
-input nameToId name v later = 
-    fromMaybe (error ("Later does not depend on input channel" ++ show name)) (inputMaybe nameToId name v later)
-
-inputMaybe :: Map String Int -> String -> v -> O v a -> Maybe a
-inputMaybe nameToId name v later =  
-    if compatible then Just $ adv' later (id, v) 
-    else Nothing
-    where id = fromMaybe (error "No such input channel") (lookup name nameToId)
-          compatible = Set.member id $ extractClock later
-
-mkChannelFromId :: InputChannelIdentifier -> O v v
-mkChannelFromId id = Delay (Set.singleton id) snd
-
-index :: List a -> List (Int :* a)
-index Nil = Nil
-index (name :! names) = reverse' $ foldl (\acc@((lastId :* _) :! _) name -> (lastId + 1 :* name) :! acc) ((0 :* name) :! Nil) names   
-
-mkChannels :: (Stable v) => List String -> (InputFunc v a, InputMaybeFunc v a, DependFunc v a, List (InputChannel v))
-mkChannels names = (input nameMapping, inputMaybe nameMapping, depend idMapping, map' (box . mkChannelFromId) . map' fst' $ indexed)
-    where nameMapping = constructNameMapping indexed
-          idMapping = constructIdToNameMapping indexed
-          indexed = index names
-          
-constructNameMapping :: List (Int :* String) -> Map String Int
-constructNameMapping = foldl (\acc (id :* name) -> Map.insert name id acc) Map.empty
-
-constructIdToNameMapping :: List (Int :* String) -> Map Int String
-constructIdToNameMapping = foldl (\acc (id :* name) -> Map.insert id name acc) Map.empty 
+{-# NOINLINE nextFreshChannel #-}
+nextFreshChannel :: IORef InputChannelIdentifier
+nextFreshChannel = unsafePerformIO (newIORef (-1))
 
 
--- Check which output channels depend
-depend :: Map Int String -> O v a -> Set String
-depend idToName later = Set.map (\id -> fromMaybe (error "Internal error: id does not exist") (lookup id idToName)) clock -- foldl (\acc id -> fromMaybe (error "Internal error: id does not exist") (lookup id idToName) : acc) [] clock
-    where clock = extractClock later
+{-# NOINLINE input #-}
+input :: MVar InputValue
+input = unsafePerformIO newEmptyMVar
+
+data OutputChannel where
+  OutputChannel :: O (Str a) -> (a -> IO ()) -> OutputChannel
+
+
+{-# NOINLINE output #-}
+output :: BasicHashTable InputChannelIdentifier [IORef (Maybe OutputChannel)]
+output = unsafePerformIO (H.new)
+
+{-# NOINLINE eventLoopStarted #-}
+eventLoopStarted :: IORef Bool
+eventLoopStarted = unsafePerformIO (newIORef False)
+
+
+
+registerInput :: IO (Box (O a), (a -> IO ()))
+registerInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
+                   return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
+                          , \ x -> putMVar input (InputValue ch x))
+
+registerOutput :: O (Str a) -> (a -> IO ()) -> IO ()
+registerOutput !sig cb = do
+  ref <- newIORef (Just (OutputChannel sig cb))
+  let upd Nothing = (Just [ref],())
+      upd (Just ls) = (Just (ref : ls),())
+  let run pre ch = pre >> H.mutate output ch upd
+  IntSet.foldl' run (return ()) (extractClock sig)
+        
+
+-- timer :: Int -> Box (O ())
+-- timer d = Box (Delay (singletonClock (abs d)) (\ _ -> ()))
+
+
+update :: InputValue -> IORef (Maybe OutputChannel) -> IO ()
+update inp ref = do
+  mout <- readIORef ref
+  case mout of
+    Nothing -> return ()
+    Just (OutputChannel (Delay _ sigf) cb) -> do
+      writeIORef ref Nothing
+      let w ::: d = sigf inp
+      cb w
+      registerOutput d cb
+
+
+
+eventLoop :: IO ()
+eventLoop = do inp@(InputValue ch _) <- takeMVar input
+               res <- H.lookup output ch
+               case res of
+                 Nothing -> return ()
+                 Just ls -> do
+                   H.delete output ch
+                   mapM_ (update inp) ls
+               eventLoop
+
+               
+
+startEventLoop :: IO ()
+startEventLoop = do
+  started <- atomicModifyIORef eventLoopStarted (\b -> (True,b))
+  when (not started) eventLoop

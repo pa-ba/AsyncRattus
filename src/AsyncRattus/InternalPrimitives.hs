@@ -1,23 +1,37 @@
+{-# LANGUAGE GADTs #-}
+
 module AsyncRattus.InternalPrimitives where
 
 import Prelude hiding (Left, Right)
-import Data.Set (Set, empty)
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
 
-type Clock = Set InputChannelIdentifier
+type Clock = IntSet
 
-type InputValue a = (InputChannelIdentifier, a)
+singletonClock :: InputChannelIdentifier -> Clock
+singletonClock = IntSet.singleton
+
+clockUnion :: Clock -> Clock -> Clock
+clockUnion = IntSet.union
+
+channelMember :: InputChannelIdentifier -> Clock -> Bool
+channelMember = IntSet.member
+
+data InputValue where
+  InputValue :: InputChannelIdentifier -> a -> InputValue
+
 
 -- | The "later" type modality. A value of type @O a@ is a computation
 -- that produces a value of type @a@ in the next time step. Use
 -- 'delay' and 'adv' to construct and consume 'O'-types.
-data O v a = Delay Clock (InputValue v -> a)
+data O a = Delay Clock (InputValue -> a)
 
-data Select v a b = Left !a !(O v b) | Right !(O v a) !b | Both !a !b
+data Select a b = Fst !a !(O b) | Snd !(O a) !b | Both !a !b
 
-asyncRattusError = error "Did you forget to mark this as Async Rattus code?"
+asyncRattusError pr = error (pr ++ ": Did you forget to mark this as Async Rattus code?")
 
 -- | This is the constructor for the "later" modality 'O':
 --
@@ -26,15 +40,14 @@ asyncRattusError = error "Did you forget to mark this as Async Rattus code?"
 -- >  Γ ⊢ delay t :: O 𝜏
 --
 {-# INLINE [1] delay #-}
-delay :: a -> O v a
-delay _ = asyncRattusError
+delay :: a -> O a
+delay _ = asyncRattusError "delay"
 
-extractClock :: O v a -> Clock
+extractClock :: O a -> Clock
 extractClock (Delay cl _) = cl
 
-adv' :: O v a -> InputValue v -> a
-adv' (Delay cl f) inpVal@(chId, _) | chId `elem` cl = f inpVal
-adv' (Delay cl _) (chId, _) = error $ "Asynchronous Rattus internal error: inpVal chId " ++ show chId ++ " not in clock for delay: " ++ show cl
+adv' :: O a -> InputValue -> a
+adv' (Delay _ f) inp = f inp
 
 
 -- | This is the eliminator for the "later" modality 'O':
@@ -44,23 +57,23 @@ adv' (Delay cl _) (chId, _) = error $ "Asynchronous Rattus internal error: inpVa
 -- >  Γ ✓ Γ' ⊢ adv t :: 𝜏
 --
 {-# INLINE [1] adv #-}
-adv :: O v a -> a
-adv _ = asyncRattusError
+adv :: O a -> a
+adv _ = asyncRattusError "adv"
 
 
-select :: O v a -> O v b -> Select v a b
-select _ _ = asyncRattusError
+select :: O a -> O b -> Select a b
+select _ _ = asyncRattusError "select"
 
-select' :: O v a -> O v b -> InputValue v -> Select v a b
-select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(chId, _)
-  | chId `elem` clA && chId `elem` clB = Both (inpFA inputValue) (inpFB inputValue)
-  | chId `elem` clA = Left (inpFA inputValue) b
-  | chId `elem` clB = Right a (inpFB inputValue)
+select' :: O a -> O b -> InputValue -> Select a b
+select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(InputValue chId _)
+  | chId `channelMember` clA && chId `channelMember` clB = Both (inpFA inputValue) (inpFB inputValue)
+  | chId `channelMember` clA = Fst (inpFA inputValue) b
+  | chId `channelMember` clB = Snd a (inpFB inputValue)
   | otherwise = error "Tick did not come on correct input channels"
 
 
-never :: O v a
-never = Delay empty (error "Trying to adv on the 'never' delayed computation")
+never :: O a
+never = Delay IntSet.empty (error "Trying to adv on the 'never' delayed computation")
 
 -- | A type is @Stable@ if it is a strict type and the later modality
 -- @O@ and function types only occur under @Box@.
