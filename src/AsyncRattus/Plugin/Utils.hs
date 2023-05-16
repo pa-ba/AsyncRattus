@@ -38,6 +38,9 @@ import GHC.Tc.Utils.TcType
 #endif
 #if __GLASGOW_HASKELL__ >= 904
 import qualified GHC.Data.Strict as Strict
+import Control.Concurrent.MVar (readMVar)
+#else
+import Data.IORef (readIORef)
 #endif  
 #if __GLASGOW_HASKELL__ >= 902
 
@@ -57,7 +60,6 @@ import MonadUtils
 
 import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
 import qualified GHC.Types.Name.Occurrence as Occurrence
-import Data.IORef (readIORef)
 import GHC.Types.TyThing
 
 import Prelude hiding ((<>))
@@ -141,8 +143,14 @@ instance Ord FastString where
 origNameCache :: CoreM OrigNameCache
 origNameCache = do
   hscEnv <- getHscEnv
+#if __GLASGOW_HASKELL__ >= 904
+  let nameCache = hsc_NC hscEnv
+  liftIO $ readMVar (nsNames nameCache)
+#else
   nameCache <- liftIO $ readIORef (hsc_NC hscEnv)
   return $ nsNames nameCache
+#endif
+
 
 getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
 getNamedThingFromModuleAndOccName moduleName occName = do
