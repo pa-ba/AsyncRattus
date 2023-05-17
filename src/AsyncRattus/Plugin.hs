@@ -52,9 +52,9 @@ typechecked :: [CommandLineOption] -> ModSummary -> TcGblEnv -> TcM TcGblEnv
 typechecked _ _ env = checkAll env >> return env
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
-install opts todo = case find findSamePass todo of -- check that we don't run the transformation twice
-                      Nothing -> return todo       -- (e.g. if the "-fplugin" option is used twice)
-                      _ -> return (strPass : todo)
+install opts todo = case find findSamePass todo of       -- check that we don't run the transformation twice
+                      Nothing -> return (strPass : todo) -- (e.g. if the "-fplugin" option is used twice)
+                      _ -> return todo
     where name = "Async Rattus strictify"
           strPass = CoreDoPluginPass name (strictifyProgram Options{debugMode = dmode})
           dmode = "debug" `elem` opts
