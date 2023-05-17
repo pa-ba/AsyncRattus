@@ -1,16 +1,24 @@
+
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module AsyncRattus.Channels (
   registerInput,
   registerOutput,
-  startEventLoop
+  startEventLoop,
+  Producer (..)
 ) where
 
 import AsyncRattus.InternalPrimitives
 
-import AsyncRattus.Stream
+import AsyncRattus.Stream as Str
+import AsyncRattus.Future
+import AsyncRattus.Plugin.Annotation
+import AsyncRattus.Strict
 import Control.Concurrent.MVar
 import Control.Monad
 import System.IO.Unsafe
@@ -19,6 +27,40 @@ import Unsafe.Coerce
 import qualified Data.HashTable.IO as H
 import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
+
+
+class Producer p where
+  type Output p
+  mkStr :: p -> Str (Maybe' (Output p))
+
+{-# ANN module AsyncRattus #-}
+{-# ANN module AllowLazyData #-}
+
+instance Producer p => Producer (O p) where
+  type Output (O p) = Output p
+  mkStr p = Nothing' ::: delay (mkStr (adv p))
+
+instance Producer (Str a) where
+  type Output (Str a) = a
+  mkStr = Str.map (box Just')
+
+newtype OneShot a = OneShot (F a)
+
+instance Producer (OneShot a) where
+  type Output (OneShot a) = a
+  mkStr (OneShot (Now x)) = Just' x ::: never
+  mkStr (OneShot (Wait x)) = Nothing' ::: delay (mkStr (OneShot (adv x)))
+
+instance Producer p => Producer (F p) where
+  type Output (F p) = Output p
+  mkStr (Now x) = mkStr x
+  mkStr (Wait x) = Nothing' ::: delay (mkStr (adv x))
+
+instance Producer (StrF a) where
+  type Output (StrF a) = a
+  mkStr (x :?: xs) = Just' x ::: delay (mkStr (adv xs))
+
+
 
 {-# NOINLINE nextFreshChannel #-}
 nextFreshChannel :: IORef InputChannelIdentifier
@@ -30,11 +72,11 @@ input :: MVar InputValue
 input = unsafePerformIO newEmptyMVar
 
 data OutputChannel where
-  OutputChannel :: O (Str a) -> (a -> IO ()) -> OutputChannel
+  OutputChannel :: !(O (Str (Maybe' a))) -> !(a -> IO ()) -> OutputChannel
 
 
 {-# NOINLINE output #-}
-output :: BasicHashTable InputChannelIdentifier [IORef (Maybe OutputChannel)]
+output :: BasicHashTable InputChannelIdentifier (List (IORef (Maybe' OutputChannel)))
 output = unsafePerformIO (H.new)
 
 {-# NOINLINE eventLoopStarted #-}
@@ -43,36 +85,46 @@ eventLoopStarted = unsafePerformIO (newIORef False)
 
 
 
-registerInput :: IO (Box (O a), (a -> IO ()))
+registerInput :: IO (Box (O a) :* (a -> IO ()))
 registerInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
                    return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
-                          , \ x -> putMVar input (InputValue ch x))
+                          :* \ x -> putMVar input (InputValue ch x))
 
-registerOutput :: O (Str a) -> (a -> IO ()) -> IO ()
-registerOutput !sig cb = do
-  ref <- newIORef (Just (OutputChannel sig cb))
-  let upd Nothing = (Just [ref],())
-      upd (Just ls) = (Just (ref : ls),())
+registerOutput' :: O (Str (Maybe' a)) -> (a -> IO ()) -> IO ()
+registerOutput' !sig cb = do
+  ref <- newIORef (Just' (OutputChannel sig cb))
+  let upd Nothing = (Just (ref :! Nil),())
+      upd (Just ls) = (Just (ref :! ls),())
   let run pre ch = pre >> H.mutate output ch upd
   IntSet.foldl' run (return ()) (extractClock sig)
-        
+
+registerOutput :: Producer p => p -> (Output p -> IO ()) -> IO ()
+registerOutput !sig cb = do
+  let cur ::: sig' = mkStr sig
+  case cur of
+    Just' cur' -> cb cur'
+    Nothing' -> return ()
+  registerOutput' sig' cb   
 
 -- timer :: Int -> Box (O ())
 -- timer d = Box (Delay (singletonClock (abs d)) (\ _ -> ()))
 
 
-update :: InputValue -> IORef (Maybe OutputChannel) -> IO ()
+update :: InputValue -> IORef (Maybe' OutputChannel) -> IO ()
 update inp ref = do
   mout <- readIORef ref
   case mout of
-    Nothing -> return ()
-    Just (OutputChannel (Delay _ sigf) cb) -> do
-      writeIORef ref Nothing
+    Nothing' -> return ()
+    Just' (OutputChannel (Delay _ sigf) cb) -> do
+      writeIORef ref Nothing'
       let w ::: d = sigf inp
-      cb w
-      registerOutput d cb
+      case w of
+        Just' w' -> cb w'
+        Nothing' -> return ()
+      registerOutput' d cb
 
 
+{-# ANN eventLoop NotAsyncRattus #-}
 
 eventLoop :: IO ()
 eventLoop = do inp@(InputValue ch _) <- takeMVar input

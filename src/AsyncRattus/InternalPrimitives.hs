@@ -21,13 +21,13 @@ channelMember :: InputChannelIdentifier -> Clock -> Bool
 channelMember = IntSet.member
 
 data InputValue where
-  InputValue :: InputChannelIdentifier -> a -> InputValue
+  InputValue :: !InputChannelIdentifier -> !a -> InputValue
 
 
 -- | The "later" type modality. A value of type @O a@ is a computation
 -- that produces a value of type @a@ in the next time step. Use
 -- 'delay' and 'adv' to construct and consume 'O'-types.
-data O a = Delay Clock (InputValue -> a)
+data O a = Delay !Clock (InputValue -> a)
 
 data Select a b = Fst !a !(O b) | Snd !(O a) !b | Both !a !b
 

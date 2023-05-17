@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
@@ -27,14 +30,12 @@ import AsyncRattus
 import Prelude hiding (map, filter, zipWith)
 
 
-
 -- | @F a@ will produces a value of type @a@ after zero or more ticks
 -- of some clocks
 data F a = Now !a | Wait !(O (F a))
 
 -- | @StrF a@ is a stream of values of type @a@.
-data StrF a = !a ::: !(O (F (StrF a)))
-
+data StrF a = !a :?: !(O (F (StrF a)))
 
 -- all functions in this module are in Asynchronous Rattus 
 {-# ANN module AsyncRattus #-}
@@ -68,17 +69,17 @@ syncB x (Wait y) = Wait (delay (syncB x (adv y)))
   
 switchAwait :: F (StrF a) -> F (StrF a) -> F(StrF a)
 switchAwait _ (Now ys) = Now ys
-switchAwait (Now (x ::: xs)) (Wait ys) = Now (x ::: delay (uncurry' switchAwait (adv (sync xs ys)) ))
+switchAwait (Now (x :?: xs)) (Wait ys) = Now (x :?: delay (uncurry' switchAwait (adv (sync xs ys)) ))
 switchAwait (Wait xs) (Wait ys) = Wait (delay (uncurry' switchAwait (adv (sync xs ys)) ))
 
 switch :: StrF a -> F (StrF a) -> StrF a
 switch _ (Now ys) = ys
-switch (x ::: xs) (Wait ys) = x ::: delay (uncurry' switchAwait (adv (sync xs ys)))
+switch (x :?: xs) (Wait ys) = x :?: delay (uncurry' switchAwait (adv (sync xs ys)))
 
 mapMaybeAwait :: Box (a -> Maybe' b) -> F(StrF a) -> F (StrF b)
 mapMaybeAwait f (Wait xs) = Wait (delay (mapMaybeAwait f (adv xs)))
-mapMaybeAwait f (Now (x ::: xs)) = case unbox f x of
-                                     Just' y  -> Now (y ::: delay (mapMaybeAwait f (adv xs)))
+mapMaybeAwait f (Now (x :?: xs)) = case unbox f x of
+                                     Just' y  -> Now (y :?: delay (mapMaybeAwait f (adv xs)))
                                      Nothing' -> Wait (delay (mapMaybeAwait f (adv xs)))
 
 mapMaybe :: Box (a -> Maybe' b) -> StrF a -> F (StrF b)
@@ -92,21 +93,21 @@ filter :: Box (a -> Bool) -> StrF a -> F (StrF a)
 filter p = mapMaybe (box (\ x -> if unbox p x then Just' x else Nothing'))
 
 mapAwait :: Box (a -> b) -> F (StrF a) -> F (StrF b)
-mapAwait f (Now (x ::: xs)) = Now (unbox f x ::: delay (mapAwait f (adv xs)))
+mapAwait f (Now (x :?: xs)) = Now (unbox f x :?: delay (mapAwait f (adv xs)))
 mapAwait f (Wait xs) = Wait (delay (mapAwait f (adv xs)))
 
 map :: Box (a -> b) -> StrF a -> StrF b
-map f (x ::: xs) = unbox f x ::: delay (mapAwait f (adv xs))
+map f (x :?: xs) = unbox f x :?: delay (mapAwait f (adv xs))
 
 
 
 zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> StrF a -> StrF b -> StrF c
-zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs)))
+zipWith f (a :?: as) (b :?: bs) = unbox f a b :?: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs)))
 
 zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> a -> b -> F (StrF a) -> F (StrF b) -> F (StrF c)
-zipWithAwait f _ _ (Now (a ::: as)) (Now (b ::: bs)) = Now (unbox f a b ::: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
-zipWithAwait f _ b (Now (a ::: as)) (Wait bs) = Now (unbox f a b ::: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
-zipWithAwait f a _ (Wait as) (Now (b ::: bs)) = Now (unbox f a b ::: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
+zipWithAwait f _ _ (Now (a :?: as)) (Now (b :?: bs)) = Now (unbox f a b :?: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
+zipWithAwait f _ b (Now (a :?: as)) (Wait bs) = Now (unbox f a b :?: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
+zipWithAwait f a _ (Wait as) (Now (b :?: bs)) = Now (unbox f a b :?: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 zipWithAwait f a b (Wait as) (Wait bs) = Wait (delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 
 bindF :: F a -> Box (a -> F b) -> F b

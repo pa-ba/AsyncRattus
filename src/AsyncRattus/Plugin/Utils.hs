@@ -19,6 +19,7 @@ module AsyncRattus.Plugin.Utils (
   isStrict,
   isTemporal,
   userFunction,
+  typeClassFunction,
   getVar,
   getMaybeVar,
   getModuleFS,
@@ -184,7 +185,7 @@ unionVar :: CoreM Var
 unionVar = getVarFromModule "AsyncRattus.InternalPrimitives" "clockUnion"
 
 rattModules :: Set FastString
-rattModules = Set.fromList ["AsyncRattus.InternalPrimitives"]
+rattModules = Set.fromList ["AsyncRattus.InternalPrimitives","AsyncRattus.Channels"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName
@@ -325,7 +326,7 @@ isStrictRec d pr t = do
         Nothing -> False
         Just (name,mod)
           -- If it's a Rattus type constructor check if it's a box
-          | isRattModule mod && (name == "Box" || name == "O") -> True
+          | isRattModule mod && (name == "Box" || name == "O" || name == "Output") -> True
             -- If its a built-in type check the set of stable built-in types
           | isGhcModule mod -> isGhcStableType name
           {- deal with type synonyms (does not seem to be necessary (??))
@@ -342,6 +343,7 @@ isStrictRec d pr t = do
                 where check con = case dataConInstSig con args of
                         (_, _,tys) -> and (map (isStrictRec (d+1) pr') tys)
               TupleTyCon {} -> null args
+              NewTyCon {nt_rhs = ty} -> isStrictRec (d+1) pr' ty
               _ -> False
           | otherwise -> False
 
@@ -360,14 +362,21 @@ isSrcStrict' _ = False
 
 
 userFunction :: Var -> Bool
-userFunction v =
+userFunction v
+  | typeClassFunction v = True
+  | otherwise = 
+    case getOccString (getName v) of
+      (c : _)
+        | isUpper c || c == '$' || c == ':' -> False
+        | otherwise -> True
+      _ -> False
+
+typeClassFunction :: Var -> Bool
+typeClassFunction v =
   case getOccString (getName v) of
-    (c : _)
-      | isUpper c || c == '$' || c == ':' -> False
-      | otherwise -> True
+    ('$' : 'c' : _) -> True
+    ('$' : 'f' : _) -> True
     _ -> False
-
-
 
 mkSysLocalFromVar :: MonadUnique m => FastString -> Var -> m Id
 #if __GLASGOW_HASKELL__ >= 900

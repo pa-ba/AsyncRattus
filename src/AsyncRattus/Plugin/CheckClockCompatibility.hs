@@ -65,7 +65,7 @@ data Scope = Hidden SDoc | Visible
 getScope  :: Ctx -> Var -> Scope
 getScope c v =
     if v `Set.member` recDef c then
-      if allowGuardedRec c || allowRecursion c then Visible
+      if allowGuardedRec c || allowRecursion c || typeClassFunction v then Visible
       else Hidden ("(Mutually) recursive call to " <> ppr v <> " must occur under delay")
     else case Map.lookup v (hidden c) of
       Just reason ->

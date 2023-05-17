@@ -41,8 +41,8 @@ num  :: Box (O Int)
 char  :: Box (O Char) 
 (num, char) = unsafePerformIO $ do
          putStrLn "register num and char input"
-         (intInp, intCb) <- registerInput
-         (charInp, charCb) <- registerInput
+         (intInp :* intCb) <- registerInput
+         (charInp :* charCb) <- registerInput
          let loop = do ch <- getChar
                        if isNumber ch then intCb (digitToInt ch)
                          else if ch == '\n' then return ()
