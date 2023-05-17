@@ -9,6 +9,7 @@
 module AsyncRattus.Channels (
   registerInput,
   registerOutput,
+  mkInput,
   startEventLoop,
   timer,
   Producer (..)
@@ -113,7 +114,12 @@ registerOutput !sig cb = do
   case cur of
     Just' cur' -> cb cur'
     Nothing' -> return ()
-  registerOutput' sig' cb   
+  registerOutput' sig' cb
+
+mkInput :: Producer p => p -> IO (Box (O (Output p)))
+mkInput p = do (out :* cb) <-registerInput
+               registerOutput p cb
+               return out
 
 timer :: Int -> Box (O ())
 timer d = Box (Delay (singletonClock (d `max` 10)) (\ _ -> ()))
