@@ -6,13 +6,15 @@ module Main (module Main) where
 import AsyncRattus
 import AsyncRattus.Stream
 import AsyncRattus.Channels
-import System.IO.Unsafe ( unsafePerformIO )
+
 import Control.Concurrent ( forkIO )
 import Data.Char
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 import Control.DeepSeq ( force )
+
+{-# ANN module AsyncRattus #-}
 
 -- intInput  :: IO (Box (O Int))
 -- intInput = do
@@ -42,11 +44,13 @@ import Control.DeepSeq ( force )
 everySecond :: Box (O ())
 everySecond = timer 1000000
 
-{-# ANN numchar NotAsyncRattus #-}
+everySecondSig :: Str ()
+everySecondSig = ()::: mkSignal everySecond
 
-numchar :: Box (O Int) :* Box (O Char)
-{-# NOINLINE numchar #-}
-numchar = unsafePerformIO $ do
+
+{-# ANN numchar NotAsyncRattus #-}
+numchar :: IO (Box (O Int) :* Box (O Char))
+numchar = do
          putStrLn "register num and char input"
          (intInp :* intCb) <- registerInput
          (charInp :* charCb) <- registerInput
@@ -61,44 +65,36 @@ numchar = unsafePerformIO $ do
 registerConsoleOutput :: (Producer p, Show (Output p)) => String -> p -> IO ()
 registerConsoleOutput str sig = registerOutput sig (\ x -> putStrLn (str ++ ": " ++ show x))
 
-num  :: Box (O Int)
-num = fst' numchar
-char  :: Box (O Char)
-char = snd' numchar
-
-{-# ANN module AsyncRattus #-}
-
-numSig :: O (Str Int)
-numSig = mkSignal num
-
-charSig :: O (Str Char)
-charSig = mkSignal char
-
-sigBoth :: O (Str (Char :* Int))
-sigBoth = tl (zipWithAwait (box (:*)) charSig numSig 'a' 0)
-
-sigEither :: O (Str Char)
-sigEither = interleave (box (\ x _ -> x)) charSig (mapAwait (box intToDigit) numSig)
-
-everySecondSig :: Str ()
-everySecondSig = ()::: mkSignal everySecond
-
-nats :: Str Int
-nats = scan (box (\ n _ -> n+1)) 0 everySecondSig
-
-nats' :: Int -> Int -> Str Int
-nats' d init = switchS (scan (box (\ n _ -> n + d)) init everySecondSig) (delay (adv (unbox char) `seq` nats' (-d)))
-
-
-
-beh :: O (Str Int)
-beh = switchAwait numSig (mapO (box (\ _ -> 0 ::: mapAwait (box negate) numSig)) charSig)
 
 
 main = do
-  registerConsoleOutput (force "charSig") charSig
-  registerConsoleOutput (force "numSig") numSig
+  (num :* char) <- numchar
+
+  let numSig :: Box (O (Str Int))
+      numSig = box (mkSignal num)
+
+      charSig :: Box (O (Str Char))
+      charSig = box (mkSignal char)
+
+      sigBoth :: O (Str (Char :* Int))
+      sigBoth = tl (zipWithAwait (box (:*)) (unbox charSig) (unbox numSig) 'a' 0)
+
+      sigEither :: O (Str Char)
+      sigEither = interleave (box (\ x _ -> x)) (unbox charSig) (mapAwait (box intToDigit) (unbox numSig))
+
+      nats :: Str Int
+      nats = scan (box (\ n _ -> n+1)) 0 everySecondSig
+
+      nats' :: Int -> Int -> Str Int
+      nats' d init = switchS (scan (box (\ n _ -> n + d)) init everySecondSig) (delay (adv (unbox char) `seq` nats' (-d)))
+
+      beh :: O (Str Int)
+      beh = switchAwait (unbox numSig) (mapO (box (\ _ -> 0 ::: mapAwait (box negate) (unbox numSig))) (unbox charSig))
+
+  registerConsoleOutput (force "charSig") (unbox charSig)
+  registerConsoleOutput (force "numSig") (unbox numSig)
   registerConsoleOutput (force "sigEither") sigEither
+  registerConsoleOutput (force "sigBoth") sigBoth
   registerConsoleOutput (force "beh") beh
   registerConsoleOutput (force "nats") (nats' 1 0)
   startEventLoop
