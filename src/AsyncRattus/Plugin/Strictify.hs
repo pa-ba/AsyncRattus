@@ -51,14 +51,26 @@ strictifyExpr ss (Tick t@(SourceNote span _) e) = do
   return (Tick t e')
 strictifyExpr ss (App e1 e2)
   | (checkStrictData ss && not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
-        && not (isStrict (exprType e2))) = do
-      (printMessage SevWarning (srcSpan ss)
-         (text "The use of lazy type " <> ppr (exprType e2) <> " may lead to memory leaks"))
-      e1' <- strictifyExpr ss{checkStrictData = False} e1
-      e2' <- strictifyExpr ss{checkStrictData = False} e2
-      return (App e1' e2')
+        && not (isStrict (exprType e2))) = 
+      if isDeepseqForce e2 then
+        do e1' <- strictifyExpr ss e1
+           e2' <- strictifyExpr ss{checkStrictData = False} e2
+           return (App e1' e2')
+      else
+        do (printMessage SevWarning (srcSpan ss)
+               (text "The use of lazy type " <> ppr (exprType e2) <> " may lead to memory leaks. Use Control.DeepSeq.force on lazy types. "))
+           e1' <- strictifyExpr ss{checkStrictData = False} e1
+           e2' <- strictifyExpr ss{checkStrictData = False} e2
+           return (App e1' e2')
   | otherwise = do
       e1' <- strictifyExpr ss e1
       e2' <- strictifyExpr ss e2
       return (App e1' e2')
 strictifyExpr _ss e = return e
+
+isDeepseqForce :: CoreExpr -> Bool
+isDeepseqForce (App (App (App (Var v) _) _) _) =
+  case getNameModule v of
+    Just (name, mod) -> mod == "Control.DeepSeq" && name == "force"
+    _ -> False
+isDeepseqForce _ = False
