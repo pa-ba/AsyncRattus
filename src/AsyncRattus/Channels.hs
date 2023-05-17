@@ -10,6 +10,7 @@ module AsyncRattus.Channels (
   registerInput,
   registerOutput,
   startEventLoop,
+  timer,
   Producer (..)
 ) where
 
@@ -27,7 +28,7 @@ import Unsafe.Coerce
 import qualified Data.HashTable.IO as H
 import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
-
+import Control.Concurrent
 
 class Producer p where
   type Output p
@@ -95,7 +96,15 @@ registerOutput' !sig cb = do
   ref <- newIORef (Just' (OutputChannel sig cb))
   let upd Nothing = (Just (ref :! Nil),())
       upd (Just ls) = (Just (ref :! ls),())
-  let run pre ch = pre >> H.mutate output ch upd
+  let upd' ch Nothing = do
+        forkIO (threadDelay ch >> putMVar input (InputValue ch ()))
+        return (Just (ref :! Nil),())
+      upd' _ (Just ls) = return (Just (ref :! ls),())
+  let run pre ch =
+        if ch > 0 then
+          pre >> H.mutateIO output ch (upd' ch)
+        else 
+          pre >> H.mutate output ch upd
   IntSet.foldl' run (return ()) (extractClock sig)
 
 registerOutput :: Producer p => p -> (Output p -> IO ()) -> IO ()
@@ -106,8 +115,8 @@ registerOutput !sig cb = do
     Nothing' -> return ()
   registerOutput' sig' cb   
 
--- timer :: Int -> Box (O ())
--- timer d = Box (Delay (singletonClock (abs d)) (\ _ -> ()))
+timer :: Int -> Box (O ())
+timer d = Box (Delay (singletonClock (d `max` 10)) (\ _ -> ()))
 
 
 update :: InputValue -> IORef (Maybe' OutputChannel) -> IO ()

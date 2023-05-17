@@ -9,6 +9,7 @@ module AsyncRattus.Stream
   ( map
   , mapAwait
   , switch
+  , switchS
   , switchAwait
   , interleave
   , mkSignal
@@ -105,6 +106,12 @@ switch (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switch xs' d'
                                      Snd   _    d'  -> d'
                                      Both  _    d'  -> d')
+
+switchS :: Stable a => Str a -> O (a -> Str a) -> Str a
+switchS (x ::: xs) d = x ::: delay (case select xs d of
+                                     Fst   xs'  d'  -> switchS xs' d'
+                                     Snd   _    f  -> f x
+                                     Both  _    f  -> f x)
 
 switchAwait :: O (Str a) -> O (Str a) -> O (Str a)
 switchAwait xs ys = delay (case select xs ys of
