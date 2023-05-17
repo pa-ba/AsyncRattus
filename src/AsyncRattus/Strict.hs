@@ -25,8 +25,10 @@ module AsyncRattus.Strict
     Maybe'(..),
     maybe',
     fromMaybe',
-   fst',
-   snd',
+    fst',
+    snd',
+    curry',
+    uncurry'
   )where
 
 import Prelude hiding (map)
@@ -166,6 +168,13 @@ fst' (a:*_) = a
 -- | Second projection function.
 snd' :: (a :* b) -> b
 snd' (_:*b) = b
+
+curry' :: ((a :* b) -> c) -> a -> b -> c
+curry' f x y = f (x :* y)
+
+uncurry' :: (a -> b -> c) -> (a :* b) -> c
+uncurry' f (x :* y) = f x y
+
 
 instance Functor ((:*) a) where
   fmap f (x:*y) = (x :* f y)

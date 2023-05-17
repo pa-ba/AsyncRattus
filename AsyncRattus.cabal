@@ -140,6 +140,7 @@ custom-setup
 library
   exposed-modules:     AsyncRattus
                        AsyncRattus.Stream
+                       AsyncRattus.Future
                        AsyncRattus.Strict
                        AsyncRattus.Plugin
                        AsyncRattus.Primitives
