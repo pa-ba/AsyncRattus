@@ -8,7 +8,7 @@ import AsyncRattus
 import AsyncRattus.Stream
 import Data.Set as Set
 
-import AsyncRattus.Plugin.Annotation (InternalAnn (..))
+
 
 {-# ANN module AsyncRattus #-}
 
@@ -34,7 +34,6 @@ scanBox :: Box(b -> a -> Box b) -> b -> Str a -> Str b
 scanBox f acc (a ::: as) =  unbox acc' ::: delay (scanBox f (unbox acc') (adv as))
   where acc' = unbox f acc a
 
-{-# ANN sumBox ExpectWarning #-}
 sumBox :: Str Int -> Str Int
 sumBox = scanBox (box (\x y -> box (x + y))) 0
 

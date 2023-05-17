@@ -101,10 +101,6 @@ data Ctxt = Ctxt
     -- mydel = delay in mydel 1@, in which case @mydel@ is mapped to
     -- 'Delay'.
     primAlias :: Map Var Prim,
-    -- | This flag indicates whether the context was 'stabilized'
-    -- (stripped of all non-stable stuff). It is set when typechecking
-    -- 'box' and guarded recursion.
-    stabilized :: Maybe StableReason,
     -- | Allow general recursion.
     allowRecursion :: Bool}
 
@@ -124,9 +120,6 @@ emptyCtxt em mvar allowRec =
          recDef = mvar,
          primAlias = Map.empty,
          stableTypes = Set.empty,
-         stabilized = case mvar of
-           Just (_,loc) ->  Just (StableRec loc)
-           _  ->  Nothing,
          allowRecursion = allowRec}
 
 -- | A local context, consisting of a set of variables.
@@ -359,10 +352,7 @@ checkPatBind' _ = return True
 checkRecursiveBinds :: GetCtxt => [LHsBindLR GhcTc GhcTc] -> Set Var -> CheckM (Bool, Set Var)
 checkRecursiveBinds bs vs = do
     res <- fmap and (mapM check' bs)
-    case stabilized ?ctxt of
-      Just reason | res ->
-        (printMessage' SevWarning (recReason reason <> " can cause time leaks")) >> return (res, vs)
-      _ -> return (res, vs)
+    return (res, vs)
     where check' b@(L l _) = fc (getLocAnn' l) `modifyCtxt` checkRec b
           fc l c = let
             ctxHid = either (const $ current c) (Set.union (current c) . Set.unions) (earlier c)
@@ -370,14 +360,9 @@ checkRecursiveBinds bs vs = do
                   earlier = Left (TickHidden $ Stabilize $ StableRec l),
                   hidden =  hidden c `Map.union`
                             (Map.fromSet (const (Stabilize (StableRec l))) ctxHid),
-                  recDef = maybe (Just (vs,l)) (\(vs',_) -> Just (Set.union vs' vs,l)) (recDef c),
+                  recDef = maybe (Just (vs,l)) (\(vs',_) -> Just (Set.union vs' vs,l)) (recDef c)
                    -- TODO fix location info of recDef (needs one location for each var)
-                  stabilized = Just (StableRec l)}
-
-          recReason :: StableReason -> SDoc
-          recReason (StableRec _) = "nested recursive definitions"
-          recReason StableBox = "recursive definitions nested under box"
-          
+                   }          
 
 
 #if __GLASGOW_HASKELL__ >= 902
@@ -460,9 +445,6 @@ instance Show Var where
   show v = getOccString v
 
 
-boxReason StableBox = "Nested use of box"
-boxReason (StableRec _ ) = "The use of box in a recursive definition"
-
 tickHidden :: HiddenReason -> SDoc
 tickHidden FunDef = "a function definition"
 tickHidden DelayApp = "a nested application of delay"
@@ -517,10 +499,7 @@ instance Scope (HsExpr GhcTc) where
     Just (p,_) -> case p of
       Box -> do
         ch <- stabilize StableBox `modifyCtxt` check e2
-        case stabilized ?ctxt of
-          Just reason | ch ->
-            (printMessage' SevWarning (boxReason reason <> " can cause time leaks")) >> return ch
-          _ -> return ch
+        return ch
       Unbox -> check e2
       Delay -> do modify (Nothing :)
                   b <- (\c -> c{current = Set.empty,
@@ -855,8 +834,7 @@ stabilize :: StableReason -> Ctxt -> Ctxt
 stabilize sr c = c
   {current = Set.empty,
    earlier = Left $ TickHidden hr,
-   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid,
-   stabilized = Just sr}
+   hidden = hidden c `Map.union` Map.fromSet (const hr) ctxHid}
   where ctxHid = either (const $ current c) (foldl' Set.union (current c)) (earlier c)
         hr = Stabilize sr
 

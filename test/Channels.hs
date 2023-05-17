@@ -13,6 +13,7 @@ import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 import Prelude hiding (map, const, zipWith, zip, filter, Left, Right)
 import Control.DeepSeq ( force )
+
 -- intInput  :: IO (Box (O Int))
 -- intInput = do
 --          (inp, cb) <- registerInput
@@ -77,7 +78,7 @@ sigBoth :: O (Str (Char :* Int))
 sigBoth = tl (zipWithAwait (box (:*)) charSig numSig 'a' 0)
 
 sigEither :: O (Str Char)
-sigEither = interleave (box (\ x y -> x)) charSig (mapAwait (box intToDigit) numSig)
+sigEither = interleave (box (\ x _ -> x)) charSig (mapAwait (box intToDigit) numSig)
 
 everySecondSig :: Str ()
 everySecondSig = ()::: mkSignal everySecond
