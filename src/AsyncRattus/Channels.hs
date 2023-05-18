@@ -1,6 +1,4 @@
-
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
@@ -12,13 +10,12 @@ module AsyncRattus.Channels (
   mkInput,
   startEventLoop,
   timer,
-  Producer (..)
+  Producer (..),
+  Str (..)
 ) where
 
 import AsyncRattus.InternalPrimitives
 
-import AsyncRattus.Stream as Str
-import AsyncRattus.Future
 import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Strict
 import Control.Concurrent.MVar
@@ -31,6 +28,11 @@ import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
 import Control.Concurrent
 
+
+-- | @Str a@ is a stream of values of type @a@.
+data Str a = !a ::: !(O (Str a))
+
+
 class Producer p where
   type Output p
   mkStr :: p -> Str (Maybe' (Output p))
@@ -41,27 +43,6 @@ class Producer p where
 instance Producer p => Producer (O p) where
   type Output (O p) = Output p
   mkStr p = Nothing' ::: delay (mkStr (adv p))
-
-instance Producer (Str a) where
-  type Output (Str a) = a
-  mkStr = Str.map (box Just')
-
-newtype OneShot a = OneShot (F a)
-
-instance Producer (OneShot a) where
-  type Output (OneShot a) = a
-  mkStr (OneShot (Now x)) = Just' x ::: never
-  mkStr (OneShot (Wait x)) = Nothing' ::: delay (mkStr (OneShot (adv x)))
-
-instance Producer p => Producer (F p) where
-  type Output (F p) = Output p
-  mkStr (Now x) = mkStr x
-  mkStr (Wait x) = Nothing' ::: delay (mkStr (adv x))
-
-instance Producer (StrF a) where
-  type Output (StrF a) = a
-  mkStr (x :>: xs) = Just' x ::: delay (mkStr (adv xs))
-
 
 
 {-# NOINLINE nextFreshChannel #-}

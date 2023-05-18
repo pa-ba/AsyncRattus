@@ -33,7 +33,25 @@ where
 
 import AsyncRattus
 import Prelude hiding (map, filter, zipWith)
-import AsyncRattus.Stream (Str(..))
+import AsyncRattus.Channels
+
+
+newtype OneShot a = OneShot (F a)
+
+instance Producer (OneShot a) where
+  type Output (OneShot a) = a
+  mkStr (OneShot (Now x)) = Just' x ::: never
+  mkStr (OneShot (Wait x)) = Nothing' ::: delay (mkStr (OneShot (adv x)))
+
+instance Producer p => Producer (F p) where
+  type Output (F p) = Output p
+  mkStr (Now x) = mkStr x
+  mkStr (Wait x) = Nothing' ::: delay (mkStr (adv x))
+
+instance Producer (StrF a) where
+  type Output (StrF a) = a
+  mkStr (x :>: xs) = Just' x ::: delay (mkStr (adv xs))
+
 
 
 -- | @F a@ will produces a value of type @a@ after zero or more ticks

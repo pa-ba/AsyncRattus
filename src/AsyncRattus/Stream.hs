@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE CPP #-}
@@ -24,16 +25,20 @@ module AsyncRattus.Stream
   , zipWith
   , zipWithAwait
   , zip
+  , integral
+  , derivative
   )
 
 where
 
 import AsyncRattus
+import AsyncRattus.Channels
 import Prelude hiding (map, const, zipWith, zip, filter)
 
+instance Producer (Str a) where
+  type Output (Str a) = a
+  mkStr = map (box Just')
 
--- | @Str a@ is a stream of values of type @a@.
-data Str a = !a ::: !(O (Str a))
 
 -- all functions in this module are in Asynchronous Rattus 
 {-# ANN module AsyncRattus #-}
@@ -145,7 +150,41 @@ zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
 zip :: (Stable a, Stable b) => Str a -> Str b -> Str (a:*b)
 zip = zipWith (box (:*))
 
-    
+-- Constants for integration and derivative
+
+-- sampling interval in microseconds
+dt :: Int
+dt = 20000
+-- sampling interval in seconds
+dtf :: Float
+dtf = fromIntegral dt * 0.000001
+
+-- inverse of sampling interval in seconds
+dti :: Float
+dti = 1/(fromIntegral dt * 0.000001)
+  
+integral :: Float -> Str Float -> Str Float
+integral cur (0 ::: xs) = cur ::: delay (integral cur (adv xs))
+integral cur (x ::: xs) = cur ::: delay (
+  case select xs (unbox (timer dt)) of
+    Fst xs' _ -> integral cur xs'
+    Snd xs' () -> integral (cur + x * dtf) (x ::: xs')
+    Both (x' ::: xs') () ->  integral (cur + x' * dtf) (x'::: xs'))
+        
+
+derivative :: Str Float -> Str Float
+derivative xs = der 0 (hd xs) xs where
+  der :: Float -> Float -> Str Float -> Str Float
+  der 0 _ (x:::xs) = 0 ::: delay
+    (let x' ::: xs' = adv xs
+     in der ((x' - x) * dti) x (x' ::: xs'))
+  der d last (x:::xs) = d ::: delay (
+     case select xs (unbox (timer dt)) of
+       Fst xs' _ -> der d last xs'
+       Snd xs' () -> der ((x - last) * dti) x (x ::: xs')
+       Both (x' ::: xs') () ->  der ((x' - last) * dti) x' (x' ::: xs'))
+
+
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
