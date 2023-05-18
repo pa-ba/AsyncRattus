@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | This module contains strict versions of some standard data
 -- structures.
@@ -187,17 +188,19 @@ instance (Eq a, Eq b) => Eq (a :* b) where
   (x1 :* y1) == (x2 :* y2) = x1 == x2 && y1 == y2
 
 
-instance (Eq a, Floating a) => VectorSpace (a :* a) a where
-  zeroVector = 0 :* 0
+instance (VectorSpace v a, VectorSpace w a, Floating a, Eq a) => VectorSpace (v :* w) a where
+  zeroVector = zeroVector :* zeroVector
 
-  a *^ (x :* y) = (a * x) :* (a * y)
+  a *^ (x :* y) = (a *^ x) :* (a *^ y)
 
-  (x :* y) ^/ a = (x / a) :* (y / a)
+  (x :* y) ^/ a = (x ^/ a) :* (y ^/ a)
 
-  negateVector (x :* y) = (-x) :* (-y)
+  negateVector (x :* y) = (negateVector x) :* (negateVector y)
 
-  (x1 :* y1) ^+^ (x2 :* y2) = (x1 + x2) :* (y1 + y2)
+  (x1 :* y1) ^+^ (x2 :* y2) = (x1 ^+^ x2) :* (y1 ^+^ y2)
 
-  (x1 :* y1) ^-^ (x2 :* y2) = (x1 - x2) :* (y1 - y2)
+  (x1 :* y1) ^-^ (x2 :* y2) = (x1 ^-^ x2) :* (y1 ^-^ y2)
 
-  (x1 :* y1) `dot` (x2 :* y2) = x1 * x2 + y1 * y2
+  (x1 :* y1) `dot` (x2 :* y2) = (x1 `dot` x2) + (y1 `dot` y2)
+
+  
