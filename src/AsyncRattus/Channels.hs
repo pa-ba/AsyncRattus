@@ -60,7 +60,7 @@ instance Producer p => Producer (F p) where
 
 instance Producer (StrF a) where
   type Output (StrF a) = a
-  mkStr (x :?: xs) = Just' x ::: delay (mkStr (adv xs))
+  mkStr (x :>: xs) = Just' x ::: delay (mkStr (adv xs))
 
 
 

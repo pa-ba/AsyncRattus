@@ -17,8 +17,6 @@ module AsyncRattus.Stream
   , tl
   , fromLater
   , const
-  , shift
-  , shiftMany
   , scan
   , scanAwait
   , scanMap
@@ -26,7 +24,6 @@ module AsyncRattus.Stream
   , zipWith
   , zipWithAwait
   , zip
-  , filter
   )
 
 where
@@ -148,30 +145,6 @@ zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
 zip :: (Stable a, Stable b) => Str a -> Str b -> Str (a:*b)
 zip = zipWith (box (:*))
 
--- | Filter out elements from a stream according to a predicate.
-filter :: Box(a -> Bool) -> Str a -> Str (Maybe' a)
-filter p = map (box (\a -> if unbox p a then Just' a else Nothing'))
-
-{-| Given a value a and a stream as, this function produces a stream
-  that behaves like -}
-shift :: Stable a => a -> Str a -> Str a
-shift a (x ::: xs) = a ::: delay (shift x (adv xs))
-
-
-{-| Given a list @[a1, ..., an]@ of elements and a stream @xs@ this
-  function constructs a stream that starts with the elements @a1, ...,
-  an@, and then proceeds as @xs@. In particular, this means that the
-  ith element of the original stream @xs@ is the (i+n)th element of
-  the new stream. In other words @shiftMany@ behaves like repeatedly
-  applying @shift@ for each element in the list. -}
-shiftMany :: Stable a => List a -> Str a -> Str a
-shiftMany l xs = run l Nil xs where
-  run :: Stable a => List a -> List a -> Str a -> Str a
-  run (b :! bs) buf (x ::: xs) = b ::: delay (run bs (x :! buf) (adv xs))
-  run Nil buf (x ::: xs) =
-    case reverse' buf of
-      b :! bs -> b ::: delay (run bs (x :! Nil) (adv xs))
-      Nil -> x ::: xs
     
 
 -- Prevent functions from being inlined too early for the rewrite
