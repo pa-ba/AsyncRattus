@@ -32,6 +32,7 @@ module AsyncRattus.Strict
   )where
 
 import Prelude hiding (map)
+import Data.VectorSpace
 
 infixr 2 :*
 infixr 8 :!
@@ -184,3 +185,19 @@ instance (Show a, Show b) => Show (a:*b) where
 
 instance (Eq a, Eq b) => Eq (a :* b) where
   (x1 :* y1) == (x2 :* y2) = x1 == x2 && y1 == y2
+
+
+instance (Eq a, Floating a) => VectorSpace (a :* a) a where
+  zeroVector = 0 :* 0
+
+  a *^ (x :* y) = (a * x) :* (a * y)
+
+  (x :* y) ^/ a = (x / a) :* (y / a)
+
+  negateVector (x :* y) = (-x) :* (-y)
+
+  (x1 :* y1) ^+^ (x2 :* y2) = (x1 + x2) :* (y1 + y2)
+
+  (x1 :* y1) ^-^ (x2 :* y2) = (x1 - x2) :* (y1 - y2)
+
+  (x1 :* y1) `dot` (x2 :* y2) = x1 * x2 + y1 * y2

@@ -69,6 +69,7 @@ import qualified Data.Set as Set
 import Data.Char
 import Data.Maybe
 
+
 getMaybeVar :: CoreExpr -> Maybe Var
 getMaybeVar (App e e')
   | isType e' || not  (tcIsLiftedTypeKind (typeKind (exprType e'))) = getMaybeVar e
@@ -325,6 +326,7 @@ isStrictRec d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
+          | mod == "GHC.Num.Integer" && name == "Integer" -> True
           -- If it's a Rattus type constructor check if it's a box
           | isRattModule mod && (name == "Box" || name == "O" || name == "Output") -> True
             -- If its a built-in type check the set of stable built-in types
@@ -358,7 +360,8 @@ areSrcStrict args con = and (zipWith check tys (dataConSrcBangs con))
 
 isSrcStrict' :: HsSrcBang -> Bool
 isSrcStrict' (HsSrcBang _ _ SrcStrict) = True
-isSrcStrict' _ = False
+isSrcStrict' (HsSrcBang _ SrcUnpack _) = True
+isSrcStrict' _ =  False
 
 
 userFunction :: Var -> Bool

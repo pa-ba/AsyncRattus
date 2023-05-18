@@ -1,6 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
 
 
@@ -34,6 +37,8 @@ where
 import AsyncRattus
 import AsyncRattus.Channels
 import Prelude hiding (map, const, zipWith, zip, filter)
+import Data.VectorSpace
+
 
 instance Producer (Str a) where
   type Output (Str a) = a
@@ -151,40 +156,44 @@ zip :: (Stable a, Stable b) => Str a -> Str b -> Str (a:*b)
 zip = zipWith (box (:*))
 
 -- Constants for integration and derivative
-
 -- sampling interval in microseconds
+
 dt :: Int
 dt = 20000
--- sampling interval in seconds
-dtf :: Float
-dtf = fromIntegral dt * 0.000001
 
--- inverse of sampling interval in seconds
-dti :: Float
-dti = 1/(fromIntegral dt * 0.000001)
   
-integral :: Float -> Str Float -> Str Float
-integral cur (0 ::: xs) = cur ::: delay (integral cur (adv xs))
-integral cur (x ::: xs) = cur ::: delay (
-  case select xs (unbox (timer dt)) of
-    Fst xs' _ -> integral cur xs'
-    Snd xs' () -> integral (cur + x * dtf) (x ::: xs')
-    Both (x' ::: xs') () ->  integral (cur + x' * dtf) (x'::: xs'))
-        
+integral :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
+  => v -> Str v -> Str v
+integral = run 
+  where run cur (x ::: xs)
+          | x == zeroVector = cur ::: delay (integral cur (adv xs))
+          | otherwise = cur ::: delay (
+              case select xs (unbox (timer dt)) of
+                Fst xs' _ -> integral cur xs'
+                Snd xs' () -> integral (dtf *^ (cur ^+^ x)) (x ::: xs')
+                Both (x' ::: xs') () ->  integral (dtf *^ (cur ^+^ x')) (x'::: xs'))
+         -- sampling interval in seconds
+        dtf :: a
+        dtf = fromIntegral dt * 0.000001
+                
 
-derivative :: Str Float -> Str Float
-derivative xs = der 0 (hd xs) xs where
-  der :: Float -> Float -> Str Float -> Str Float
-  der 0 _ (x:::xs) = 0 ::: delay
-    (let x' ::: xs' = adv xs
-     in der ((x' - x) * dti) x (x' ::: xs'))
-  der d last (x:::xs) = d ::: delay (
-     case select xs (unbox (timer dt)) of
-       Fst xs' _ -> der d last xs'
-       Snd xs' () -> der ((x - last) * dti) x (x ::: xs')
-       Both (x' ::: xs') () ->  der ((x' - last) * dti) x' (x' ::: xs'))
+derivative :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
+  => Str v -> Str v
+derivative xs = der zeroVector (hd xs) xs where
+  -- inverse sampling interval in seconds
+  dtf :: a
+  dtf = fromIntegral dt * 0.000001
 
-
+  der :: v -> v -> Str v -> Str v
+  der d last (x:::xs)
+    | d == zeroVector = zeroVector ::: delay
+                        (let x' ::: xs' = adv xs
+                         in der ((x' ^-^ x) ^/ dtf) x (x' ::: xs'))
+    | otherwise = d ::: delay (
+        case select xs (unbox (timer dt)) of
+          Fst xs' _ -> der d last xs'
+          Snd xs' () -> der ((x ^-^ last) ^/ dtf) x (x ::: xs')
+          Both (x' ::: xs') () ->  der ((x' ^-^ last) ^/ dtf) x' (x' ::: xs'))
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
