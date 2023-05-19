@@ -32,6 +32,7 @@ import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
 import Control.Concurrent
 
+infixr 5 :::
 
 -- | @Sig a@ is a stream of values of type @a@.
 data Sig a = !a ::: !(O (Sig a))

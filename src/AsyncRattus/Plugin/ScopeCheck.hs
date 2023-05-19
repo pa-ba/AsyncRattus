@@ -472,8 +472,7 @@ instance Scope (HsExpr GhcTc) where
                -- printMessageCheck SevWarning
                --  (ppr v <> text " is an external temporal function used under delay, which may cause time leaks.")
   check (HsApp _ (L _ (HsApp _ f arg)) arg2) | isSelect f =
-    case isPrimExpr f of
-    Just (Select,_) -> case earlier ?ctxt of
+    case earlier ?ctxt of
       Right (er :| ers) -> do
         res <- get
         case res of
@@ -493,7 +492,6 @@ instance Scope (HsExpr GhcTc) where
       Left NoDelay -> printMessageCheck SevError "select may only be used in the scope of a delay."
       Left (TickHidden hr) -> printMessageCheck SevError ("select may only be used in the scope of a delay. "
                         <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
-    _ -> error "Asynchronous Rattus: internal error"
   check (HsApp _ e1 e2) =
     case isPrimExpr e1 of
     Just (p,_) -> case p of
