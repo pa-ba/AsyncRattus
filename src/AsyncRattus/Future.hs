@@ -1,6 +1,6 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
@@ -41,18 +41,15 @@ import AsyncRattus.Channels
 
 newtype OneShot a = OneShot (F a)
 
-instance Producer (OneShot a) where
-  type Output (OneShot a) = a
+instance Producer (OneShot a) a where
   mkSig (OneShot (Now x)) = Just' x ::: never
   mkSig (OneShot (Wait x)) = Nothing' ::: delay (mkSig (OneShot (adv x)))
 
-instance Producer p => Producer (F p) where
-  type Output (F p) = Output p
+instance Producer p a => Producer (F p) a where
   mkSig (Now x) = mkSig x
   mkSig (Wait x) = Nothing' ::: delay (mkSig (adv x))
 
-instance Producer (SigF a) where
-  type Output (SigF a) = a
+instance Producer (SigF a) a where
   mkSig (x :>: xs) = Just' x ::: delay (mkSig (adv xs))
 
 

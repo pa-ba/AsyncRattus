@@ -1,8 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
+
 
 module AsyncRattus.Channels (
   registerInput,
@@ -33,15 +37,13 @@ import Control.Concurrent
 data Sig a = !a ::: !(O (Sig a))
 
 
-class Producer p where
-  type Output p
-  mkSig :: p -> Sig (Maybe' (Output p))
+class Producer p a | p -> a where
+  mkSig :: p -> Sig (Maybe' a)
 
 {-# ANN module AsyncRattus #-}
 {-# ANN module AllowLazyData #-}
 
-instance Producer p => Producer (O p) where
-  type Output (O p) = Output p
+instance Producer p a => Producer (O p) a where
   mkSig p = Nothing' ::: delay (mkSig (adv p))
 
 
@@ -89,7 +91,7 @@ registerOutput' !sig cb = do
           pre >> H.mutate output ch upd
   IntSet.foldl' run (return ()) (extractClock sig)
 
-registerOutput :: Producer p => p -> (Output p -> IO ()) -> IO ()
+registerOutput :: Producer p a => p -> (a -> IO ()) -> IO ()
 registerOutput !sig cb = do
   let cur ::: sig' = mkSig sig
   case cur of
@@ -97,7 +99,7 @@ registerOutput !sig cb = do
     Nothing' -> return ()
   registerOutput' sig' cb
 
-mkInput :: Producer p => p -> IO (Box (O (Output p)))
+mkInput :: Producer p a => p -> IO (Box (O a))
 mkInput p = do (out :* cb) <-registerInput
                registerOutput p cb
                return out

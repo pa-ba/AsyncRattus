@@ -62,7 +62,7 @@ numchar = do
          forkIO loop
          return (intInp :* charInp)
 {-# ANN registerConsoleOutput NotAsyncRattus #-}
-registerConsoleOutput :: (Producer p, Show (Output p)) => String -> p -> IO ()
+registerConsoleOutput :: (Producer p a, Show a) => String -> p -> IO ()
 registerConsoleOutput str sig = registerOutput sig (\ x -> putStrLn (str ++ ": " ++ show x))
 
 

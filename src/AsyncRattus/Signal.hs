@@ -38,10 +38,9 @@ import AsyncRattus
 import AsyncRattus.Channels
 import Prelude hiding (map, const, zipWith, zip, filter)
 import Data.VectorSpace
+import Data.Ratio ((%))
 
-
-instance Producer (Sig a) where
-  type Output (Sig a) = a
+instance Producer (Sig a) a where
   mkSig = map (box Just')
 
 
@@ -162,17 +161,17 @@ dt = 20000
   
 integral :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
   => v -> Sig v -> Sig v
-integral = run 
-  where run cur (x ::: xs)
-          | x == zeroVector = cur ::: delay (integral cur (adv xs))
+integral = int 
+  where int cur (x ::: xs)
+          | x == zeroVector = cur ::: delay (int cur (adv xs))
           | otherwise = cur ::: delay (
               case select xs (unbox (timer dt)) of
-                Fst xs' _ -> integral cur xs'
-                Snd xs' () -> integral (dtf *^ (cur ^+^ x)) (x ::: xs')
-                Both (x' ::: xs') () ->  integral (dtf *^ (cur ^+^ x')) (x'::: xs'))
+                Fst xs' _ -> int cur xs'
+                Snd xs' () -> int (dtf *^ (cur ^+^ x)) (x ::: xs')
+                Both (x' ::: xs') () ->  int (dtf *^ (cur ^+^ x')) (x'::: xs'))
          -- sampling interval in seconds
         dtf :: a
-        dtf = fromIntegral dt * 0.000001
+        dtf = fromRational (fromIntegral dt % 1000000)
                 
 
 derivative :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
