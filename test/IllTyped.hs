@@ -3,7 +3,7 @@
 module Main (module Main) where
 
 import AsyncRattus
-import AsyncRattus.Stream as S
+import AsyncRattus.Signal as S
 import Prelude
 import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 
@@ -12,19 +12,19 @@ import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 
 
 {-# ANN loopIndirect ExpectError #-}
-loopIndirect :: Str Int
+loopIndirect :: Sig Int
 loopIndirect = run
-  where run :: Str Int
+  where run :: Sig Int
         run = loopIndirect
 
 {-# ANN loopIndirect' ExpectError #-}
-loopIndirect' :: Str Int
+loopIndirect' :: Sig Int
 loopIndirect' = let run = loopIndirect' in run
 
 {-# ANN nestedUnguard ExpectError #-}
-nestedUnguard :: Str Int
+nestedUnguard :: Sig Int
 nestedUnguard = run 0
-  where run :: Int -> Str Int
+  where run :: Int -> Sig Int
         run 0 = nestedUnguard
         run n = n ::: delay (run (n-1))
 
@@ -53,11 +53,11 @@ grec :: a
 grec = grec
 
 {-# ANN boxStream ExpectError #-}
-boxStream :: Str Int -> Box (Str Int)
-boxStream s = box (0 ::: tl s)
+boxStream :: Sig Int -> Box (Sig Int)
+boxStream s = box (0 ::: future s)
 
 {-# ANN boxStream' ExpectError #-}
-boxStream' :: Str Int -> Box (Str Int)
+boxStream' :: Sig Int -> Box (Sig Int)
 boxStream' s = box s
 
 {-# ANN intDelay ExpectError #-}
@@ -82,30 +82,30 @@ mutualLoop' :: a
 mutualLoop' = mutualLoop
 
 {-# ANN constUnstable ExpectError #-}
-constUnstable :: a -> Str a
+constUnstable :: a -> Sig a
 constUnstable a = run
   where run = a ::: delay run
 
 {-# ANN mapUnboxed ExpectError #-}
-mapUnboxed :: (a -> b) -> Str a -> Str b
+mapUnboxed :: (a -> b) -> Sig a -> Sig b
 mapUnboxed f = run
   where run (x ::: xs) = f x ::: delay (run (adv xs))
 
 {-# ANN mapUnboxedMutual ExpectError #-}
-mapUnboxedMutual :: (a -> b) -> Str a -> Str b
+mapUnboxedMutual :: (a -> b) -> Sig a -> Sig b
 mapUnboxedMutual f = run
   where run (x ::: xs) = f x ::: delay (run' (adv xs))
         run' (x ::: xs) = f x ::: delay (run (adv xs))
 
 -- mutual recursive pattern definitions are not supported
--- foo1,foo2 :: Box (a -> b) -> Str a -> Str b
+-- foo1,foo2 :: Box (a -> b) -> Sig a -> Sig b
 -- (foo1,foo2) = (\ f (x ::: xs) -> unbox f x ::: (delay (foo2 f) <#> xs),
 --                \ f (x ::: xs) -> unbox f x ::: (delay (foo1 f) <#> xs))
 
 {-# ANN nestedPattern ExpectError #-}
-nestedPattern :: Box (a -> b) -> Str a -> Str b
+nestedPattern :: Box (a -> b) -> Sig a -> Sig b
 nestedPattern = foo1 where
-  foo1,foo2 :: Box (a -> b) -> Str a -> Str b
+  foo1,foo2 :: Box (a -> b) -> Sig a -> Sig b
   (foo1,foo2) = (\ f (x ::: xs) -> unbox f x ::: (delay (foo2 f (adv xs))),
                  \ f (x ::: xs) -> unbox f x ::: (delay (foo1 f (adv xs))))
 
@@ -116,7 +116,7 @@ data Move = StartLeft | EndLeft | StartRight | EndRight | NoMove
 {-# ANN constS ExpectError #-}
 -- Input is not a stable type (it is not strict). Therefore this
 -- should not type check.
-constS :: Input -> Str Input
+constS :: Input -> Sig Input
 constS a = a ::: delay (constS a)
 
 
@@ -142,7 +142,7 @@ weirdPlusTwo x = delay (
     )
 
 {-# ANN stutter ExpectError #-}
-stutter :: Int -> Str Int
+stutter :: Int -> Sig Int
 stutter n = n ::: delay (n ::: delay (stutter (n+1)))
 
 {-# ANN advAlias ExpectError #-}

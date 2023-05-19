@@ -11,7 +11,7 @@ module AsyncRattus.Channels (
   startEventLoop,
   timer,
   Producer (..),
-  Str (..)
+  Sig (..)
 ) where
 
 import AsyncRattus.InternalPrimitives
@@ -29,20 +29,20 @@ import qualified Data.IntSet as IntSet
 import Control.Concurrent
 
 
--- | @Str a@ is a stream of values of type @a@.
-data Str a = !a ::: !(O (Str a))
+-- | @Sig a@ is a stream of values of type @a@.
+data Sig a = !a ::: !(O (Sig a))
 
 
 class Producer p where
   type Output p
-  mkStr :: p -> Str (Maybe' (Output p))
+  mkSig :: p -> Sig (Maybe' (Output p))
 
 {-# ANN module AsyncRattus #-}
 {-# ANN module AllowLazyData #-}
 
 instance Producer p => Producer (O p) where
   type Output (O p) = Output p
-  mkStr p = Nothing' ::: delay (mkStr (adv p))
+  mkSig p = Nothing' ::: delay (mkSig (adv p))
 
 
 {-# NOINLINE nextFreshChannel #-}
@@ -55,7 +55,7 @@ input :: MVar InputValue
 input = unsafePerformIO newEmptyMVar
 
 data OutputChannel where
-  OutputChannel :: !(O (Str (Maybe' a))) -> !(a -> IO ()) -> OutputChannel
+  OutputChannel :: !(O (Sig (Maybe' a))) -> !(a -> IO ()) -> OutputChannel
 
 
 {-# NOINLINE output #-}
@@ -73,7 +73,7 @@ registerInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
                    return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
                           :* \ x -> putMVar input (InputValue ch x))
 
-registerOutput' :: O (Str (Maybe' a)) -> (a -> IO ()) -> IO ()
+registerOutput' :: O (Sig (Maybe' a)) -> (a -> IO ()) -> IO ()
 registerOutput' !sig cb = do
   ref <- newIORef (Just' (OutputChannel sig cb))
   let upd Nothing = (Just (ref :! Nil),())
@@ -91,7 +91,7 @@ registerOutput' !sig cb = do
 
 registerOutput :: Producer p => p -> (Output p -> IO ()) -> IO ()
 registerOutput !sig cb = do
-  let cur ::: sig' = mkStr sig
+  let cur ::: sig' = mkSig sig
   case cur of
     Just' cur' -> cb cur'
     Nothing' -> return ()

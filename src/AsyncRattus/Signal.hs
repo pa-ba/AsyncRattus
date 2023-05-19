@@ -7,9 +7,9 @@
 {-# LANGUAGE CPP #-}
 
 
--- | Programming with streams.
+-- | Programming with signals.
 
-module AsyncRattus.Stream
+module AsyncRattus.Signal
   ( map
   , mapAwait
   , switch
@@ -17,14 +17,14 @@ module AsyncRattus.Stream
   , switchAwait
   , interleave
   , mkSignal
-  , hd
-  , tl
+  , current
+  , future
   , fromLater
   , const
   , scan
   , scanAwait
   , scanMap
-  , Str(..)
+  , Sig(..)
   , zipWith
   , zipWithAwait
   , zip
@@ -40,50 +40,48 @@ import Prelude hiding (map, const, zipWith, zip, filter)
 import Data.VectorSpace
 
 
-instance Producer (Str a) where
-  type Output (Str a) = a
-  mkStr = map (box Just')
+instance Producer (Sig a) where
+  type Output (Sig a) = a
+  mkSig = map (box Just')
 
 
--- all functions in this module are in Asynchronous Rattus 
 {-# ANN module AsyncRattus #-}
 
--- | Get the first element (= head) of a stream.
-hd :: Str a -> a
-hd (x ::: _) = x
+-- | Get the current value of a signal.
+current :: Sig a -> a
+current (x ::: _) = x
 
 
--- | Get the tail of a stream, i.e. the remainder after removing the
--- first element.
-tl :: Str a -> O (Str a)
-tl (_ ::: xs) = xs
+-- | Get the future the signal.
+future :: Sig a -> O (Sig a)
+future (_ ::: xs) = xs
 
--- | Apply a function to each element of a stream.
-map :: Box (a -> b) -> Str a -> Str b
+-- | Apply a function to the value of a signal.
+map :: Box (a -> b) -> Sig a -> Sig b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
 
--- | Apply a function to each element of a stream.
-mapAwait :: Box (a -> b) -> O (Str a) -> O (Str b)
+-- | A version of @map@ for delayed signals.
+mapAwait :: Box (a -> b) -> O (Sig a) -> O (Sig b)
 mapAwait f d = delay (map f (adv d))
 
-mkSignal :: Box (O a) -> O (Str a)
+mkSignal :: Box (O a) -> O (Sig a)
 mkSignal b = delay (adv (unbox b) ::: mkSignal b)
 
 
--- Construct a stream which just yields values from a later
-fromLater :: (Stable a) => Box (O a) -> O (Str a)
+-- Construct a signal from a stable delayed value, e.g. typically from
+-- an input channel.
+fromLater :: (Stable a) => Box (O a) -> O (Sig a)
 fromLater l = delay (let x = adv (unbox l) in x ::: fromLater l)
 
--- | Construct a stream that has the given value and then never ticks.
--- | From the Async RaTT paper
-const :: a -> Str a
+-- | Construct a constant signal that never updates.
+const :: a -> Sig a
 const x = x ::: never
 
--- | Construct a stream by repeatedly applying a function to a given
--- start element. That is, @unfold (box f) x@ will produce the stream
+-- | Construct a signal by repeatedly applying a function to a given
+-- start element. That is, @unfold (box f) x@ will produce the signal
 -- @x ::: f x ::: f (f x) ::: ...@
--- unfold :: Stable a => Box (a -> a) -> a -> Str a
+-- unfold :: Stable a => Box (a -> a) -> a -> Sig a
 -- unfold f x = x ::: delay (unfold f (unbox f x))
 
 -- | Similar to Haskell's 'scanl'.
@@ -92,42 +90,42 @@ const x = x ::: never
 --
 -- Note: Unlike 'scanl', 'scan' starts with @x `f` v1@, not @x@.
 
-scan :: (Stable b) => Box(b -> a -> b) -> b -> Str a -> Str b
+scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
 scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
 
--- Like scan, but uses a delayed stream. Taken from the Async RaTT paper.
-scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Str a) -> Str b
+-- Like 'scan', but uses a delayed signal.
+scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
 scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
 -- > scanMap f g x === map g . scan f x
-scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Str a -> Str c
+scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
 scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
   where acc' = unbox f acc a
 
 
-switch :: Str a -> O (Str a) -> Str a
+switch :: Sig a -> O (Sig a) -> Sig a
 switch (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switch xs' d'
                                      Snd   _    d'  -> d'
                                      Both  _    d'  -> d')
 
-switchS :: Stable a => Str a -> O (a -> Str a) -> Str a
+switchS :: Stable a => Sig a -> O (a -> Sig a) -> Sig a
 switchS (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switchS xs' d'
                                      Snd   _    f  -> f x
                                      Both  _    f  -> f x)
 
-switchAwait :: O (Str a) -> O (Str a) -> O (Str a)
+switchAwait :: O (Sig a) -> O (Sig a) -> O (Sig a)
 switchAwait xs ys = delay (case select xs ys of
                                   Fst  xs'  d'  -> switch xs' d'
                                   Snd  _    d'  -> d'
                                   Both _    d'  -> d')
 
 
-interleave :: Box (a -> a -> a) -> O (Str a) -> O (Str a) -> O (Str a)
+interleave :: Box (a -> a -> a) -> O (Sig a) -> O (Sig a) -> O (Sig a)
 interleave f xs ys = delay (case select xs ys of
                               Fst (x ::: xs') ys' -> x ::: interleave f xs' ys'
                               Snd xs' (y ::: ys') -> y ::: interleave f xs' ys'
@@ -136,7 +134,7 @@ interleave f xs ys = delay (case select xs ys of
 
 -- | Similar to 'Prelude.zipWith' on Haskell lists.
 -- | Inspired by 'zip' in the Async RaTT paper.
-zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> Str a -> Str b -> Str c
+zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> Sig a -> Sig b -> Sig c
 zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (
     case select as bs of
       Fst as' lbs -> zipWith f as' (b ::: lbs)
@@ -144,7 +142,7 @@ zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (
       Both as' bs' -> zipWith f as' bs'
   )
 
-zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> O (Str a) -> O (Str b) -> a -> b -> Str c
+zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> O (Sig a) -> O (Sig b) -> a -> b -> Sig c
 zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
     case select as bs of
       Both as' bs' -> zipWith f as' bs'
@@ -152,18 +150,18 @@ zipWithAwait f as bs defaultA defaultB = unbox f defaultA defaultB :::  delay (
       Snd las bs' -> zipWith f (defaultA ::: las) bs'
   )
 
-zip :: (Stable a, Stable b) => Str a -> Str b -> Str (a:*b)
+zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
 
--- Constants for integration and derivative
--- sampling interval in microseconds
+-- | Sampling interval (in microseconds) for the 'integral' and
+-- 'derivative' functions.
 
 dt :: Int
 dt = 20000
 
   
 integral :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
-  => v -> Str v -> Str v
+  => v -> Sig v -> Sig v
 integral = run 
   where run cur (x ::: xs)
           | x == zeroVector = cur ::: delay (integral cur (adv xs))
@@ -178,13 +176,13 @@ integral = run
                 
 
 derivative :: forall a v . (VectorSpace v a, Eq v, Fractional a, Stable v, Stable a)
-  => Str v -> Str v
-derivative xs = der zeroVector (hd xs) xs where
+  => Sig v -> Sig v
+derivative xs = der zeroVector (current xs) xs where
   -- inverse sampling interval in seconds
   dtf :: a
   dtf = fromIntegral dt * 0.000001
 
-  der :: v -> v -> Str v -> Str v
+  der :: v -> v -> Sig v -> Sig v
   der d last (x:::xs)
     | d == zeroVector = zeroVector ::: delay
                         (let x' ::: xs' = adv xs

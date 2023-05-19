@@ -9,7 +9,9 @@
 
 module AsyncRattus.Future
   ( F(..)
-  , StrF(..)
+  , SigF(..)
+  , current
+  , future
   , bindF
   , mapF
   , sync
@@ -24,7 +26,7 @@ module AsyncRattus.Future
   , mapAwait
   , zipWith
   , zipWithAwait
-  , fromStr
+  , fromSig
   , scan
   , scanAwait
   )
@@ -35,22 +37,23 @@ import AsyncRattus
 import Prelude hiding (map, filter, zipWith)
 import AsyncRattus.Channels
 
+{-# ANN module AsyncRattus #-}
 
 newtype OneShot a = OneShot (F a)
 
 instance Producer (OneShot a) where
   type Output (OneShot a) = a
-  mkStr (OneShot (Now x)) = Just' x ::: never
-  mkStr (OneShot (Wait x)) = Nothing' ::: delay (mkStr (OneShot (adv x)))
+  mkSig (OneShot (Now x)) = Just' x ::: never
+  mkSig (OneShot (Wait x)) = Nothing' ::: delay (mkSig (OneShot (adv x)))
 
 instance Producer p => Producer (F p) where
   type Output (F p) = Output p
-  mkStr (Now x) = mkStr x
-  mkStr (Wait x) = Nothing' ::: delay (mkStr (adv x))
+  mkSig (Now x) = mkSig x
+  mkSig (Wait x) = Nothing' ::: delay (mkSig (adv x))
 
-instance Producer (StrF a) where
-  type Output (StrF a) = a
-  mkStr (x :>: xs) = Just' x ::: delay (mkStr (adv xs))
+instance Producer (SigF a) where
+  type Output (SigF a) = a
+  mkSig (x :>: xs) = Just' x ::: delay (mkSig (adv xs))
 
 
 
@@ -95,30 +98,38 @@ syncB x (Now y) = Now (x :* y)
 syncB x (Wait y) = Wait (delay (syncB x (adv y)))
 
 
--- | @StrF a@ is a stream of values of type @a@.
-data StrF a = !a :>: !(O (F (StrF a)))
+-- | @SigF a@ is a signal of values of type @a@. In contrast to 'Sig',
+-- 'SigF' supports the 'filter' and 'mapMaybe' functions.
+data SigF a = !a :>: !(O (F (SigF a)))
 
--- all functions in this module are in Asynchronous Rattus 
-{-# ANN module AsyncRattus #-}
 
-fromStr :: Str a -> StrF a
-fromStr (x ::: xs) = x :>: delay (Now (fromStr (adv xs)))
+-- | Get the current value of a signal.
+current :: SigF a -> a
+current (x :>: _) = x
+
+
+-- | Get the future the signal.
+future :: SigF a -> O (F (SigF a))
+future (_ :>: xs) = xs
+
+fromSig :: Sig a -> SigF a
+fromSig (x ::: xs) = x :>: delay (Now (fromSig (adv xs)))
 
   
-switchAwait :: F (StrF a) -> F (StrF a) -> F(StrF a)
+switchAwait :: F (SigF a) -> F (SigF a) -> F(SigF a)
 switchAwait _ (Now ys) = Now ys
 switchAwait (Now (x :>: xs)) (Wait ys) = Now (x :>: delay (uncurry' switchAwait (adv (sync xs ys)) ))
 switchAwait (Wait xs) (Wait ys) = Wait (delay (uncurry' switchAwait (adv (sync xs ys)) ))
 
-switch :: StrF a -> F (StrF a) -> StrF a
+switch :: SigF a -> F (SigF a) -> SigF a
 switch _ (Now ys) = ys
 switch (x :>: xs) (Wait ys) = x :>: delay (uncurry' switchAwait (adv (sync xs ys)))
 
-switchS :: Stable a => StrF a -> F (a -> StrF a) -> StrF a
+switchS :: Stable a => SigF a -> F (a -> SigF a) -> SigF a
 switchS (x :>: _) (Now f) = f x
 switchS (x :>: xs) (Wait ys) = x :>: delay (uncurry' (switchAwaitS x) (adv (sync xs ys)))
 
-switchAwaitS :: Stable a => a -> F (StrF a) -> F (a -> StrF a) -> F (StrF a)
+switchAwaitS :: Stable a => a -> F (SigF a) -> F (a -> SigF a) -> F (SigF a)
 switchAwaitS _ (Now (x :>: _)) (Now f) = Now (f x)
 switchAwaitS _ (Now (x :>: xs)) (Wait ys) =
   Now (x :>: delay (uncurry' (switchAwaitS x) (adv (sync xs ys))))
@@ -127,45 +138,45 @@ switchAwaitS x (Wait xs) (Wait ys) = Wait (delay (uncurry' (switchAwaitS x) (adv
 
 
 
-mapMaybeAwait :: Box (a -> Maybe' b) -> F(StrF a) -> F (StrF b)
+mapMaybeAwait :: Box (a -> Maybe' b) -> F(SigF a) -> F (SigF b)
 mapMaybeAwait f (Wait xs) = Wait (delay (mapMaybeAwait f (adv xs)))
 mapMaybeAwait f (Now (x :>: xs)) = case unbox f x of
                                      Just' y  -> Now (y :>: delay (mapMaybeAwait f (adv xs)))
                                      Nothing' -> Wait (delay (mapMaybeAwait f (adv xs)))
 
-mapMaybe :: Box (a -> Maybe' b) -> StrF a -> F (StrF b)
+mapMaybe :: Box (a -> Maybe' b) -> SigF a -> F (SigF b)
 mapMaybe f xs = mapMaybeAwait f (Now xs)
 
 
-filterAwait :: Box (a -> Bool) -> F( StrF a) -> F (StrF a)
+filterAwait :: Box (a -> Bool) -> F( SigF a) -> F (SigF a)
 filterAwait p = mapMaybeAwait (box (\ x -> if unbox p x then Just' x else Nothing'))
 
-filter :: Box (a -> Bool) -> StrF a -> F (StrF a)
+filter :: Box (a -> Bool) -> SigF a -> F (SigF a)
 filter p = mapMaybe (box (\ x -> if unbox p x then Just' x else Nothing'))
 
-mapAwait :: Box (a -> b) -> F (StrF a) -> F (StrF b)
+mapAwait :: Box (a -> b) -> F (SigF a) -> F (SigF b)
 mapAwait f (Now (x :>: xs)) = Now (unbox f x :>: delay (mapAwait f (adv xs)))
 mapAwait f (Wait xs) = Wait (delay (mapAwait f (adv xs)))
 
-map :: Box (a -> b) -> StrF a -> StrF b
+map :: Box (a -> b) -> SigF a -> SigF b
 map f (x :>: xs) = unbox f x :>: delay (mapAwait f (adv xs))
 
 
 
-zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> StrF a -> StrF b -> StrF c
+zipWith :: (Stable a, Stable b) => Box(a -> b -> c) -> SigF a -> SigF b -> SigF c
 zipWith f (a :>: as) (b :>: bs) = unbox f a b :>: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs)))
 
-zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> a -> b -> F (StrF a) -> F (StrF b) -> F (StrF c)
+zipWithAwait :: (Stable a, Stable b) => Box(a -> b -> c) -> a -> b -> F (SigF a) -> F (SigF b) -> F (SigF c)
 zipWithAwait f _ _ (Now (a :>: as)) (Now (b :>: bs)) = Now (unbox f a b :>: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 zipWithAwait f _ b (Now (a :>: as)) (Wait bs) = Now (unbox f a b :>: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 zipWithAwait f a _ (Wait as) (Now (b :>: bs)) = Now (unbox f a b :>: delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 zipWithAwait f a b (Wait as) (Wait bs) = Wait (delay (uncurry' (zipWithAwait f a b) (adv (sync as bs))))
 
-scan :: (Stable b) => Box(b -> a -> b) -> b -> StrF a -> StrF b
+scan :: (Stable b) => Box(b -> a -> b) -> b -> SigF a -> SigF b
 scan f acc (a :>: as) = acc' :>: delay (scanAwait f acc' (adv as))
   where acc' = unbox f acc a
 
-scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> F (StrF a) -> F (StrF b)
+scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> F (SigF a) -> F (SigF b)
 scanAwait f acc (Now (a :>: as)) = Now (acc' :>: delay (scanAwait f acc' (adv as)))
   where acc' = unbox f acc a
 scanAwait f acc (Wait as) = Wait (delay (scanAwait f acc (adv as)))
