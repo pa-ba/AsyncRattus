@@ -10,18 +10,23 @@
 module AsyncRattus.Future
   ( F(..)
   , SigF(..)
+  , mkSigF
+  , mkSigF'
   , current
   , future
   , bindF
   , mapF
   , sync
-  , sync'
+  , syncF
   , switchAwait
   , switch
   , switchS
-  , mapMaybe
+  , filterMap
+  , filterMapAwait
   , filterAwait
   , filter
+  , trigger
+  , triggerAwait
   , map
   , mapAwait
   , zipWith
@@ -42,15 +47,15 @@ import AsyncRattus.Channels
 newtype OneShot a = OneShot (F a)
 
 instance Producer (OneShot a) a where
-  mkSig (OneShot (Now x)) = Just' x ::: never
-  mkSig (OneShot (Wait x)) = Nothing' ::: delay (mkSig (OneShot (adv x)))
+  prod (OneShot (Now x)) = Just' x ::: never
+  prod (OneShot (Wait x)) = Nothing' ::: delay (prod (OneShot (adv x)))
 
 instance Producer p a => Producer (F p) a where
-  mkSig (Now x) = mkSig x
-  mkSig (Wait x) = Nothing' ::: delay (mkSig (adv x))
+  prod (Now x) = prod x
+  prod (Wait x) = Nothing' ::: delay (prod (adv x))
 
 instance Producer (SigF a) a where
-  mkSig (x :>: xs) = Just' x ::: delay (mkSig (adv xs))
+  prod (x :>: xs) = Just' x ::: delay (prod (adv xs))
 
 
 
@@ -74,15 +79,14 @@ sync x y = delay (case select x y of
                      Snd x' y' -> (Wait x' :* y')
                      Both x' y' -> (x' :* y'))
 
-
-sync' :: (Stable a, Stable b) => F a -> F b -> F (a :* b)
-sync' (Now x) (Now y) = Now (x :* y)
-sync' (Wait x) (Now y) = Wait (delay (syncA (adv x) y))
-sync' (Now x) (Wait y) = Wait (delay (syncB x (adv y)))
-sync' (Wait x) (Wait y) = Wait (delay (case select x y of
-                                         Fst x' y' -> sync' x' (Wait y')
-                                         Snd x' y' -> sync' (Wait x') y'
-                                         Both x' y' -> sync' x' y'
+syncF :: (Stable a, Stable b) => F a -> F b -> F (a :* b)
+syncF (Now x) (Now y) = Now (x :* y)
+syncF (Wait x) (Now y) = Wait (delay (syncA (adv x) y))
+syncF (Now x) (Wait y) = Wait (delay (syncB x (adv y)))
+syncF (Wait x) (Wait y) = Wait (delay (case select x y of
+                                         Fst x' y' -> syncF x' (Wait y')
+                                         Snd x' y' -> syncF (Wait x') y'
+                                         Both x' y' -> syncF x' y'
                                       )) 
 
 syncA :: (Stable b) => F a -> b -> F (a :* b)
@@ -96,7 +100,7 @@ syncB x (Wait y) = Wait (delay (syncB x (adv y)))
 
 
 -- | @SigF a@ is a signal of values of type @a@. In contrast to 'Sig',
--- 'SigF' supports the 'filter' and 'mapMaybe' functions.
+-- 'SigF' supports the 'filter' and 'filterMap' functions.
 data SigF a = !a :>: !(O (F (SigF a)))
 
 
@@ -108,6 +112,14 @@ current (x :>: _) = x
 -- | Get the future the signal.
 future :: SigF a -> O (F (SigF a))
 future (_ :>: xs) = xs
+
+
+mkSigF :: Box (O a) -> F (SigF a)
+mkSigF b = Wait (mkSigF' b) where
+
+mkSigF' :: Box (O a) -> O (F (SigF a))
+mkSigF' b = delay (Now (adv (unbox b) :>: mkSigF' b))
+
 
 fromSig :: Sig a -> SigF a
 fromSig (x ::: xs) = x :>: delay (Now (fromSig (adv xs)))
@@ -135,21 +147,43 @@ switchAwaitS x (Wait xs) (Wait ys) = Wait (delay (uncurry' (switchAwaitS x) (adv
 
 
 
-mapMaybeAwait :: Box (a -> Maybe' b) -> F(SigF a) -> F (SigF b)
-mapMaybeAwait f (Wait xs) = Wait (delay (mapMaybeAwait f (adv xs)))
-mapMaybeAwait f (Now (x :>: xs)) = case unbox f x of
-                                     Just' y  -> Now (y :>: delay (mapMaybeAwait f (adv xs)))
-                                     Nothing' -> Wait (delay (mapMaybeAwait f (adv xs)))
+filterMapAwait :: Box (a -> Maybe' b) -> F(SigF a) -> F (SigF b)
+filterMapAwait f (Wait xs) = Wait (delay (filterMapAwait f (adv xs)))
+filterMapAwait f (Now (x :>: xs)) = case unbox f x of
+                                     Just' y  -> Now (y :>: delay (filterMapAwait f (adv xs)))
+                                     Nothing' -> Wait (delay (filterMapAwait f (adv xs)))
 
-mapMaybe :: Box (a -> Maybe' b) -> SigF a -> F (SigF b)
-mapMaybe f xs = mapMaybeAwait f (Now xs)
+filterMap :: Box (a -> Maybe' b) -> SigF a -> F (SigF b)
+filterMap f xs = filterMapAwait f (Now xs)
 
 
 filterAwait :: Box (a -> Bool) -> F( SigF a) -> F (SigF a)
-filterAwait p = mapMaybeAwait (box (\ x -> if unbox p x then Just' x else Nothing'))
+filterAwait p = filterMapAwait (box (\ x -> if unbox p x then Just' x else Nothing'))
 
 filter :: Box (a -> Bool) -> SigF a -> F (SigF a)
-filter p = mapMaybe (box (\ x -> if unbox p x then Just' x else Nothing'))
+filter p = filterMap (box (\ x -> if unbox p x then Just' x else Nothing'))
+
+trigger :: Stable b => Box (a -> b -> c) -> SigF a -> SigF b -> SigF c
+trigger f (a :>: as) (b :>: bs) =
+  unbox f a b :>:
+  delay (uncurry' (trigger' b f) (adv (sync as bs)))
+
+triggerAwait :: Stable b => Box (a -> b -> c) -> F (SigF a) -> SigF b -> F (SigF c)
+triggerAwait f (Now (a :>: as)) (b :>: bs)
+  = Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
+triggerAwait f (Wait as) (b :>: bs)
+  = Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
+
+trigger' :: Stable b => b -> Box (a -> b -> c) -> F (SigF a) -> F (SigF b) -> F (SigF c)
+trigger' b f (Now (a :>: as)) (Wait bs) =
+  Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
+trigger' _ f (Now (a :>: as)) (Now (b :>: bs)) =
+  Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
+trigger' b f (Wait as) (Wait bs) =
+  Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
+trigger' _ f (Wait as) (Now (b :>: bs)) =
+  Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
+
 
 mapAwait :: Box (a -> b) -> F (SigF a) -> F (SigF b)
 mapAwait f (Now (x :>: xs)) = Now (unbox f x :>: delay (mapAwait f (adv xs)))

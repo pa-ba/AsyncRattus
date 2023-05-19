@@ -327,6 +327,7 @@ isStrictRec d pr t = do
         Nothing -> False
         Just (name,mod)
           | mod == "GHC.Num.Integer" && name == "Integer" -> True
+          | mod == "Data.Text.Internal" && name == "Text" -> True
           -- If it's a Rattus type constructor check if it's a box
           | isRattModule mod && (name == "Box" || name == "O" || name == "Output") -> True
             -- If its a built-in type check the set of stable built-in types

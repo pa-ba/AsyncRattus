@@ -16,7 +16,7 @@ module AsyncRattus.Signal
   , switchS
   , switchAwait
   , interleave
-  , mkSignal
+  , mkSig
   , current
   , future
   , fromLater
@@ -41,7 +41,13 @@ import Data.VectorSpace
 import Data.Ratio ((%))
 
 instance Producer (Sig a) a where
-  mkSig = map (box Just')
+  prod = map (box Just')
+
+
+newtype SigMaybe a = SigMaybe (Sig (Maybe' a))
+
+instance Producer (SigMaybe a) a where
+  prod (SigMaybe s) = s
 
 
 {-# ANN module AsyncRattus #-}
@@ -64,8 +70,8 @@ map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 mapAwait :: Box (a -> b) -> O (Sig a) -> O (Sig b)
 mapAwait f d = delay (map f (adv d))
 
-mkSignal :: Box (O a) -> O (Sig a)
-mkSignal b = delay (adv (unbox b) ::: mkSignal b)
+mkSig :: Box (O a) -> O (Sig a)
+mkSig b = delay (adv (unbox b) ::: mkSig b)
 
 
 -- Construct a signal from a stable delayed value, e.g. typically from

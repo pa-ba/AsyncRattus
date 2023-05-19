@@ -39,13 +39,13 @@ data Sig a = !a ::: !(O (Sig a))
 
 
 class Producer p a | p -> a where
-  mkSig :: p -> Sig (Maybe' a)
+  prod :: p -> Sig (Maybe' a)
 
 {-# ANN module AsyncRattus #-}
 {-# ANN module AllowLazyData #-}
 
 instance Producer p a => Producer (O p) a where
-  mkSig p = Nothing' ::: delay (mkSig (adv p))
+  prod p = Nothing' ::: delay (prod (adv p))
 
 
 {-# NOINLINE nextFreshChannel #-}
@@ -94,7 +94,7 @@ registerOutput' !sig cb = do
 
 registerOutput :: Producer p a => p -> (a -> IO ()) -> IO ()
 registerOutput !sig cb = do
-  let cur ::: sig' = mkSig sig
+  let cur ::: sig' = prod sig
   case cur of
     Just' cur' -> cb cur'
     Nothing' -> return ()
