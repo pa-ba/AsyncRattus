@@ -22,22 +22,22 @@ import Data.Text.Read
 
 
 {-# ANN consoleInput NotAsyncRattus #-}
-consoleInput :: IO (Box (O Text))
+consoleInput :: IO (Box (O (Sig Text)))
 consoleInput = do
-         (inp :* cb) <- registerInput
+         (inp :* cb) <- getInputSig
          let loop = do line <- getLine
                        cb line
                        loop
          forkIO loop
          return inp
 
-{-# ANN regPrint NotAsyncRattus #-}
-regPrint :: (Producer p a, Show a) => p -> IO ()
-regPrint sig = registerOutput sig print
+{-# ANN setPrint NotAsyncRattus #-}
+setPrint :: (Producer p a, Show a) => p -> IO ()
+setPrint sig = setOutput sig print
 
-{-# ANN regQuit NotAsyncRattus #-}
-regQuit :: (Producer p a) => p -> IO ()
-regQuit sig = registerOutput sig (\ _ -> exitSuccess)
+{-# ANN setQuit NotAsyncRattus #-}
+setQuit :: (Producer p a) => p -> IO ()
+setQuit sig = setOutput sig (\ _ -> exitSuccess)
 
 
 
@@ -57,43 +57,22 @@ nats :: Int -> Sig Int
 nats init = scan (box (\ n _ -> n+1)) init everySecondSig
 
 main = do
-  inp <- consoleInput
-  let console :: O (Sig Text)
-      console = mkSig inp
-  quitSig :: O (Sig Text) <- filterAwait (box (== "quit")) console
-  showSig :: O (Sig Text) <- filterAwait (box (== "show")) console
-  negSig :: Box (O (Sig Text)) <- filterAwait' (box (== "negate")) console
-  numSig :: Box (O (Sig Int)) <- filterMapAwait' (box readInt) console
+  console :: O (Sig Text) <- unbox <$> consoleInput
+  quitSig :: O (Sig Text) <- unbox <$> filterAwait (box (== "quit")) console
+  showSig :: O (Sig Text) <- unbox <$> filterAwait (box (== "show")) console
+  negSig :: Box (O (Sig Text)) <- filterAwait (box (== "negate")) console
+  numSig :: Box (O (Sig Int)) <- filterMapAwait (box readInt) console
 
   let sig :: Box (O (Sig (Int -> Int)))
-      sig = box (interleave (box (\x _ -> x))
+      sig = box (interleave (box (.))
                  (mapAwait (box (\_ n -> -n)) (unbox negSig))
                  (mapAwait (box (\m n -> m+n)) (unbox numSig)))
   
   let nats' :: Int -> Sig Int
       nats' init = switchS (nats init) (delay (\n -> nats' (current (adv (unbox sig)) n)))
   
-  showNat :: O (Sig Int) <- triggerAwait (box (\_ n -> n)) showSig (nats' 0)
+  showNat :: Box (O (Sig Int)) <- triggerAwait (box (\_ n -> n)) showSig (nats' 0)
 
-  regQuit quitSig
-  regPrint showNat
+  setQuit quitSig
+  setPrint showNat
   startEventLoop
-
-
--- main = do
---   inp <- consoleInput
---   let console :: O (Sig Text)
---       console = mkSig inp
---   quitSig :: O (Sig Text) <- filterAwait (box (== "quit")) console
---   showSig :: O (Sig Text) <- filterAwait (box (== "show")) console
-
---   numSig :: Box (O (Sig Int)) <- filterMapAwait' (box (readInt)) console
-
---   let nats' :: Int -> Sig Int
---       nats' init = switchS (nats init) (delay (\n -> nats' (n + current (adv (unbox numSig)))))
-  
---   showNat :: O (Sig Int) <- triggerAwait (box (\_ n -> n)) showSig (nats' 0)
-
---   regQuit quitSig
---   regPrint showNat
---   startEventLoop

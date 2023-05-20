@@ -11,18 +11,14 @@
 
 module AsyncRattus.Signal
   ( map
+  , mkInputSig
+  , getInputSig
   , filterMap
   , filterMapAwait
   , filter
   , filterAwait
   , trigger
   , triggerAwait
-  , filterMap'
-  , filterMapAwait'
-  , filter'
-  , filterAwait'
-  , trigger'
-  , triggerAwait'
   , mapAwait
   , switch
   , switchS
@@ -78,45 +74,33 @@ future (_ ::: xs) = xs
 map :: Box (a -> b) -> Sig a -> Sig b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
+getInputSig :: IO (Box (O (Sig a)) :* (a -> IO ()))
+getInputSig = do (s :* cb) <- getInput
+                 return (mkBoxSig s :* cb)
 
-filterMap :: Box (a -> Maybe' b) -> Sig a -> IO (O (Sig b))
-filterMap f s = mkSig <$> mkInput (SigMaybe (map f s))
+mkInputSig :: Producer p a => p -> IO (Box (O (Sig a)))
+mkInputSig p = mkBoxSig <$> mkInput p
 
-filterMap' :: Box (a -> Maybe' b) -> Sig a -> IO (Box (O (Sig b)))
-filterMap' f s = mkBoxSig <$> mkInput (SigMaybe (map f s))
+filterMap :: Box (a -> Maybe' b) -> Sig a -> IO (Box (O (Sig b)))
+filterMap f s = mkInputSig (SigMaybe (map f s))
 
 
-filterMapAwait' :: Box (a -> Maybe' b) -> O (Sig a) -> IO (Box (O (Sig b)))
-filterMapAwait' f s = mkBoxSig <$> mkInput (delay (SigMaybe (map f (adv s))))
+filterMapAwait :: Box (a -> Maybe' b) -> O (Sig a) -> IO (Box (O (Sig b)))
+filterMapAwait f s = mkInputSig (delay (SigMaybe (map f (adv s))))
 
-filterMapAwait :: Box (a -> Maybe' b) -> O (Sig a) -> IO (O (Sig b))
-filterMapAwait f s = mkSig <$> mkInput (delay (SigMaybe (map f (adv s))))
-
-filter :: Box (a -> Bool) -> Sig a -> IO (O (Sig a))
+filter :: Box (a -> Bool) -> Sig a -> IO (Box (O (Sig a)))
 filter p = filterMap (box (\ x -> if unbox p x then Just' x else Nothing'))
 
-filter' :: Box (a -> Bool) -> Sig a -> IO (Box (O (Sig a)))
-filter' p = filterMap' (box (\ x -> if unbox p x then Just' x else Nothing'))
-
-filterAwait' :: Box (a -> Bool) -> O (Sig a) -> IO (Box (O (Sig a)))
-filterAwait' p = filterMapAwait' (box (\ x -> if unbox p x then Just' x else Nothing'))
-
-filterAwait :: Box (a -> Bool) -> O (Sig a) -> IO (O (Sig a))
+filterAwait :: Box (a -> Bool) -> O (Sig a) -> IO (Box (O (Sig a)))
 filterAwait p = filterMapAwait (box (\ x -> if unbox p x then Just' x else Nothing'))
 
-trigger' :: (Stable a, Stable b) => Box (a -> b -> c) -> Sig a -> Sig b -> IO (Box (Sig c))
-trigger' f (a ::: as) bs@(b:::_) = do s <- triggerAwait' f as bs
-                                      return (box (unbox f a b ::: unbox s))
-
-trigger :: (Stable b) => Box (a -> b -> c) -> Sig a -> Sig b -> IO (Sig c)
+trigger :: (Stable a, Stable b) => Box (a -> b -> c) -> Sig a -> Sig b -> IO (Box (Sig c))
 trigger f (a ::: as) bs@(b:::_) = do s <- triggerAwait f as bs
-                                     return (unbox f a b ::: s)
+                                     return (box (unbox f a b ::: unbox s))
 
-triggerAwait :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> IO (O (Sig c))
-triggerAwait f as bs = unbox <$> triggerAwait' f as bs
 
-triggerAwait' :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> IO (Box (O (Sig c)))
-triggerAwait' f as bs = mkBoxSig <$> mkInput (box SigMaybe `mapO` (trig f as bs)) where
+triggerAwait :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> IO (Box (O (Sig c)))
+triggerAwait f as bs = mkBoxSig <$> mkInput (box SigMaybe `mapO` (trig f as bs)) where
   trig :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
   trig f as (b ::: bs) =
     delay (case select as bs of

@@ -46,22 +46,22 @@ import Data.Text.Read
 
 
 {-# ANN consoleInput NotAsyncRattus #-}
-consoleInput :: IO (Box (O Text))
+consoleInput :: IO (Box (O (Sig Text)))
 consoleInput = do
-         (inp :* cb) <- registerInput
+         (inp :* cb) <- getInputSig
          let loop = do line <- getLine
                        cb line
                        loop
          forkIO loop
          return inp
 
-{-# ANN regPrint NotAsyncRattus #-}
-regPrint :: (Producer p a, Show a) => p -> IO ()
-regPrint sig = registerOutput sig print
+{-# ANN setPrint NotAsyncRattus #-}
+setPrint :: (Producer p a, Show a) => p -> IO ()
+setPrint sig = setOutput sig print
 
-{-# ANN regQuit NotAsyncRattus #-}
-regQuit :: (Producer p a) => p -> IO ()
-regQuit sig = registerOutput sig (\ _ -> exitSuccess)
+{-# ANN setQuit NotAsyncRattus #-}
+setQuit :: (Producer p a) => p -> IO ()
+setQuit sig = setOutput sig (\ _ -> exitSuccess)
 
 
 

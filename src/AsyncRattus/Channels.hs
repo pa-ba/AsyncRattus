@@ -9,8 +9,8 @@
 
 
 module AsyncRattus.Channels (
-  registerInput,
-  registerOutput,
+  getInput,
+  setOutput,
   mkInput,
   startEventLoop,
   timer,
@@ -47,6 +47,9 @@ class Producer p a | p -> a where
 instance Producer p a => Producer (O p) a where
   prod p = Nothing' ::: delay (prod (adv p))
 
+instance Producer p a => Producer (Box p) a where
+  prod p = prod (unbox p)
+
 
 {-# NOINLINE nextFreshChannel #-}
 nextFreshChannel :: IORef InputChannelIdentifier
@@ -71,13 +74,13 @@ eventLoopStarted = unsafePerformIO (newIORef False)
 
 
 
-registerInput :: IO (Box (O a) :* (a -> IO ()))
-registerInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
-                   return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
-                          :* \ x -> putMVar input (InputValue ch x))
+getInput :: IO (Box (O a) :* (a -> IO ()))
+getInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
+              return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
+                       :* \ x -> putMVar input (InputValue ch x))
 
-registerOutput' :: O (Sig (Maybe' a)) -> (a -> IO ()) -> IO ()
-registerOutput' !sig cb = do
+setOutput' :: O (Sig (Maybe' a)) -> (a -> IO ()) -> IO ()
+setOutput' !sig cb = do
   ref <- newIORef (Just' (OutputChannel sig cb))
   let upd Nothing = (Just (ref :! Nil),())
       upd (Just ls) = (Just (ref :! ls),())
@@ -92,17 +95,17 @@ registerOutput' !sig cb = do
           pre >> H.mutate output ch upd
   IntSet.foldl' run (return ()) (extractClock sig)
 
-registerOutput :: Producer p a => p -> (a -> IO ()) -> IO ()
-registerOutput !sig cb = do
+setOutput :: Producer p a => p -> (a -> IO ()) -> IO ()
+setOutput !sig cb = do
   let cur ::: sig' = prod sig
   case cur of
     Just' cur' -> cb cur'
     Nothing' -> return ()
-  registerOutput' sig' cb
+  setOutput' sig' cb
 
 mkInput :: Producer p a => p -> IO (Box (O a))
-mkInput p = do (out :* cb) <-registerInput
-               registerOutput p cb
+mkInput p = do (out :* cb) <-getInput
+               setOutput p cb
                return out
 
 timer :: Int -> Box (O ())
@@ -120,7 +123,7 @@ update inp ref = do
       case w of
         Just' w' -> cb w'
         Nothing' -> return ()
-      registerOutput' d cb
+      setOutput' d cb
 
 
 {-# ANN eventLoop NotAsyncRattus #-}
