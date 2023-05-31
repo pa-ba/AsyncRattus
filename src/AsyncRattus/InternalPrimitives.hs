@@ -66,10 +66,10 @@ select _ _ = asyncRattusError "select"
 
 select' :: O a -> O b -> InputValue -> Select a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(InputValue chId _)
-  | chId `channelMember` clA && chId `channelMember` clB = Both (inpFA inputValue) (inpFB inputValue)
-  | chId `channelMember` clA = Fst (inpFA inputValue) b
-  | chId `channelMember` clB = Snd a (inpFB inputValue)
-  | otherwise = error "Tick did not come on correct input channels"
+  = if chId `channelMember` clA then
+      if chId `channelMember` clB then Both (inpFA inputValue) (inpFB inputValue)
+      else Fst (inpFA inputValue) b
+    else Snd a (inpFB inputValue)
 
 
 never :: O a
