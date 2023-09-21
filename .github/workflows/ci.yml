@@ -19,10 +19,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
         cabal: ["3.10.1.0"]
-        ghc: ["8.6", "8.8", "8.10", "9.0", "9.2", "9.4.4" , "9.6.1"]
-        exclude:
-          - os: windows-latest
-            ghc: 8.8
+        ghc: ["9.2", "9.4.4" , "9.6.1"]
     runs-on: ${{ matrix.os }}
     env:
       CONFIG: "--enable-tests"

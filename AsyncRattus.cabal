@@ -155,9 +155,9 @@ library
                        AsyncRattus.Plugin.StableSolver
                        AsyncRattus.Plugin.Transform
                        AsyncRattus.Plugin.PrimExpr
-  build-depends:       base >=4.12 && <5,
+  build-depends:       base >=4.16 && <5,
                        containers,
-                       ghc >= 8.6 && < 9.7,
+                       ghc >= 9.2 && < 9.7,
                        ghc-prim,
                        hashtables,
                        simple-affine-space,
