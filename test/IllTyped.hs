@@ -157,5 +157,14 @@ selectAlias = select
 partialSelectApp :: O a -> (O b -> Select a b)
 partialSelectApp l = select l
 
+{-# ANN doubleAdv ExpectError #-}
+doubleAdv :: O Int -> O Int
+doubleAdv li =  delay (adv li + adv li)
+
+{-# ANN addDelay ExpectError #-}
+addDelay :: O Int -> O Int -> O Int
+addDelay x y = delay (adv x + adv y)
+
+
 {-# ANN main NotAsyncRattus #-}
 main = putStrLn "This file should not type check"

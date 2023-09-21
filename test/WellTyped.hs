@@ -108,9 +108,7 @@ nats l = 0 ::: delay (let (n ::: ns) = myMap (nats never) in (adv l + n) ::: ns)
 nestedDelay :: Sig a -> Sig a
 nestedDelay (a ::: as) = a ::: delay (let x ::: xs = adv as in x ::: delay (nestedDelay (adv xs)))
 
--- should work since we can extract the clock of the variable at runtime.
--- because of the toSingleTick pass, the result of the if-expression is bound to a new variable, so we cannot
--- distinguish between a legal variable and a synthesized one.
+
 naiveIf :: Bool -> O a -> O a -> O (Bool :* a)
 naiveIf b x y = delay (b :* adv (if b then x else y))
 
@@ -120,19 +118,6 @@ naiveIf' b x y = delay (b :* adv later)
         later = case b of
             True -> x
             False -> y
-
--- doubleAdv :: O Int -> O Int
--- doubleAdv li = 
---   delay (
---     adv li + adv li
---   )
-
--- advOnAliasedVar :: O Int -> O Int
--- advOnAliasedVar li =
---   let lk = li
---   in delay (
---     adv li + adv lk
---   )
 
 advUnderLambda :: O Int -> O (a -> Int)
 advUnderLambda y = delay (\_ -> adv y)
