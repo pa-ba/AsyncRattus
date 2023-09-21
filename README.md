@@ -1,18 +1,32 @@
-# Introduciton
+# Introduction
 
-Asynchronous Rattus is a programming language embedded into GHC. It is built on top of [Rattus](https://github.com/pa-ba/Rattus) by utilizing the [Async RaTT](https://arxiv.org/abs/2303.03170) calculus.
+This library implements the Async Rattus programming language as an
+embedded DSL. To this end the library provides a GHC plugin that
+checks the stricter typing rules of Async Rattus.
+            
+Async Rattus is a functional reactive programming (FRP) language that
+uses modal types to express temporal dependencies. In return the
+language will guarantee that programs are productive (in each
+computation step, the program makes progress), causal (output depends
+only on current and earlier input), and have no space leaks (programs
+do not implicitly retain memory over time).
+
+A more detailed introduction to the language can be found in this
+[paper](docs/paper.pdf).
 
 # Usage
 
-Asynchronous Rattus has been tested with GHC version 9.2.5. To get started with Asynchronous Rattus two different examples are included; a simple spreadsheet and a text writer. They can be accessed through following commands:
-```
-cd examples/simple-sheet
-cabal run
-```
-and
-```
-cd examples/textwriter
-cabal run
-```
+This library has been tested with GHC versions 9.2 to 9.6. To install
+it, issue the following command:
 
-To run the test-suite of Asynchronous Rattus, simply run the the command `cabal test`
+	cabal install
+	
+
+The `examples` folder contains example projects written in Async
+Rattus. These can be used as a template to start Async Rattus
+projects. For instance,
+[console.cabal](examples/console/console.cabal) implements a simple
+console application, which you can run as follows:
+
+	cd examples/console
+	cabal run signal
