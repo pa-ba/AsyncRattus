@@ -143,7 +143,6 @@ library
                        AsyncRattus.Plugin
                        AsyncRattus.Primitives
                        AsyncRattus.InternalPrimitives
-                       AsyncRattus.Later
                        AsyncRattus.Channels
                        AsyncRattus.Plugin.Annotation
                                               

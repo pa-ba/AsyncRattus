@@ -79,11 +79,14 @@ future (_ ::: xs) = xs
 map :: Box (a -> b) -> Sig a -> Sig b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 
+-- | Variant of 'getInput' that returns a signal instead of a boxed
+-- delayed computation.
 getInputSig :: IO (Box (O (Sig a)) :* (a -> IO ()))
 getInputSig = do (s :* cb) <- getInput
                  return (mkBoxSig s :* cb)
 
--- | Turn a producer into a signal.
+-- | Turn a producer into a signal. This is a variant of 'mkInput'
+-- that returns a signal instead of a boxed delayed computation.
 mkInputSig :: Producer p a => p -> IO (Box (O (Sig a)))
 mkInputSig p = mkBoxSig <$> mkInput p
 
