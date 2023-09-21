@@ -1,12 +1,16 @@
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
 
+-- | This module is meant for library authors that want to build APIs
+-- for interacting with asynchronous resources, e.g. a GUI framework. 
 
 module AsyncRattus.Channels (
   getInput,
@@ -15,7 +19,6 @@ module AsyncRattus.Channels (
   startEventLoop,
   timer,
   Producer (..),
-  Sig (..)
 ) where
 
 import AsyncRattus.InternalPrimitives
@@ -32,23 +35,30 @@ import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
 import Control.Concurrent
 
-infixr 5 :::
-
--- | @Sig a@ is a stream of values of type @a@.
-data Sig a = !a ::: !(O (Sig a))
-
-
+-- | A type @p@ satisfying @Producer p a@ is essentially a signal that
+-- produces values of type @a@ but it might not produce such values at
+-- each tick.
 class Producer p a | p -> a where
-  prod :: p -> Sig (Maybe' a)
+  -- | Get the current value of the producer if any.
+  getCurrent :: p -> Maybe' a
+  -- | Get the next state of the producer. Morally, the type of this
+  -- method should be
+  --
+  -- > getNext :: p -> (exists q. Producer q a => O q)
+  --
+  -- We encode the existential type using continuation-passing style.
+  getNext :: p -> (forall q. Producer q a => O q -> b) -> b
 
 {-# ANN module AsyncRattus #-}
 {-# ANN module AllowLazyData #-}
 
 instance Producer p a => Producer (O p) a where
-  prod p = Nothing' ::: delay (prod (adv p))
+  getCurrent _ = Nothing'
+  getNext p cb = cb p
 
 instance Producer p a => Producer (Box p) a where
-  prod p = prod (unbox p)
+  getCurrent p = getCurrent (unbox p)
+  getNext p cb = getNext (unbox p) cb
 
 
 {-# NOINLINE nextFreshChannel #-}
@@ -61,7 +71,7 @@ input :: MVar InputValue
 input = unsafePerformIO newEmptyMVar
 
 data OutputChannel where
-  OutputChannel :: !(O (Sig (Maybe' a))) -> !(a -> IO ()) -> OutputChannel
+  OutputChannel :: Producer p a => !(O p) -> !(a -> IO ()) -> OutputChannel
 
 
 {-# NOINLINE output #-}
@@ -73,14 +83,17 @@ eventLoopStarted :: IORef Bool
 eventLoopStarted = unsafePerformIO (newIORef False)
 
 
-
+-- | This function can be used to implement input signals. It returns
+-- a boxed delayed computation @s@ and a callback function @cb@. The
+-- signal @mkSig s@ will produce a new value @v@ whenever the callback
+-- function @cb@ is called with argument @v@.
 getInput :: IO (Box (O a) :* (a -> IO ()))
 getInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
               return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
                        :* \ x -> putMVar input (InputValue ch x))
 
-setOutput' :: O (Sig (Maybe' a)) -> (a -> IO ()) -> IO ()
-setOutput' !sig cb = do
+setOutput' :: Producer p a => (a -> IO ()) -> O p -> IO ()
+setOutput' cb !sig = do
   ref <- newIORef (Just' (OutputChannel sig cb))
   let upd Nothing = (Just (ref :! Nil),())
       upd (Just ls) = (Just (ref :! ls),())
@@ -95,19 +108,29 @@ setOutput' !sig cb = do
           pre >> H.mutate output ch upd
   IntSet.foldl' run (return ()) (extractClock sig)
 
+
+-- | This function can be used to produces outputs. Given a signal @s@
+-- and function @f@, the call @setOutput s f@ registers @f@ as a
+-- callback function that is called with argument @v@ whenever the
+-- signal produces a new value @v@. For this function to work,
+-- 'startEventLoop' must be called.
 setOutput :: Producer p a => p -> (a -> IO ()) -> IO ()
 setOutput !sig cb = do
-  let cur ::: sig' = prod sig
-  case cur of
+  case getCurrent sig of
     Just' cur' -> cb cur'
     Nothing' -> return ()
-  setOutput' sig' cb
+  getNext sig (setOutput' cb)
 
+-- | This function is essentially the composition of 'getInput' and
+-- 'setOutput'. It turns any producer into a signal.
 mkInput :: Producer p a => p -> IO (Box (O a))
-mkInput p = do (out :* cb) <-getInput
+mkInput p = do (out :* cb) <- getInput
                setOutput p cb
                return out
 
+-- | @timer n@ produces a delayed computation that ticks every @n@
+-- milliseconds. In particular @mkSig (timer n)@ is a signal that
+-- produces a new value every #n# milliseconds.
 timer :: Int -> Box (O ())
 timer d = Box (Delay (singletonClock (d `max` 10)) (\ _ -> ()))
 
@@ -119,11 +142,11 @@ update inp ref = do
     Nothing' -> return ()
     Just' (OutputChannel (Delay _ sigf) cb) -> do
       writeIORef ref Nothing'
-      let w ::: d = sigf inp
-      case w of
+      let new = sigf inp
+      case getCurrent new of
         Just' w' -> cb w'
         Nothing' -> return ()
-      setOutput' d cb
+      getNext new (setOutput' cb)
 
 
 {-# ANN eventLoop NotAsyncRattus #-}
@@ -138,7 +161,7 @@ eventLoop = do inp@(InputValue ch _) <- takeMVar input
                    mapM_ (update inp) ls
                eventLoop
 
-               
+-- | In order for 'setOutput' to work, this IO action must be invoked.
 
 startEventLoop :: IO ()
 startEventLoop = do

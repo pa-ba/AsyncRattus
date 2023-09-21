@@ -47,13 +47,21 @@ import Prelude hiding (map, const, zipWith, zip, filter)
 import Data.VectorSpace
 import Data.Ratio ((%))
 
+infixr 5 :::
+
+-- | @Sig a@ is a stream of values of type @a@.
+data Sig a = !a ::: !(O (Sig a))
+
 instance Producer (Sig a) a where
-  prod = map (box Just')
+  getCurrent p = Just' (current p)
+  getNext p cb = cb (future p)
 
 newtype SigMaybe a = SigMaybe (Sig (Maybe' a))
 
 instance Producer (SigMaybe a) a where
-  prod (SigMaybe s) = s
+  getCurrent (SigMaybe p) = current p
+  getNext (SigMaybe p) cb = cb (delay (SigMaybe (adv (future p))))
+
 
 
 {-# ANN module AsyncRattus #-}

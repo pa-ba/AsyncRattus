@@ -39,6 +39,7 @@ module AsyncRattus.Future
 where
 
 import AsyncRattus
+import AsyncRattus.Signal (Sig(..))
 import Prelude hiding (map, filter, zipWith)
 import AsyncRattus.Channels
 
@@ -47,15 +48,22 @@ import AsyncRattus.Channels
 newtype OneShot a = OneShot (F a)
 
 instance Producer (OneShot a) a where
-  prod (OneShot (Now x)) = Just' x ::: never
-  prod (OneShot (Wait x)) = Nothing' ::: delay (prod (OneShot (adv x)))
+  getCurrent (OneShot (Now x)) = Just' x
+  getCurrent (OneShot (Wait _)) = Nothing'
+
+  getNext (OneShot (Now _)) cb = cb (never :: O (OneShot a))
+  getNext (OneShot (Wait x)) cb = cb (delay (OneShot (adv x)))
 
 instance Producer p a => Producer (F p) a where
-  prod (Now x) = prod x
-  prod (Wait x) = Nothing' ::: delay (prod (adv x))
+  getCurrent (Now x) = getCurrent x
+  getCurrent (Wait _) = Nothing'
+  
+  getNext (Now x) cb = getNext x cb
+  getNext (Wait x) cb = cb x
 
 instance Producer (SigF a) a where
-  prod (x :>: xs) = Just' x ::: delay (prod (adv xs))
+  getCurrent (x :>: _) = Just' x
+  getNext (_ :>: xs) cb = cb xs
 
 
 
