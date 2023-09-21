@@ -169,21 +169,6 @@ library
   ghc-options:         -W
 
 
-executable future
-  main-is:             Future.hs
-  hs-source-dirs:      test
-  default-language:    Haskell2010
-  build-depends:       AsyncRattus, base, text
-  ghc-options:         
-
-executable signal
-  main-is:             Signal.hs
-  hs-source-dirs:      test
-  default-language:    Haskell2010
-  build-depends:       AsyncRattus, base, text
-  ghc-options:         
-
-
 
 Test-Suite ill-typed
   type:                exitcode-stdio-1.0
@@ -201,19 +186,3 @@ Test-Suite well-typed
   build-depends:       AsyncRattus, base, containers
   ghc-options:         -fplugin=AsyncRattus.Plugin
 
-
--- Test-Suite primitives
---   type:                exitcode-stdio-1.0
---   main-is:             Primitives.hs
---   hs-source-dirs:      test
---   default-language:    Haskell2010
---   build-depends:       AsyncRattus, base, containers, HUnit
---   ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
-
--- Test-Suite stdlib
---   type:                exitcode-stdio-1.0
---   main-is:             StandardLibrary.hs
---   hs-source-dirs:      test
---   default-language:    Haskell2010
---   build-depends:       AsyncRattus, base, containers, HUnit
---   ghc-options:         -fplugin=AsyncRattus.Plugin -rtsopts
