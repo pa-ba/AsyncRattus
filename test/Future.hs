@@ -25,7 +25,7 @@ import Data.Text.Read
 {-# ANN consoleInput NotAsyncRattus #-}
 consoleInput :: IO (Box (O Text))
 consoleInput = do
-         (inp :* cb) <- registerInput
+         (inp :* cb) <- getInput
          let loop = do line <- getLine
                        cb line
                        loop
@@ -34,11 +34,11 @@ consoleInput = do
 
 {-# ANN regPrint NotAsyncRattus #-}
 regPrint :: (Producer p a, Show a) => p -> IO ()
-regPrint sig = registerOutput sig print
+regPrint sig = setOutput sig print
 
 {-# ANN regQuit NotAsyncRattus #-}
 regQuit :: (Producer p a) => p -> IO ()
-regQuit sig = registerOutput sig (\ _ -> exitSuccess)
+regQuit sig = setOutput sig (\ _ -> exitSuccess)
 
 
 
