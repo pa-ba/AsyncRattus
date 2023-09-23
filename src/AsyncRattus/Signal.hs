@@ -34,7 +34,9 @@ module AsyncRattus.Signal
   , scanMap
   , Sig(..)
   , zipWith
+  , zipWith3
   , zip
+  , cond
   , integral
   , derivative
   )
@@ -43,7 +45,7 @@ where
 
 import AsyncRattus
 import AsyncRattus.Channels
-import Prelude hiding (map, const, zipWith, zip, filter)
+import Prelude hiding (map, const, zipWith, zipWith3, zip, filter)
 import Data.VectorSpace
 import Data.Ratio ((%))
 
@@ -259,7 +261,20 @@ zipWith f (a ::: as) (b ::: bs) = unbox f a b ::: delay (
       Both as' bs' -> zipWith f as' bs'
   )
 
--- | This is a special case of 'zipWith' using the tuppleing
+-- | Variant of 'zipWith' with three signals.
+zipWith3 :: forall a b c d. (Stable a, Stable b, Stable c) => Box(a -> b -> c -> d) -> Sig a -> Sig b -> Sig c -> Sig d
+zipWith3 f as bs cs = zipWith (box (\f x -> unbox f x)) cds cs
+  where cds :: Sig (Box (c -> d))
+        cds = zipWith (box (\a b -> box (\ c -> unbox f a b c))) as bs
+
+-- | If-then-else lifted to signals. @cond bs xs ys@ produces a stream
+-- whose value is taken from @xs@ whenever @bs@ is true and from @ys@
+-- otherwise.
+cond :: Stable a => Sig Bool -> Sig a -> Sig a -> Sig a
+cond = zipWith3 (box (\b x y -> if b then x else y))
+
+
+-- | This is a special case of 'zipWith' using the tupling
 -- function. That is,
 --
 -- > zip = zipWith (box (:*))
