@@ -113,6 +113,8 @@ description:
 
             The <docs/src/AsyncRattus.Signal.html source code of the AsyncRattus.Signal module>
             provides more examples on how to program in Async Rattus.
+            An example project using Async Rattus can be found
+            <https://github.com/pa-ba/AsyncRattus/tree/master/examples/console here>.
 
 homepage:            https://github.com/pa-ba/AsyncRattus/
 bug-reports:         https://github.com/pa-ba/AsyncRattus/issues
