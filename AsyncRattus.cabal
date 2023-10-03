@@ -122,7 +122,7 @@ License:             BSD3
 License-file:        LICENSE
 copyright:           Copyright (C) 2023 Emil Houlborg, Gregers Rørdam, Patrick Bahr
 Author:              Emil Houlborg, Gregers Rørdam, Patrick Bahr
-maintainer:          Gregers Rørdam <grtr@itu.dk>
+maintainer:          Patrick Bahr <paba@itu.dk>
 stability:           experimental
 
 build-type:          Custom
