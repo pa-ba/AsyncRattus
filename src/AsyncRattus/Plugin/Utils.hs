@@ -35,7 +35,7 @@ module AsyncRattus.Plugin.Utils (
   where
 
 #if __GLASGOW_HASKELL__ >= 908
-import GHC.Types.Error
+import GHC.Types.Error (ResolvedDiagnosticReason (..))
 #endif
 
 #if __GLASGOW_HASKELL__ >= 906
