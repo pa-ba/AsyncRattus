@@ -573,13 +573,12 @@ instance Scope (HsExpr GhcTc) where
   check (HsMultiIf _ e) = check e
 #if __GLASGOW_HASKELL__ >= 902
   check (ExplicitList _ e) = check e
-  check RecordUpd { rupd_expr = e, rupd_flds = fs} = (&&) <$> check e <*> either check check fs
   check HsProjection {} = return True
   check HsGetField {gf_expr = e} = check e
 #else
   check (ExplicitList _ _ e) = check e
-  check RecordUpd { rupd_expr = e, rupd_flds = fs} = (&&) <$> check e <*> check fs
 #endif
+  check RecordUpd { rupd_expr = e, rupd_flds = fs} = (&&) <$> check e <*> check fs
   check RecordCon { rcon_flds = f} = check f
   check (ArithSeq _ _ e) = check e
 #if __GLASGOW_HASKELL__ >= 906
@@ -624,6 +623,18 @@ instance Scope (HsExpr GhcTc) where
 impossible :: GetCtxt => TcM Bool
 impossible = printMessageCheck SevError "This syntax should never occur after typechecking"
 #endif
+
+instance (Scope a, Scope b) => Scope (Either a b) where
+  check (Left x) = check x
+  check (Right x) = check x
+
+
+#if __GLASGOW_HASKELL__ >= 908
+instance Scope (LHsRecUpdFields GhcTc) where
+  check RegularRecUpdFields {recUpdFields = x} = check x
+  check OverloadedRecUpdFields {olRecUpdFields = x} = check x
+#endif
+
 
 #if __GLASGOW_HASKELL__ >= 900
 instance Scope XXExprGhcTc where

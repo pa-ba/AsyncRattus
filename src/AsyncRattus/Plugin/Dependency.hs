@@ -382,7 +382,17 @@ instance HasFV (HsCmd GhcTc) where
   getFV (HsCmdWrap _ _ cmd) = getFV cmd
 #endif
   getFV (XCmd e) = getFV e
-  
+
+
+instance (HasFV a, HasFV b) => HasFV (Either a b) where
+  getFV (Left x) = getFV x
+  getFV (Right x) = getFV x
+
+#if __GLASGOW_HASKELL__ >= 908
+instance HasFV (LHsRecUpdFields GhcTc) where
+  getFV RegularRecUpdFields {recUpdFields = x} = getFV x
+  getFV OverloadedRecUpdFields {olRecUpdFields = x} = getFV x
+#endif
 
 instance HasFV (HsCmdTop GhcTc) where
   getFV (HsCmdTop _ cmd) = getFV cmd
@@ -412,12 +422,10 @@ instance HasFV (HsExpr GhcTc) where
   getFV HsProjection {} = Set.empty
   getFV HsGetField {gf_expr = e} = getFV e
   getFV (ExplicitList _ es) = getFV es
-  getFV (RecordUpd {rupd_expr = e, rupd_flds = fs}) =
-    getFV e `Set.union` either getFV getFV fs
 #else
   getFV (ExplicitList _ _ es) = getFV es
-  getFV (RecordUpd {rupd_expr = e, rupd_flds = fs}) = getFV e `Set.union` getFV fs
 #endif
+  getFV (RecordUpd {rupd_expr = e, rupd_flds = fs}) = getFV e `Set.union` getFV fs
   getFV (RecordCon {rcon_flds = fs}) = getFV fs
   getFV (ArithSeq _ _ e) = getFV e
 #if __GLASGOW_HASKELL__ >= 906

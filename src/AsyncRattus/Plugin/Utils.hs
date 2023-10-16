@@ -33,6 +33,11 @@ module AsyncRattus.Plugin.Utils (
   getAlt,
   splitForAllTys')
   where
+
+#if __GLASGOW_HASKELL__ >= 908
+import GHC.Types.Error
+#endif
+
 #if __GLASGOW_HASKELL__ >= 906
 import GHC.Builtin.Types.Prim
 import GHC.Tc.Utils.TcType
@@ -105,7 +110,11 @@ printMessage :: (HasDynFlags m, MonadIO m) =>
 #endif
 
 printMessage sev loc doc = do
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 908
+  logger <- getLogger
+  liftIO $ putLogMsg logger (logFlags logger)
+    (MCDiagnostic sev (if sev == SevError then ResolvedDiagnosticReason ErrorWithoutFlag else ResolvedDiagnosticReason WarningWithoutFlag) Nothing) loc doc
+#elif __GLASGOW_HASKELL__ >= 906
   logger <- getLogger
   liftIO $ putLogMsg logger (logFlags logger)
     (MCDiagnostic sev (if sev == SevError then ErrorWithoutFlag else WarningWithoutFlag) Nothing) loc doc
