@@ -293,8 +293,7 @@ isStableRec c d pr t = do
             case algTyConRhs con of
               DataTyCon {data_cons = cons, is_enum = enum}
                 | enum -> True
-                | and $ concatMap (map isSrcStrict'
-                                   . dataConSrcBangs) $ cons ->
+                | all hasStrictArgs cons ->
                   and  (map check cons)
                 | otherwise -> False
                 where check con = case dataConInstSig con args of
@@ -349,7 +348,7 @@ isStrictRec d pr t = do
             case algTyConRhs con of
               DataTyCon {data_cons = cons, is_enum = enum}
                 | enum -> True
-                | and $ (map (areSrcStrict args)) $ cons ->
+                | all hasStrictArgs cons ->
                   and  (map check cons)
                 | otherwise -> False
                 where check con = case dataConInstSig con args of
@@ -363,16 +362,8 @@ isStrictRec d pr t = do
 
 
 
-areSrcStrict :: [Type] -> DataCon -> Bool
-areSrcStrict args con = and (zipWith check tys (dataConSrcBangs con))
-  where (_, _,tys) = dataConInstSig con args
-        check _ b = isSrcStrict' b
-
-isSrcStrict' :: HsSrcBang -> Bool
-isSrcStrict' (HsSrcBang _ _ SrcStrict) = True
-isSrcStrict' (HsSrcBang _ SrcUnpack _) = True
-isSrcStrict' _ =  False
-
+hasStrictArgs :: DataCon -> Bool
+hasStrictArgs con = all isBanged (dataConImplBangs con)
 
 userFunction :: Var -> Bool
 userFunction v

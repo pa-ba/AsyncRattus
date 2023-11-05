@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 module AsyncRattus.Plugin.Strictify
-  (strictifyExpr, SCxt (..)) where
+  (checkStrictData, SCxt (..)) where
 import Prelude hiding ((<>))
+import Control.Monad
 import AsyncRattus.Plugin.Utils
 
 #if __GLASGOW_HASKELL__ >= 900
@@ -15,61 +16,35 @@ import GhcPlugins
 import GHC.Types.Tickish
 #endif
 
-data SCxt = SCxt {srcSpan :: SrcSpan, checkStrictData :: Bool}
+data SCxt = SCxt {srcSpan :: SrcSpan}
 
 -- | Transforms all functions into strict functions. If the
 -- 'checkStrictData' field of the 'SCxt' argument is set to @True@,
 -- then this function also checks for use of non-strict data types and
 -- produces warnings if it finds any.
-strictifyExpr :: SCxt -> CoreExpr -> CoreM CoreExpr
-strictifyExpr ss (Let (NonRec b e1) e2) = do
-  e1' <- strictifyExpr ss e1
-  e2' <- strictifyExpr ss e2
-  return (Case e1' b (exprType e2) [mkAlt DEFAULT [] e2' ])
-strictifyExpr ss (Case e b t alts) = do
-  e' <- strictifyExpr ss e
-  alts' <- mapM ((\(c,args,e) -> fmap (\e' -> mkAlt c args e' ) (strictifyExpr ss e)) . getAlt) alts
-  return (Case e' b t alts')
-strictifyExpr ss (Let (Rec es) e) = do
-  es' <- mapM (\ (b,e) -> strictifyExpr ss e >>= \e'-> return (b,e')) es
-  e' <- strictifyExpr ss e
-  return (Let (Rec es') e')
-strictifyExpr ss (Lam b e)
-   | not (isCoVar b) && not (isTyVar b) && tcIsLiftedTypeKind(typeKind (varType b))
-    = do
-       e' <- strictifyExpr ss e
-       b' <- mkSysLocalFromVar (fsLit "strict") b
-       return (Lam b' (Case (varToCoreExpr b') b (exprType e) [mkAlt DEFAULT [] e' ]))
-   | otherwise = do
-       e' <- strictifyExpr ss e
-       return (Lam b e')
-strictifyExpr ss (Cast e c) = do
-  e' <- strictifyExpr ss e
-  return (Cast e' c)
-strictifyExpr ss (Tick t@(SourceNote span _) e) = do
-  e' <- strictifyExpr (ss{srcSpan = fromRealSrcSpan span}) e
-  return (Tick t e')
-strictifyExpr ss (App e1 e2@Lit{}) =
-  do e1' <- strictifyExpr ss e1
-     return (App e1' e2)
-strictifyExpr ss (App e1 e2)
-  | (checkStrictData ss && not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
-        && not (isStrict (exprType e2))) = 
-      if isDeepseqForce e2 || isLit e2 then
-        do e1' <- strictifyExpr ss e1
-           e2' <- strictifyExpr ss e2
-           return (App e1' e2')
-      else
-        do (printMessage SevWarning (srcSpan ss)
+checkStrictData :: SCxt -> CoreExpr -> CoreM ()
+checkStrictData ss (Let (NonRec _ e1) e2) = 
+  checkStrictData ss e1 >> checkStrictData ss e2
+checkStrictData ss (Case e _ _ alts) = do
+  checkStrictData ss e
+  mapM_ ((\(_,_,e) ->  checkStrictData ss e) . getAlt) alts
+checkStrictData ss (Let (Rec es) e) = do
+  mapM_ (\ (_,e) -> checkStrictData ss e) es
+  checkStrictData ss e
+checkStrictData ss (Lam _ e) = checkStrictData ss e
+checkStrictData ss (Cast e _) = checkStrictData ss e
+checkStrictData ss (Tick (SourceNote span _) e) = 
+  checkStrictData (ss{srcSpan = fromRealSrcSpan span}) e
+checkStrictData ss (App e1 e2)
+  | isPushCallStack e1 = return ()
+  | otherwise = do 
+    when (not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
+        && not (isStrict (exprType e2)) && not (isDeepseqForce e2) && not (isLit e2))
+          (printMessage SevWarning (srcSpan ss)
                (text "The use of lazy type " <> ppr (exprType e2) <> " may lead to memory leaks. Use Control.DeepSeq.force on lazy types."))
-           e1' <- strictifyExpr ss{checkStrictData = False} e1
-           e2' <- strictifyExpr ss{checkStrictData = False} e2
-           return (App e1' e2')
-  | otherwise = do
-      e1' <- strictifyExpr ss e1
-      e2' <- strictifyExpr ss e2
-      return (App e1' e2')
-strictifyExpr _ss e = return e
+    checkStrictData ss e1
+    checkStrictData ss e2
+checkStrictData _ss _ = return ()
 
 isLit :: CoreExpr -> Bool
 isLit Lit{} = True
@@ -77,6 +52,14 @@ isLit (App (Var v) Lit{})
   | Just (name,mod) <- getNameModule v = mod == "GHC.CString" && name == "unpackCString#"
 isLit _ = False
 
+
+isPushCallStack :: CoreExpr -> Bool
+isPushCallStack (Var v) =
+  case getNameModule v of
+    Just (name, mod) -> mod == "GHC.Stack.Types" && name == "pushCallStack"
+    _ -> False
+isPushCallStack (App x _) = isPushCallStack x
+isPushCallStack _ = False
 
 isDeepseqForce :: CoreExpr -> Bool
 isDeepseqForce (App (App (App (Var v) _) _) _) =
