@@ -24,10 +24,13 @@ import Data.Data hiding (tyConName)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
-import qualified GHC.LanguageExtensions as LangExt
-
+#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
 import GHC.Tc.Types
+#else
+import GhcPlugins
+import TcRnTypes
+#endif
 
 -- | Use this to enable Asynchronous Rattus' plugin, either by supplying the option
 -- @-fplugin=AsyncRattus.Plugin@ directly to GHC, or by including the
@@ -39,18 +42,11 @@ plugin = defaultPlugin {
   installCoreToDos = install,
   pluginRecompile = purePlugin,
   typeCheckResultAction = typechecked,
-  tcPlugin = tcStable,
-  driverPlugin = updateEnv
+  tcPlugin = tcStable
   }
 
 
 data Options = Options {debugMode :: Bool}
-
-
--- | Enable the @Strict@ language extension.
-updateEnv :: [CommandLineOption] -> HscEnv -> IO HscEnv
-updateEnv _ env = return env {hsc_dflags = update (hsc_dflags env) } 
-  where update fls = xopt_set fls LangExt.Strict
 
 typechecked :: [CommandLineOption] -> ModSummary -> TcGblEnv -> TcM TcGblEnv
 typechecked _ _ env = checkAll env >> return env
@@ -116,12 +112,12 @@ checkAndTransform guts recursiveSet debug v e = do
   singleTick <- toSingleTick e
   when debug $ putMsg $ text "Single-tick: " <> ppr singleTick
   lazy <- allowLazyData guts v
-  when (not lazy) $ checkStrictData (SCxt (nameSrcSpan $ getName v)) singleTick
-  when debug $ putMsg $ text "Strict single-tick: " <> ppr singleTick
+  strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
+  when debug $ putMsg $ text "Strict single-tick: " <> ppr strict
   checkExpr CheckExpr{ recursiveSet = recursiveSet, oldExpr = e,
                         verbose = debug,
-                        allowRecExp = allowRec} singleTick
-  transform singleTick
+                        allowRecExp = allowRec} strict
+  transform strict
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
 getModuleAnnotations guts = anns'
