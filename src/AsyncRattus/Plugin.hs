@@ -24,13 +24,8 @@ import Data.Data hiding (tyConName)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
 import GHC.Tc.Types
-#else
-import GhcPlugins
-import TcRnTypes
-#endif
 
 -- | Use this to enable Asynchronous Rattus' plugin, either by supplying the option
 -- @-fplugin=AsyncRattus.Plugin@ directly to GHC, or by including the
