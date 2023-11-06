@@ -148,14 +148,7 @@ shouldProcessCore guts bndr = do
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do
-#if __GLASGOW_HASKELL__ >= 900
   (_,anns)  <- getAnnotations deserializeWithData guts
   return $
     lookupWithDefaultUFM anns [] (varName bndr) ++
     getModuleAnnotations guts
-#else    
-  anns <- getAnnotations deserializeWithData guts
-  return $
-    lookupWithDefaultUFM anns [] (varUnique bndr) ++
-    getModuleAnnotations guts
-#endif

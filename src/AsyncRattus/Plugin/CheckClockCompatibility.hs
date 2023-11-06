@@ -8,15 +8,8 @@
 module AsyncRattus.Plugin.CheckClockCompatibility
   (checkExpr, CheckExpr (..)) where
 
-#if __GLASGOW_HASKELL__ >= 902
 import GHC.Types.Tickish
-#endif
-
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
-#else
-import GhcPlugins
-#endif
 
 import AsyncRattus.Plugin.Utils
 import qualified AsyncRattus.Plugin.PrimExpr as Prim

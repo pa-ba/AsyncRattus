@@ -48,20 +48,10 @@ import Control.Concurrent.MVar (readMVar)
 #else
 import Data.IORef (readIORef)
 #endif  
-#if __GLASGOW_HASKELL__ >= 902
-
 import GHC.Utils.Logger
-#endif
-
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
 import GHC.Utils.Error
 import GHC.Utils.Monad
-#else
-import GhcPlugins
-import ErrUtils
-import MonadUtils
-#endif
 
 
 import GHC.Types.Name.Cache (NameCache(nsNames), lookupOrigNameCache, OrigNameCache)
@@ -101,14 +91,9 @@ isFunTyCon = isArrowTyCon
 repSplitAppTys = splitAppTysNoView
 #endif
  
-#if __GLASGOW_HASKELL__ >= 902
+
 printMessage :: (HasDynFlags m, MonadIO m, HasLogger m) =>
                 Severity -> SrcSpan -> SDoc -> m ()
-#else
-printMessage :: (HasDynFlags m, MonadIO m) =>
-                Severity -> SrcSpan -> MsgDoc -> m ()
-#endif
-
 printMessage sev loc doc = do
 #if __GLASGOW_HASKELL__ >= 908
   logger <- getLogger
@@ -122,27 +107,14 @@ printMessage sev loc doc = do
   logger <- getLogger
   liftIO $ putLogMsg logger (logFlags logger)
     (MCDiagnostic sev (if sev == SevError then ErrorWithoutFlag else WarningWithoutFlag)) loc doc
-#elif __GLASGOW_HASKELL__ >= 902
+#else
    dflags <- getDynFlags
    logger <- getLogger
    liftIO $ putLogMsg logger dflags NoReason sev loc doc
-#elif __GLASGOW_HASKELL__ >= 900  
-  dflags <- getDynFlags
-  liftIO $ putLogMsg dflags NoReason sev loc doc
-#else
-  dflags <- getDynFlags
-  let sty = case sev of
-              SevError   -> defaultErrStyle dflags
-              SevWarning -> defaultErrStyle dflags
-              SevDump    -> defaultDumpStyle dflags
-              _          -> defaultUserStyle dflags
-  liftIO $ putLogMsg dflags NoReason sev loc sty doc
 #endif
 
-#if __GLASGOW_HASKELL__ >= 902
 instance Ord FastString where
    compare = uniqCompareFS
-#endif
 
 {-
 ******************************************************
@@ -307,12 +279,8 @@ isStableRec c d pr t = do
 isStrict :: Type -> Bool
 isStrict t = isStrictRec 0 Set.empty t
 
-#if __GLASGOW_HASKELL__ >= 902
 splitForAllTys' :: Type -> ([TyCoVar], Type)
 splitForAllTys' = splitForAllTyCoVars
-#else
-splitForAllTys' = splitForAllTys
-#endif
 
 -- | Check whether the given type is stable. This check may use
 -- 'Stable' constraints from the context.
@@ -383,48 +351,26 @@ typeClassFunction v =
     _ -> False
 
 mkSysLocalFromVar :: MonadUnique m => FastString -> Var -> m Id
-#if __GLASGOW_HASKELL__ >= 900
-
 mkSysLocalFromVar lit v = mkSysLocalM lit (varMult v) (varType v)
-#else
-mkSysLocalFromVar lit v = mkSysLocalM lit (varType v)
-#endif
  
 mkSysLocalFromExpr :: MonadUnique m => FastString -> CoreExpr -> m Id
-#if __GLASGOW_HASKELL__ >= 900
 mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)
-#else
-mkSysLocalFromExpr lit e = mkSysLocalM lit (exprType e)
-#endif
  
  
 fromRealSrcSpan :: RealSrcSpan -> SrcSpan
 #if __GLASGOW_HASKELL__ >= 904
 fromRealSrcSpan span = RealSrcSpan span Strict.Nothing
-#elif __GLASGOW_HASKELL__ >= 900
-fromRealSrcSpan span = RealSrcSpan span Nothing
 #else
-fromRealSrcSpan span = RealSrcSpan span
+fromRealSrcSpan span = RealSrcSpan span Nothing
 #endif
 
-#if __GLASGOW_HASKELL__ >= 900
 instance Ord SrcSpan where
   compare (RealSrcSpan s _) (RealSrcSpan t _) = compare s t
   compare RealSrcSpan{} _ = LT
   compare _ _ = GT
-#endif
 
 noLocationInfo :: SrcSpan
-#if __GLASGOW_HASKELL__ >= 900
 noLocationInfo = UnhelpfulSpan UnhelpfulNoLocationInfo
-#else         
-noLocationInfo = UnhelpfulSpan "<no location info>"
-#endif
 
-#if __GLASGOW_HASKELL__ >= 902
 mkAlt c args e = Alt c args e
 getAlt (Alt c args e) = (c, args, e)
-#else
-mkAlt c args e = (c, args, e)
-getAlt alt = alt
-#endif

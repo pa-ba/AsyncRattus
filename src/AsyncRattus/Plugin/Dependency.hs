@@ -11,35 +11,20 @@
 
 module AsyncRattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
 
-#if __GLASGOW_HASKELL__ >= 900
+
 import GHC.Plugins
 import GHC.Data.Bag
 import GHC.Hs.Type
-#else
-import GhcPlugins
-import Bag
-#if __GLASGOW_HASKELL__ >= 810
-import GHC.Hs.Types
-#else
-import HsTypes
-#endif
-#endif
 
-#if __GLASGOW_HASKELL__ >= 810
+
 import GHC.Hs.Extension
 import GHC.Hs.Expr
 import GHC.Hs.Pat
 import GHC.Hs.Binds
-#else 
-import HsExtension
-import HsExpr
-import HsPat
-import HsBinds
-#endif
 
 #if __GLASGOW_HASKELL__ >= 904
 import GHC.Parser.Annotation
-#elif __GLASGOW_HASKELL__ >= 902
+#else
 import Language.Haskell.Syntax.Extension
 import GHC.Parser.Annotation
 #endif
@@ -99,10 +84,7 @@ instance HasBV (HsBindLR GhcTc GhcTc) where
   getBV (PatBind {pat_lhs = pat}) = getBV pat
   getBV (VarBind {var_id = v}) = Set.singleton v
   getBV PatSynBind{} = Set.empty
-#if __GLASGOW_HASKELL__ < 900
-  getBV (XHsBindsLR e) = getBV e
-  getBV (AbsBinds {abs_exports = es}) = Set.fromList (map abe_poly es)
-#elif __GLASGOW_HASKELL__ < 904
+#if __GLASGOW_HASKELL__ < 904
   getBV (AbsBinds {abs_exports = es}) = Set.fromList (map abe_poly es)
 #else
   getBV (XHsBindsLR (AbsBinds {abs_exports = es})) = Set.fromList (map abe_poly es)
@@ -120,19 +102,15 @@ getRecFieldRhs = hfbRHS
 getRecFieldRhs = hsRecFieldArg
 #endif
 
-#if __GLASGOW_HASKELL__ >= 902
 getConBV (PrefixCon _ ps) = getBV ps
-#else
-getConBV (PrefixCon ps) = getBV ps
-#endif
 getConBV (InfixCon p p') = getBV p `Set.union` getBV p'
 getConBV (RecCon (HsRecFields {rec_flds = fs})) = foldl run Set.empty fs
       where run s (L _ f) = getBV (getRecFieldRhs f) `Set.union` s
 
-#if __GLASGOW_HASKELL__ >= 900 && __GLASGOW_HASKELL__ < 904
+#if __GLASGOW_HASKELL__ < 904
 instance HasBV CoPat where
   getBV CoPat {co_pat_inner = p} = getBV p
-#elif __GLASGOW_HASKELL__ >= 904
+#else
 instance HasBV XXPatGhcTc where
   getBV CoPat {co_pat_inner = p} = getBV p
   getBV (ExpansionPat _ p) = getBV p
@@ -175,27 +153,11 @@ instance HasBV (Pat GhcTc) where
 #else
   getBV (ParPat _ p) = getBV p
 #endif
-#if __GLASGOW_HASKELL__ >= 900
   getBV (ConPat {pat_args = con}) = getConBV con
-#else
-  getBV (ConPatIn (L _ v) con) = Set.insert v (getConBV con)
-  getBV (ConPatOut {pat_args = con}) = getConBV con
-  getBV (CoPat _ _ p _) = getBV p
-#endif
-#if __GLASGOW_HASKELL__ >= 808
   getBV (SigPat _ p _) = getBV p
-#else
-  getBV (SigPat _ p)   = getBV p
-#endif
 
-#if __GLASGOW_HASKELL__ >= 904
-
-#elif __GLASGOW_HASKELL__ >= 810
-instance HasBV NoExtCon where
-#else
-instance HasBV NoExt where
-#endif
 #if __GLASGOW_HASKELL__ < 904
+instance HasBV NoExtCon where
   getBV _ = Set.empty
 #endif
 
@@ -221,44 +183,26 @@ instance HasFV Var where
 
 instance HasFV a => HasFV (MatchGroup GhcTc a) where
   getFV MG {mg_alts = alts} = getFV alts
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XMatchGroup e) = getFV e
-#endif
   
 instance HasFV a => HasFV (Match GhcTc a) where
   getFV Match {m_grhss = rhss} = getFV rhss
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XMatch e) = getFV e
-#endif
 
 instance HasFV (HsTupArg GhcTc) where
   getFV (Present _ e) = getFV e
   getFV Missing {} = Set.empty
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XTupArg e) = getFV e
-#endif
 
 instance HasFV a => HasFV (GRHS GhcTc a) where
   getFV (GRHS _ g b) = getFV g `Set.union` getFV b
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XGRHS e) = getFV e
-#endif
 
 instance HasFV a => HasFV (GRHSs GhcTc a) where
   getFV GRHSs {grhssGRHSs = rhs, grhssLocalBinds = lbs} =
     getFV rhs `Set.union` getFV lbs
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XGRHSs e) = getFV e
-#endif
 
 
 instance HasFV (HsLocalBindsLR GhcTc GhcTc) where
   getFV (HsValBinds _ bs) = getFV bs
   getFV (HsIPBinds _ bs) = getFV bs
   getFV EmptyLocalBinds {} = Set.empty
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XHsLocalBindsLR e) = getFV e
-#endif
   
 instance HasFV (HsValBindsLR GhcTc GhcTc) where
   getFV (ValBinds _ b _) = getFV b
@@ -277,70 +221,38 @@ instance HasFV (HsBindLR GhcTc GhcTc) where
 #else
   getFV (XHsBindsLR AbsBinds {abs_binds = bs}) = getFV bs
 #endif
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XHsBindsLR e) = getFV e
-#endif
 
 instance HasFV (IPBind GhcTc) where
   getFV (IPBind _ _ e) = getFV e
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XIPBind e) = getFV e
-#endif
 
 instance HasFV (HsIPBinds GhcTc) where
   getFV (IPBinds _ bs) = getFV bs
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XHsIPBinds e) = getFV e
-#endif
   
 instance HasFV (ApplicativeArg GhcTc) where
-#if __GLASGOW_HASKELL__ >= 810
   getFV ApplicativeArgOne { arg_expr = e }     = getFV e
   getFV ApplicativeArgMany {app_stmts = es, final_expr = e} = getFV es `Set.union` getFV e
-#else
-  getFV (ApplicativeArgOne _ _ e _) = getFV e
-  getFV (ApplicativeArgMany _ es e _) = getFV es `Set.union` getFV e
-#endif
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XApplicativeArg e) = getFV e
-#endif
 
 instance HasFV (ParStmtBlock GhcTc GhcTc) where
   getFV (ParStmtBlock _ es _ _) = getFV es
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XParStmtBlock e) = getFV e
-#endif
   
 instance HasFV a => HasFV (StmtLR GhcTc GhcTc a) where
   getFV (LastStmt _ e _ _) = getFV e
-#if __GLASGOW_HASKELL__ >= 900
   getFV (BindStmt _ _ e) = getFV e
-#else
-  getFV (BindStmt _ _ e _ _) = getFV e
-#endif
   getFV (ApplicativeStmt _ args _) = foldMap (getFV . snd) args
   getFV (BodyStmt _ e _ _) = getFV e
   getFV (LetStmt _ bs) = getFV bs
   getFV (ParStmt _ stms e _) = getFV stms `Set.union` getFV e
   getFV TransStmt{} = Set.empty -- TODO
   getFV RecStmt{} = Set.empty -- TODO
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XStmtLR e) = getFV e
-#endif
 
-#if __GLASGOW_HASKELL__ >= 902
+
 instance HasFV (HsRecFields GhcTc (GenLocated SrcSpanAnnA (HsExpr GhcTc))) where
-#else
-instance HasFV (HsRecordBinds GhcTc) where
-#endif
   getFV HsRecFields{rec_flds = fs} = getFV fs
 
 #if __GLASGOW_HASKELL__ >= 904
 instance HasFV (HsFieldBind o (GenLocated SrcSpanAnnA (HsExpr GhcTc))) where
-#elif __GLASGOW_HASKELL__ >= 902
-instance HasFV (HsRecField' o (GenLocated SrcSpanAnnA (HsExpr GhcTc))) where
 #else
-instance HasFV (HsRecField' o (LHsExpr GhcTc)) where
+instance HasFV (HsRecField' o (GenLocated SrcSpanAnnA (HsExpr GhcTc))) where
 #endif
   getFV rf  = getFV (getRecFieldRhs rf)
 
@@ -376,10 +288,8 @@ instance HasFV (HsCmd GhcTc) where
 #endif
 #if __GLASGOW_HASKELL__ >= 904
   getFV (HsCmdLamCase _ _ mg) = getFV mg
-#elif __GLASGOW_HASKELL__ >= 900
-  getFV (HsCmdLamCase _ mg) = getFV mg
 #else
-  getFV (HsCmdWrap _ _ cmd) = getFV cmd
+  getFV (HsCmdLamCase _ mg) = getFV mg
 #endif
   getFV (XCmd e) = getFV e
 
@@ -396,9 +306,6 @@ instance HasFV (LHsRecUpdFields GhcTc) where
 
 instance HasFV (HsCmdTop GhcTc) where
   getFV (HsCmdTop _ cmd) = getFV cmd
-#if __GLASGOW_HASKELL__ < 900
-  getFV (XCmdTop e) = getFV e
-#endif
 
 instance HasFV (HsExpr GhcTc) where
   getFV (HsVar _ v) = getFV v
@@ -418,13 +325,9 @@ instance HasFV (HsExpr GhcTc) where
   getFV (HsCase _ e mg) = getFV e  `Set.union` getFV mg
   getFV (HsMultiIf _ es) = getFV es
   getFV (HsDo _ _ e) = getFV e
-#if __GLASGOW_HASKELL__ >= 902
   getFV HsProjection {} = Set.empty
   getFV HsGetField {gf_expr = e} = getFV e
   getFV (ExplicitList _ es) = getFV es
-#else
-  getFV (ExplicitList _ _ es) = getFV es
-#endif
   getFV (RecordUpd {rupd_expr = e, rupd_flds = fs}) = getFV e `Set.union` getFV fs
   getFV (RecordCon {rcon_flds = fs}) = getFV fs
   getFV (ArithSeq _ _ e) = getFV e
@@ -460,36 +363,14 @@ instance HasFV (HsExpr GhcTc) where
 #if __GLASGOW_HASKELL__ >= 906
   getFV (HsAppType _ e _ _) = getFV e
   getFV (ExprWithTySig _ e _) = getFV e  
-#elif __GLASGOW_HASKELL__ >= 808
+#else
   getFV (HsAppType _ e _) = getFV e
   getFV (ExprWithTySig _ e _) = getFV e  
-#else
-  getFV (ExprWithTySig _ e)   = getFV e
-  getFV (HsAppType _ e)   = getFV e
 #endif
-
-#if __GLASGOW_HASKELL__ >= 900
   getFV (HsIf _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
   getFV (HsPragE _ _ e) = getFV e
-#else
-  getFV (HsIf _ _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
-  getFV (HsSCC _ _ _ e) = getFV e
-  getFV (HsCoreAnn _ _ _ e) = getFV e
-  getFV (HsTickPragma _ _ _ _ e) = getFV e
-  getFV (HsWrap _ _ e) = getFV e
-#endif
-
-#if __GLASGOW_HASKELL__ < 810  
-  getFV (HsArrApp _ e1 e2 _ _) = getFV e1 `Set.union` getFV e2
-  getFV (HsArrForm _ e _ cmd) = getFV e `Set.union` getFV cmd
-  getFV EWildPat {} = Set.empty
-  getFV (EAsPat _ e1 e2) = getFV e1 `Set.union` getFV e2
-  getFV (EViewPat _ e1 e2) = getFV e1 `Set.union` getFV e2
-  getFV (ELazyPat _ e) = getFV e
-#endif
 
 
-#if __GLASGOW_HASKELL__ >= 900
 instance HasFV XXExprGhcTc where
   getFV (WrapExpr e) = getFV e
   getFV (ExpansionExpr (HsExpanded _e1 e2)) = getFV e2
@@ -502,10 +383,3 @@ instance HasFV XXExprGhcTc where
 
 instance HasFV (e GhcTc) => HasFV (HsWrap e) where
   getFV (HsWrap _ e) = getFV e
-#elif __GLASGOW_HASKELL__ >= 810
-instance HasFV NoExtCon where
-  getFV _ = Set.empty
-#else
-instance HasFV NoExt where
-  getFV _ = Set.empty
-#endif

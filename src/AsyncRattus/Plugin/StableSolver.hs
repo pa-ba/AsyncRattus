@@ -12,7 +12,6 @@ import AsyncRattus.Plugin.Utils
 
 import Prelude hiding ((<>))
 
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
   (Type, Var, CommandLineOption,tyConSingleDataCon,
    mkCoreConApps,getTyVar_maybe)
@@ -20,21 +19,7 @@ import GHC.Core
 import GHC.Tc.Types.Evidence
 import GHC.Core.Class
 import GHC.Tc.Types
-#else
-import GhcPlugins
-  (Type, Var, CommandLineOption,tyConSingleDataCon,
-   mkCoreConApps,getTyVar_maybe)
-import CoreSyn
-import TcEvidence
-import Class
-import TcRnTypes
-#endif
-
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Tc.Types.Constraint
-#elif __GLASGOW_HASKELL__ >= 810
-import Constraint
-#endif
 
 import Data.Set (Set)
 import qualified Data.Set as Set

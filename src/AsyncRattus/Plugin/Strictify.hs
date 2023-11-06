@@ -5,15 +5,8 @@ module AsyncRattus.Plugin.Strictify
 import Prelude hiding ((<>))
 import AsyncRattus.Plugin.Utils
 
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins
-#else
-import GhcPlugins
-#endif
-
-#if __GLASGOW_HASKELL__ >= 902
 import GHC.Types.Tickish
-#endif
 
 data SCxt = SCxt {srcSpan :: SrcSpan, checkStrictData :: Bool}
 

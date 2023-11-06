@@ -348,12 +348,8 @@ derivative xs = der zeroVector (current xs) xs where
     map p (scan f acc as) = scanMap f p acc as ;
 
   "zip/map" forall xs ys f.
-    map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys
-#-}
+    map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys;
 
-
-#if __GLASGOW_HASKELL__ >= 808
-{-# RULES
   "scan/scan" forall f g b c as.
     scan g c (scan f b as) =
       let f' = unbox f; g' = unbox g in
@@ -365,4 +361,4 @@ derivative xs = der zeroVector (current xs) xs where
       scanMap (box (\ (b:*c) a -> let b' = f' (p' b) a in (b':* g' c b'))) (box snd') (b:*c) as ;
 
 #-}
-#endif
+
