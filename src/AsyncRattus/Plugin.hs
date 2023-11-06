@@ -24,6 +24,8 @@ import Data.Data hiding (tyConName)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
+import qualified GHC.LanguageExtensions as LangExt
+
 import GHC.Plugins
 import GHC.Tc.Types
 
@@ -37,11 +39,18 @@ plugin = defaultPlugin {
   installCoreToDos = install,
   pluginRecompile = purePlugin,
   typeCheckResultAction = typechecked,
-  tcPlugin = tcStable
+  tcPlugin = tcStable,
+  driverPlugin = updateEnv
   }
 
 
 data Options = Options {debugMode :: Bool}
+
+
+-- | Enable the @Strict@ language extension.
+updateEnv :: [CommandLineOption] -> HscEnv -> IO HscEnv
+updateEnv _ env = return env {hsc_dflags = update (hsc_dflags env) } 
+  where update fls = xopt_set fls LangExt.Strict
 
 typechecked :: [CommandLineOption] -> ModSummary -> TcGblEnv -> TcM TcGblEnv
 typechecked _ _ env = checkAll env >> return env
@@ -107,12 +116,12 @@ checkAndTransform guts recursiveSet debug v e = do
   singleTick <- toSingleTick e
   when debug $ putMsg $ text "Single-tick: " <> ppr singleTick
   lazy <- allowLazyData guts v
-  strict <- strictifyExpr (SCxt (nameSrcSpan $ getName v) (not lazy)) singleTick
-  when debug $ putMsg $ text "Strict single-tick: " <> ppr strict
+  when (not lazy) $ checkStrictData (SCxt (nameSrcSpan $ getName v)) singleTick
+  when debug $ putMsg $ text "Strict single-tick: " <> ppr singleTick
   checkExpr CheckExpr{ recursiveSet = recursiveSet, oldExpr = e,
                         verbose = debug,
-                        allowRecExp = allowRec} strict
-  transform strict
+                        allowRecExp = allowRec} singleTick
+  transform singleTick
 
 getModuleAnnotations :: Data a => ModGuts -> [a]
 getModuleAnnotations guts = anns'
@@ -142,9 +151,8 @@ expectError guts bndr = do
 
 shouldProcessCore :: ModGuts -> CoreBndr -> CoreM Bool
 shouldProcessCore guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
   expectScopeError <- expectError guts bndr
-  return (AsyncRattus `elem` l && notElem NotAsyncRattus l && userFunction bndr && not expectScopeError)
+  return (userFunction bndr && not expectScopeError)
 
 annotationsOn :: (Data a) => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do

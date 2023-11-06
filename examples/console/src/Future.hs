@@ -18,11 +18,7 @@ import Data.Text hiding (filter)
 import System.Exit
 import Data.Text.Read
 
-
-{-# ANN module AsyncRattus #-}
-
-
-{-# ANN consoleInput NotAsyncRattus #-}
+{-# ANN consoleInput AllowRecursion #-}
 consoleInput :: IO (Box (O Text))
 consoleInput = do
          (inp :* cb) <- getInput
@@ -32,11 +28,9 @@ consoleInput = do
          forkIO loop
          return inp
 
-{-# ANN regPrint NotAsyncRattus #-}
 regPrint :: (Producer p a, Show a) => p -> IO ()
 regPrint sig = setOutput sig print
 
-{-# ANN regQuit NotAsyncRattus #-}
 regQuit :: (Producer p a) => p -> IO ()
 regQuit sig = setOutput sig (\ _ -> exitSuccess)
 

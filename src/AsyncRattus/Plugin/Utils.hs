@@ -187,7 +187,7 @@ getNameModule v = do
 
 -- | The set of stable built-in types.
 ghcStableTypes :: Set FastString
-ghcStableTypes = Set.fromList ["Int","Bool","Float","Double","Char", "IO"]
+ghcStableTypes = Set.fromList ["Word","Int","Bool","Float","Double","Char", "IO"]
 
 isGhcStableType :: FastString -> Bool
 isGhcStableType = (`Set.member` ghcStableTypes)
@@ -304,6 +304,8 @@ isStrictRec d pr t = do
         Just (name,mod)
           | mod == "GHC.Num.Integer" && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
+          | mod == "GHC.IORef" && name == "IORef" -> True
+          | mod == "GHC.MVar" && name == "MVar" -> True
           -- If it's a Rattus type constructor check if it's a box
           | isRattModule mod && (name == "Box" || name == "O" || name == "Output") -> True
             -- If its a built-in type check the set of stable built-in types

@@ -20,7 +20,5 @@ import AsyncRattus.Plugin
 import AsyncRattus.Strict
 import AsyncRattus.Primitives
 
-{-# ANN module AsyncRattus #-}
-
 mapO :: Box (a -> b) -> O a -> O b
 mapO f later = delay (unbox f (adv later))

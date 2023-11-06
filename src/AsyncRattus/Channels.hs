@@ -49,9 +49,6 @@ class Producer p a | p -> a where
   -- We encode the existential type using continuation-passing style.
   getNext :: p -> (forall q. Producer q a => O q -> b) -> b
 
-{-# ANN module AsyncRattus #-}
-{-# ANN module AllowLazyData #-}
-
 instance Producer p a => Producer (O p) a where
   getCurrent _ = Nothing'
   getNext p cb = cb p
@@ -92,6 +89,7 @@ getInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
               return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
                        :* \ x -> putMVar input (InputValue ch x))
 
+{-# ANN setOutput' AllowLazyData #-}
 setOutput' :: Producer p a => (a -> IO ()) -> O p -> IO ()
 setOutput' cb !sig = do
   ref <- newIORef (Just' (OutputChannel sig cb))
@@ -149,7 +147,8 @@ update inp ref = do
       getNext new (setOutput' cb)
 
 
-{-# ANN eventLoop NotAsyncRattus #-}
+{-# ANN eventLoop AllowRecursion #-}
+{-# ANN eventLoop AllowLazyData #-}
 
 eventLoop :: IO ()
 eventLoop = do inp@(InputValue ch _) <- takeMVar input
@@ -162,7 +161,6 @@ eventLoop = do inp@(InputValue ch _) <- takeMVar input
                eventLoop
 
 -- | In order for 'setOutput' to work, this IO action must be invoked.
-
 startEventLoop :: IO ()
 startEventLoop = do
   started <- atomicModifyIORef eventLoopStarted (\b -> (True,b))

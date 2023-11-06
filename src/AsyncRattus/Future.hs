@@ -43,8 +43,6 @@ import AsyncRattus.Signal (Sig(..))
 import Prelude hiding (map, filter, zipWith)
 import AsyncRattus.Channels
 
-{-# ANN module AsyncRattus #-}
-
 newtype OneShot a = OneShot (F a)
 
 instance Producer (OneShot a) a where

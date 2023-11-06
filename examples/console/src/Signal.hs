@@ -17,11 +17,8 @@ import Data.Text hiding (filter, map)
 import System.Exit
 import Data.Text.Read
 
+{-# ANN consoleInput AllowRecursion #-}
 
-{-# ANN module AsyncRattus #-}
-
-
-{-# ANN consoleInput NotAsyncRattus #-}
 consoleInput :: IO (Box (O (Sig Text)))
 consoleInput = do
          (inp :* cb) <- getInputSig
@@ -31,11 +28,9 @@ consoleInput = do
          forkIO loop
          return inp
 
-{-# ANN setPrint NotAsyncRattus #-}
 setPrint :: (Producer p a, Show a) => p -> IO ()
 setPrint sig = setOutput sig print
 
-{-# ANN setQuit NotAsyncRattus #-}
 setQuit :: (Producer p a) => p -> IO ()
 setQuit sig = setOutput sig (\ _ -> exitSuccess)
 

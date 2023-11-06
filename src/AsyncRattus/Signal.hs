@@ -64,10 +64,6 @@ instance Producer (SigMaybe a) a where
   getCurrent (SigMaybe p) = current p
   getNext (SigMaybe p) cb = cb (delay (SigMaybe (adv (future p))))
 
-
-
-{-# ANN module AsyncRattus #-}
-
 -- | Get the current value of a signal.
 current :: Sig a -> a
 current (x ::: _) = x

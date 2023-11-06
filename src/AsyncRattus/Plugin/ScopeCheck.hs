@@ -177,8 +177,7 @@ updateLoc src = modifyCtxt (\c -> c {srcLoc = getLocAnn' src})
 -- found, the current execution is halted with 'exitFailure'.
 checkAll :: TcGblEnv -> TcM ()
 checkAll env = do
-  let dep = dependency (tcg_binds env)
-  let bindDep = filter (filterBinds (tcg_mod env) (tcg_ann_env env)) dep
+  let bindDep = dependency (tcg_binds env)
   result <- mapM (checkSCC' (tcg_mod env) (tcg_ann_env env)) bindDep
   let (res,msgs) = foldl' (\(b,l) (b',l') -> (b && b', l ++ l')) (True,[]) result
   printAccErrMsgs msgs
@@ -189,25 +188,6 @@ printAccErrMsgs :: [ErrorMsg] -> TcM ()
 printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
   where printMsg (sev,loc,doc) = printMessage sev loc doc
 
-
--- | This function checks whether a given top-level definition (either
--- a single non-recursive definition or a group of mutual recursive
--- definitions) is marked as Asynchronous Rattus code (via an annotation). In a
--- group of mutual recursive definitions, the whole group is
--- considered Asynchronous Rattus code if at least one of its constituents is
--- marked as such.
-filterBinds :: Module -> AnnEnv -> SCC (LHsBindLR  GhcTc GhcTc, Set Var) -> Bool
-filterBinds mod anEnv scc =
-  case scc of
-    (AcyclicSCC (_,vs)) -> any checkVar vs
-    (CyclicSCC bs) -> any (any checkVar . snd) bs
-  where checkVar :: Var -> Bool
-        checkVar v =
-          let anns = findAnns deserializeWithData anEnv (NamedTarget name) :: [AsyncRattus]
-              annsMod = findAnns deserializeWithData anEnv (ModuleTarget mod) :: [AsyncRattus]
-              name :: Name
-              name = varName v
-          in AsyncRattus `elem` anns || (not (NotAsyncRattus `elem` anns)  && AsyncRattus `elem` annsMod)
 
 
 

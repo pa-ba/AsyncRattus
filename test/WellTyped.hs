@@ -8,10 +8,6 @@ import AsyncRattus
 import AsyncRattus.Signal
 import Data.Set as Set
 
-
-
-{-# ANN module AsyncRattus #-}
-
 boxedInt :: Box Int
 boxedInt = box 8
 
@@ -134,5 +130,10 @@ delayAdvUnderLambda d = delay (adv d `seq` \x -> delay (adv x))
 leaky :: Sig () -> (() -> Bool) -> Sig Bool
 leaky (() ::: d) p = p () ::: delay (let d' = adv d in (leaky d' (\ _ -> current (leaky d' (\ _ -> True)))))
 
-{-# ANN main NotAsyncRattus #-}
+unusedAdv :: O () -> O ()
+unusedAdv d = delay (adv d `seq` ())
+
+unusedAdv' :: O () -> O ()
+unusedAdv' d = delay (let _ = adv d in ())
+
 main = putStrLn "This file should just type check"

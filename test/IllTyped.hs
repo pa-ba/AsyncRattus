@@ -8,9 +8,6 @@ import Prelude
 import AsyncRattus.Plugin.Annotation (InternalAnn (..))
 
 
-{-# ANN module AsyncRattus #-}
-
-
 {-# ANN loopIndirect ExpectError #-}
 loopIndirect :: Sig Int
 loopIndirect = run
@@ -165,6 +162,4 @@ doubleAdv li =  delay (adv li + adv li)
 addDelay :: O Int -> O Int -> O Int
 addDelay x y = delay (adv x + adv y)
 
-
-{-# ANN main NotAsyncRattus #-}
 main = putStrLn "This file should not type check"

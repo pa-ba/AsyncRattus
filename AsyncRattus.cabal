@@ -78,23 +78,6 @@ description:
             
             .
 
-            In addition, you have to annotate functions that are
-            written in Async Rattus:
-
-            .
-            
-            > {-# ANN myFunction AsyncRattus #-}
-
-            .
-
-            You can also annotate the whole module as an Async Rattus module:
-            
-            .
-
-            > {-# ANN module AsyncRattus #-}
-
-            .
-
             Below is a minimal Async Rattus program using the
             "AsyncRattus.Signal" module for programming with signals:
 
@@ -105,7 +88,6 @@ description:
             > import AsyncRattus
             > import AsyncRattus.Signal
             > 
-            > {-# ANN sums AsyncRattus #-}
             > sums :: Sig Int -> Sig Int
             > sums = scan (box (+)) 0
 
