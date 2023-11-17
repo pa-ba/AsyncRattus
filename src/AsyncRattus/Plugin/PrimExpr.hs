@@ -90,7 +90,6 @@ validatePartialPrimInfo _ = Nothing
 isPrimExpr :: Expr Var -> Maybe PrimInfo
 isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
 
--- App (App (App (App f type) arg) Type2) arg2
 isPrimExpr' :: Expr Var -> Maybe PartialPrimInfo
 isPrimExpr' (App e (Type t)) = case mPPI of
   Just pPI@(PartialPrimInfo {typeArgs = tArgs}) -> Just pPI {typeArgs = t : tArgs}
