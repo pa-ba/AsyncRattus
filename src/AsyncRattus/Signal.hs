@@ -172,7 +172,7 @@ scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
 scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
 
--- Like 'scan', but uses a delayed signal.
+-- | Like 'scan', but uses a delayed signal.
 scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
 scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
