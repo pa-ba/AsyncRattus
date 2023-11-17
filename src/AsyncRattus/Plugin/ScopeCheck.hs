@@ -117,7 +117,7 @@ type RecDef = (Set Var, SrcSpan)
 data StableReason = StableRec SrcSpan | StableBox deriving Show
 
 -- | Indicates, why a variable has fallen out of scope.
-data HiddenReason = Stabilize StableReason | FunDef | DelayApp | AdvApp | SelectApp deriving Show
+data HiddenReason = Stabilize StableReason | FunDef | DelayApp | AdvApp | PromoteApp | SelectApp deriving Show
 
 -- | Indicates, why there is no tick
 data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
@@ -127,7 +127,7 @@ data NoTickReason = NoDelay | TickHidden HiddenReason deriving Show
 type Hidden = Map Var HiddenReason
 
 -- | The 5 primitive Asynchronous Rattus operations.
-data Prim = Delay | Adv | Select | Box | Unbox deriving Show
+data Prim = Delay | Adv | Promote | Select | Box | Unbox deriving Show
 
 -- | This constraint is used to pass along the context implicitly via
 -- an implicit parameter.
@@ -354,6 +354,7 @@ tickHidden :: HiddenReason -> SDoc
 tickHidden FunDef = "a function definition"
 tickHidden DelayApp = "a nested application of delay"
 tickHidden AdvApp = "an application of adv"
+tickHidden PromoteApp = "an application of promote"
 tickHidden SelectApp = "an application of select"
 tickHidden (Stabilize StableBox) = "an application of box"
 tickHidden (Stabilize (StableRec src)) = "a nested recursive definition (at " <> ppr src <> ")"
@@ -415,6 +416,24 @@ instance Scope (HsExpr GhcTc) where
                     Nothing : _ -> printMessageCheck SevError "No adv or select found in the scope of this occurrence of delay"
                     _ : pre -> put pre >> return b
                     _ -> error "Asynchronous Rattus: internal error"
+      Promote -> case earlier ?ctxt of
+        Right (er :| ers) -> do 
+          res <- get 
+          case res of 
+            occ : pre -> do put pre
+                            b <- mod `modifyCtxt` check e2
+                            modify (occ :)
+                            return b
+              where mod c =  c{earlier = case nonEmpty ers of
+                                       Nothing -> Left $ TickHidden PromoteApp
+                                       Just ers' -> Right ers',
+                           current = er,
+                           hidden = hidden ?ctxt `Map.union`
+                            Map.fromSet (const PromoteApp) (current ?ctxt)}
+            _ -> error "Asynchronous Rattus: internal error"
+        Left NoDelay -> printMessageCheck SevError ("promote may only be used in the scope of a delay.")
+        Left (TickHidden hr) -> printMessageCheck SevError ("promote may only be used in the scope of a delay. "
+                            <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
       Adv -> case earlier ?ctxt of
         Right (er :| ers) -> do
           res <- get
@@ -719,6 +738,7 @@ getScope v =
               else Hidden ("Variable " <> ppr v <> " is no longer in scope:" $$
                        "It occurs under " <> keyword "box" $$ "and is of type " <> ppr (varType v) <> ", which is not stable.")
             Just AdvApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under adv.")
+            Just PromoteApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under promote.")
             Just SelectApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope: It occurs under select.")
             Just DelayApp -> Hidden ("Variable " <> ppr v <> " is no longer in scope due to repeated application of delay")
             Just FunDef -> if (isStable (stableTypes ?ctxt) (varType v)) then Visible
@@ -739,6 +759,7 @@ primMap = Map.fromList
   [("Delay", Delay),
    ("delay", Delay),
    ("adv", Adv),
+   ("promote", Promote),
    ("select", Select),
    ("box", Box),
    ("unbox", Unbox)]

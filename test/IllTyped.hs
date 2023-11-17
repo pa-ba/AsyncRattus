@@ -162,4 +162,9 @@ doubleAdv li =  delay (adv li + adv li)
 addDelay :: O Int -> O Int -> O Int
 addDelay x y = delay (adv x + adv y)
 
+
+{-# ANN promoteNoDelay ExpectError #-}
+promoteNoDelay :: Sig Int -> Sig Int
+promoteNoDelay xs = promote xs
+
 main = putStrLn "This file should not type check"

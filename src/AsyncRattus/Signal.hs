@@ -48,6 +48,10 @@ import AsyncRattus.Channels
 import Prelude hiding (map, const, zipWith, zipWith3, zip, filter)
 import Data.VectorSpace
 import Data.Ratio ((%))
+-- TODO: InternalPrimitives is only used to implment instance of
+-- Continuous. Replace this manual instance declaration with Template
+-- Haskell.
+import AsyncRattus.InternalPrimitives
 
 infixr 5 :::
 
@@ -321,6 +325,12 @@ derivative xs = der zeroVector (current xs) xs where
           Fst xs' _ -> der d last xs'
           Snd xs' () -> der ((x ^-^ last) ^/ dtf) x (x ::: xs')
           Both (x' ::: xs') () ->  der ((x' ^-^ last) ^/ dtf) x' (x' ::: xs'))
+
+
+instance Continuous a => Continuous (Sig a) where
+    promoteInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
+        if channelMember chId cl then adv' xs inp
+        else promoteInternal inp x ::: xs
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.

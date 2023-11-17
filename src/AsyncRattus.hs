@@ -9,6 +9,8 @@ module AsyncRattus (
   module AsyncRattus.Primitives,
   -- * Strict data types
   module AsyncRattus.Strict,
+  -- * Derive class instance declarations
+  module AsyncRattus.Derive,
   -- * Annotation
   AsyncRattus(..),
   -- * other
@@ -19,6 +21,7 @@ module AsyncRattus (
 import AsyncRattus.Plugin
 import AsyncRattus.Strict
 import AsyncRattus.Primitives
+import AsyncRattus.Derive
 
 mapO :: Box (a -> b) -> O a -> O b
 mapO f later = delay (unbox f (adv later))

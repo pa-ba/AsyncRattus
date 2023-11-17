@@ -1,4 +1,6 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module AsyncRattus.InternalPrimitives where
 
@@ -161,6 +163,16 @@ box x = Box x
 unbox :: Box a -> a
 unbox (Box d) = d
 
+
+
+class Continuous p where
+  promoteInternal :: InputValue -> p -> p
+
+instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
+    promoteInternal _ x = x
+
+promote :: Continuous a => a -> a
+promote = asyncRattusError "promote"
 
 {-# RULES
   "unbox/box"    forall x. unbox (box x) = x

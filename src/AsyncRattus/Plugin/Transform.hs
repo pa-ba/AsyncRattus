@@ -43,6 +43,10 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     varAdv' <- adv'Var
     let newE = replaceVar f varAdv' e
     return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
+  Just primInfo@(PromoteApp f) -> do
+    varPromote <- promoteInternalVar
+    let newE = replaceVar f varPromote e
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
   Just primInfo@(SelectApp f _ _) -> do
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e

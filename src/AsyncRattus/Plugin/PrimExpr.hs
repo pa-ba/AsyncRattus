@@ -14,11 +14,11 @@ import GHC.Plugins
 import AsyncRattus.Plugin.Utils
 import Prelude hiding ((<>))
 
-data Prim = Delay | Adv | Box | Select
+data Prim = Delay | Adv | Promote | Box | Select
 
 -- DelayApp has the following fields: Var = delay f, T1 = value type, T2 = later type (O v a)
 -- AdvApp has the following fields: Var = adv f, TypedArg = var and type for arg
-data PrimInfo = DelayApp Var Type | AdvApp Var TypedArg | BoxApp Var | SelectApp Var TypedArg TypedArg
+data PrimInfo = DelayApp Var Type | AdvApp Var TypedArg | PromoteApp Var | BoxApp Var | SelectApp Var TypedArg TypedArg
 
 type TypedArg = (Var, Type)
 
@@ -36,6 +36,7 @@ instance Outputable PartialPrimInfo where
 instance Outputable Prim where
   ppr Delay = "delay"
   ppr Adv = "adv"
+  ppr Promote = "promote"
   ppr Select = "select"
   ppr Box = "box"
 
@@ -43,12 +44,14 @@ instance Outputable PrimInfo where
   ppr (DelayApp f _) = text "DelayApp - function " <> ppr f 
   ppr (BoxApp f) = text "BoxApp - function " <> ppr f
   ppr (AdvApp f arg) = text "AdvApp - function " <> ppr f <> text " | arg " <> ppr arg
+  ppr (PromoteApp f) = text "PromoteApp - function " <> ppr f
   ppr (SelectApp f arg arg2) = text "SelectApp - function " <> ppr f <> text " | arg " <> ppr arg <> text " | arg2 " <> ppr arg2
   
 primMap :: Map FastString Prim
 primMap = Map.fromList
   [("delay", Delay),
    ("adv", Adv),
+   ("promote", Promote),
    ("select", Select),
    ("box", Box)
    ]
@@ -72,12 +75,14 @@ function :: PrimInfo -> Var
 function (DelayApp f _) = f
 function (BoxApp f) = f
 function (AdvApp f _) = f
+function (PromoteApp f) = f
 function (SelectApp f _ _) = f
 
 prim :: PrimInfo -> Prim
 prim (DelayApp {}) = Delay
 prim (BoxApp _) = Box
 prim (AdvApp {}) = Adv
+prim (PromoteApp {}) = Promote
 prim (SelectApp {}) = Select
 
 validatePartialPrimInfo :: PartialPrimInfo -> Maybe PrimInfo
@@ -90,7 +95,6 @@ validatePartialPrimInfo _ = Nothing
 isPrimExpr :: Expr Var -> Maybe PrimInfo
 isPrimExpr expr = isPrimExpr' expr >>= validatePartialPrimInfo
 
--- App (App (App (App f type) arg) Type2) arg2
 isPrimExpr' :: Expr Var -> Maybe PartialPrimInfo
 isPrimExpr' (App e (Type t)) = case mPPI of
   Just pPI@(PartialPrimInfo {typeArgs = tArgs}) -> Just pPI {typeArgs = t : tArgs}

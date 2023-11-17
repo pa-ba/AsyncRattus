@@ -3,6 +3,8 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 
 -- | This module contains strict versions of some standard data
 -- structures.
@@ -34,12 +36,61 @@ module AsyncRattus.Strict
 
 import Prelude hiding (map)
 import Data.VectorSpace
+import AsyncRattus.Derive
 
 infixr 2 :*
+-- | Strict pair type.
+data a :* b = !a :* !b
+
+continuous ''(:*)
+
+-- | First projection function.
+fst' :: (a :* b) -> a
+fst' (a:*_) = a
+
+-- | Second projection function.
+snd' :: (a :* b) -> b
+snd' (_:*b) = b
+
+curry' :: ((a :* b) -> c) -> a -> b -> c
+curry' f x y = f (x :* y)
+
+uncurry' :: (a -> b -> c) -> (a :* b) -> c
+uncurry' f (x :* y) = f x y
+
+
+instance Functor ((:*) a) where
+  fmap f (x:*y) = (x :* f y)
+  
+instance (Show a, Show b) => Show (a:*b) where
+  show (a :* b) = "(" ++ show a ++ " :* " ++ show b ++ ")"
+
+instance (Eq a, Eq b) => Eq (a :* b) where
+  (x1 :* y1) == (x2 :* y2) = x1 == x2 && y1 == y2
+
+
+instance (VectorSpace v a, VectorSpace w a, Floating a, Eq a) => VectorSpace (v :* w) a where
+  zeroVector = zeroVector :* zeroVector
+
+  a *^ (x :* y) = (a *^ x) :* (a *^ y)
+
+  (x :* y) ^/ a = (x ^/ a) :* (y ^/ a)
+
+  negateVector (x :* y) = (negateVector x) :* (negateVector y)
+
+  (x1 :* y1) ^+^ (x2 :* y2) = (x1 ^+^ x2) :* (y1 ^+^ y2)
+
+  (x1 :* y1) ^-^ (x2 :* y2) = (x1 ^-^ x2) :* (y1 ^-^ y2)
+
+  (x1 :* y1) `dot` (x2 :* y2) = (x1 `dot` x2) + (y1 `dot` y2)
+
 infixr 8 :!
 
 -- | Strict list type.
 data List a = Nil | !a :! !(List a)
+
+continuous ''List
+
 
 singleton :: a -> List a
 singleton x = x :! Nil
@@ -139,6 +190,8 @@ instance Show a => Show (List a) where
 -- | Strict variant of 'Maybe'.
 data Maybe' a = Just' !a | Nothing'
 
+continuous ''Maybe'
+
 instance Eq a => Eq (Maybe' a) where
   Nothing' == Nothing' = True
   Just' x == Just' y = x == y
@@ -160,47 +213,3 @@ fromMaybe' :: a -> Maybe' a -> a
 fromMaybe' _ (Just' x) = x
 fromMaybe' d Nothing' = d
 
--- | Strict pair type.
-data a :* b = !a :* !b
-
--- | First projection function.
-fst' :: (a :* b) -> a
-fst' (a:*_) = a
-
--- | Second projection function.
-snd' :: (a :* b) -> b
-snd' (_:*b) = b
-
-curry' :: ((a :* b) -> c) -> a -> b -> c
-curry' f x y = f (x :* y)
-
-uncurry' :: (a -> b -> c) -> (a :* b) -> c
-uncurry' f (x :* y) = f x y
-
-
-instance Functor ((:*) a) where
-  fmap f (x:*y) = (x :* f y)
-  
-instance (Show a, Show b) => Show (a:*b) where
-  show (a :* b) = "(" ++ show a ++ " :* " ++ show b ++ ")"
-
-instance (Eq a, Eq b) => Eq (a :* b) where
-  (x1 :* y1) == (x2 :* y2) = x1 == x2 && y1 == y2
-
-
-instance (VectorSpace v a, VectorSpace w a, Floating a, Eq a) => VectorSpace (v :* w) a where
-  zeroVector = zeroVector :* zeroVector
-
-  a *^ (x :* y) = (a *^ x) :* (a *^ y)
-
-  (x :* y) ^/ a = (x ^/ a) :* (y ^/ a)
-
-  negateVector (x :* y) = (negateVector x) :* (negateVector y)
-
-  (x1 :* y1) ^+^ (x2 :* y2) = (x1 ^+^ x2) :* (y1 ^+^ y2)
-
-  (x1 :* y1) ^-^ (x2 :* y2) = (x1 ^-^ x2) :* (y1 ^-^ y2)
-
-  (x1 :* y1) `dot` (x2 :* y2) = (x1 `dot` x2) + (y1 `dot` y2)
-
-  

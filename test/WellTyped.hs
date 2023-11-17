@@ -136,4 +136,10 @@ unusedAdv d = delay (adv d `seq` ())
 unusedAdv' :: O () -> O ()
 unusedAdv' d = delay (let _ = adv d in ())
 
+promoteDelay :: Sig Int -> Sig Bool -> O () -> O (Sig Int :* Sig Bool)
+promoteDelay xs ys x = delay (adv x `seq` (promote xs :* promote ys))
+
+promoteListDelay :: List (Sig Int)  -> O () -> O (List (Sig Int))
+promoteListDelay xs x = delay (adv x `seq` promote xs)
+
 main = putStrLn "This file should just type check"
