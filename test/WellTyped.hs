@@ -7,6 +7,7 @@ module Main (module Main) where
 import AsyncRattus
 import AsyncRattus.Signal
 import Data.Set as Set
+import Data.Text
 
 boxedInt :: Box Int
 boxedInt = box 8
@@ -117,6 +118,13 @@ naiveIf' b x y = delay (b :* adv later)
 
 advUnderLambda :: O Int -> O (a -> Int)
 advUnderLambda y = delay (\_ -> adv y)
+
+
+stableText :: Text -> Sig Text -> Sig Text
+stableText = scan (box append) 
+
+stableInteger :: Integer -> Sig Integer -> Sig Integer
+stableInteger = scan (box (+)) 
 
 
 dblAdv :: O (O a) -> O (O a)

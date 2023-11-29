@@ -158,12 +158,6 @@ mkBoxSig b = box (mkSig b)
 const :: a -> Sig a
 const x = x ::: never
 
--- | Construct a signal by repeatedly applying a function to a given
--- start element. That is, @unfold (box f) x@ will produce the signal
--- @x ::: f x ::: f (f x) ::: ...@
--- unfold :: Stable a => Box (a -> a) -> a -> Sig a
--- unfold f x = x ::: delay (unfold f (unbox f x))
-
 -- | Similar to Haskell's 'scanl'.
 --
 -- > scan (box f) x (v1 ::: v2 ::: v3 ::: ... ) == (x `f` v1) ::: ((x `f` v1) `f` v2) ::: ...
@@ -174,7 +168,7 @@ scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
 scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
 
--- Like 'scan', but uses a delayed signal.
+-- | Like 'scan', but uses a delayed signal.
 scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
 scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
