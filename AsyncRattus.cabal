@@ -1,6 +1,6 @@
 cabal-version:       1.18
 name:                AsyncRattus
-version:             0.1.0.1
+version:             0.1.0.2
 category:            FRP
 synopsis:            An asynchronous modal FRP language
 description:
@@ -167,6 +167,6 @@ Test-Suite well-typed
   main-is:             WellTyped.hs
   hs-source-dirs:      test
   default-language:    Haskell2010
-  build-depends:       AsyncRattus, base, containers
+  build-depends:       AsyncRattus, base, containers, text
   ghc-options:         -fplugin=AsyncRattus.Plugin
 
