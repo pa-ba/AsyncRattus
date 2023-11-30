@@ -37,6 +37,7 @@ module AsyncRattus.Signal
   , zipWith3
   , zip
   , cond
+  , update
   , integral
   , derivative
   )
@@ -168,19 +169,19 @@ const x = x ::: never
 --
 -- Note: Unlike 'scanl', 'scan' starts with @x `f` v1@, not @x@.
 
-scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
-scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
+scan :: (Continuous b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
+scan f acc (a ::: as) = acc' ::: delay (scan f (promote acc') (adv as))
   where acc' = unbox f acc a
 
 -- | Like 'scan', but uses a delayed signal.
-scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
-scanAwait f acc as = acc ::: delay (scan f acc (adv as))
+scanAwait :: (Continuous b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
+scanAwait f acc as = acc ::: delay (scan f (promote acc) (adv as))
 
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
 -- > scanMap f g x === map g . scan f x
-scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
-scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
+scanMap :: (Continuous b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
+scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p (promote acc') (adv as))
   where acc' = unbox f acc a
 
 -- | This function allows to switch from one signal to another one
@@ -202,11 +203,11 @@ switch (x ::: xs) d = x ::: delay (case select xs d of
 
 -- | This function is similar to 'switch', but the (future) second
 -- signal may depend on the last value of the first signal.
-switchS :: Stable a => Sig a -> O (a -> Sig a) -> Sig a
+switchS :: Continuous a => Sig a -> O (a -> Sig a) -> Sig a
 switchS (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switchS xs' d'
-                                     Snd   _    f  -> f x
-                                     Both  _    f  -> f x)
+                                     Snd   _    f  -> f (promote x)
+                                     Both  _    f  -> f (promote x))
 
 -- | This function is similar to 'switch' but works on delayed signals
 -- instead of signals.
@@ -233,6 +234,20 @@ interleave f xs ys = delay (case select xs ys of
                               Fst (x ::: xs') ys' -> x ::: interleave f xs' ys'
                               Snd xs' (y ::: ys') -> y ::: interleave f xs' ys'
                               Both (x ::: xs') (y ::: ys') -> unbox f x y ::: interleave f xs' ys')
+
+
+-- | Takes two signals and updates the first signal using the
+-- functions produced by the second signal:
+--
+-- Law:
+--
+-- (xs `update` fs) `update` gs = (xs `update` (interleave (box (.)) gs fs))
+update :: (Continuous a) => Sig a -> O (Sig (a -> a)) -> Sig a
+update (x ::: xs) fs = x ::: delay 
+  (case select xs fs of
+    Fst xs' ys' -> update xs' ys'
+    Snd xs' (f ::: fs') -> update (f (promote x) ::: xs') fs'
+    Both (x' ::: xs') (f ::: fs') -> update (f x' ::: xs') fs')
 
 
 -- | This function is a variant of combines the values of two signals
@@ -334,9 +349,17 @@ instance Continuous a => Continuous (Sig a) where
 {-# NOINLINE [1] scan #-}
 {-# NOINLINE [1] scanMap #-}
 {-# NOINLINE [1] zip #-}
+{-# NOINLINE [1] update #-}
+{-# NOINLINE [1] switch #-}
 
 
 {-# RULES
+
+  "const/switch" forall x xs.
+  switch (const x) xs = x ::: xs;
+
+  "update/update" forall xs fs gs.
+    update (update xs fs) gs = update xs (interleave (box (.)) gs fs) ;
 
   "const/map" forall (f :: Stable b => Box (a -> b))  x.
     map f (const x) = let x' = unbox f x in const x' ;

@@ -174,6 +174,8 @@ instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
 promote :: Continuous a => a -> a
 promote = asyncRattusError "promote"
 
+newtype Chan a = Chan InputChannelIdentifier
+
 {-# RULES
   "unbox/box"    forall x. unbox (box x) = x
     #-}

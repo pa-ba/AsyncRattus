@@ -14,8 +14,7 @@
 module AsyncRattus.Strict
   ( List(..),
     singleton,
-    fromList,
-    toList,
+    IsList(..),
     init',
     reverse',
     (+++),
@@ -37,6 +36,7 @@ module AsyncRattus.Strict
 import Prelude hiding (map)
 import Data.VectorSpace
 import AsyncRattus.Derive
+import GHC.Exts
 
 infixr 2 :*
 -- | Strict pair type.
@@ -95,13 +95,17 @@ continuous ''List
 singleton :: a -> List a
 singleton x = x :! Nil
 
-fromList :: [a] -> List a
-fromList [] = Nil
-fromList (x : xs) = x :! fromList xs
 
-toList :: List a -> [a]
-toList Nil = []
-toList (x :! xs) = x : toList xs
+
+instance IsList (List a) where
+  type Item (List a) = a
+
+  fromList [] = Nil
+  fromList (x : xs) = x :! fromList xs
+
+  toList Nil = []
+  toList (x :! xs) = x : toList xs
+
 
 -- | Remove the last element from a list if there is one, otherwise
 -- return 'Nil'.

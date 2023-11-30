@@ -51,7 +51,7 @@ import Data.IORef (readIORef)
 #endif  
 import GHC.Utils.Logger
 import GHC.Plugins
-import GHC.Utils.Error
+import GHC.Utils.Error hiding (errorMsg)
 import GHC.Utils.Monad
 
 
@@ -139,9 +139,9 @@ origNameCache = do
 getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
 getNamedThingFromModuleAndOccName moduleName occName = do
   origNameCache <- origNameCache
-  let [mod] = filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let name = fromJust $ lookupOrigNameCache origNameCache mod occName
-  lookupThing name
+  case filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache) of
+    mod : _ -> lookupThing $ fromJust $ lookupOrigNameCache origNameCache mod occName
+    _ -> error ( ("internal error: cannot find module " ++ moduleName ++ "; " ++ show (map (unpackFS . getModuleFS) $ moduleEnvKeys origNameCache)))
 
 getVarFromModule :: String -> String -> CoreM Var
 getVarFromModule moduleName = fmap tyThingId . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
@@ -261,7 +261,7 @@ isStableRec c d pr t = do
           | mod == "GHC.Num.Integer" && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           -- If it's a Rattus type constructor check if it's a box
-          | isRattModule mod && name == "Box" -> True
+          | isRattModule mod && (name == "Box" || name == "Chan") -> True
             -- If its a built-in type check the set of stable built-in types
           | isGhcModule mod -> isGhcStableType name
           {- deal with type synonyms (does not seem to be necessary (??))
@@ -313,7 +313,7 @@ isStrictRec d pr t = do
           | mod == "GHC.IORef" && name == "IORef" -> True
           | mod == "GHC.MVar" && name == "MVar" -> True
           -- If it's a Rattus type constructor check if it's a box
-          | isRattModule mod && (name == "Box" || name == "O" || name == "Output") -> True
+          | isRattModule mod && (name == "Box" || name == "Chan" || name == "O" || name == "Output") -> True
             -- If its a built-in type check the set of stable built-in types
           | isGhcModule mod -> isGhcStableType name
           {- deal with type synonyms (does not seem to be necessary (??))

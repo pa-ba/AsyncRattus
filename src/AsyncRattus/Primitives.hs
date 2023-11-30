@@ -16,5 +16,6 @@ module AsyncRattus.Primitives
   ,select
   ,never
   ,Stable
+  ,Continuous
   ) where
 import AsyncRattus.InternalPrimitives

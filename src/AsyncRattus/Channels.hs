@@ -19,6 +19,9 @@ module AsyncRattus.Channels (
   startEventLoop,
   timer,
   Producer (..),
+  chan,
+  wait,
+  Chan
 ) where
 
 import AsyncRattus.InternalPrimitives
@@ -33,7 +36,7 @@ import Unsafe.Coerce
 import qualified Data.HashTable.IO as H
 import Data.HashTable.IO (BasicHashTable)
 import qualified Data.IntSet as IntSet
-import Control.Concurrent
+import Control.Concurrent hiding (Chan)
 
 -- | A type @p@ satisfying @Producer p a@ is essentially a signal that
 -- produces values of type @a@ but it might not produce such values at
@@ -57,6 +60,13 @@ instance Producer p a => Producer (Box p) a where
   getCurrent p = getCurrent (unbox p)
   getNext p cb = getNext (unbox p) cb
 
+{-# NOINLINE chan #-}
+chan :: Chan a
+chan = unsafePerformIO 
+            (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
+
+wait :: Chan a -> O a
+wait (Chan ch) = Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)
 
 {-# NOINLINE nextFreshChannel #-}
 nextFreshChannel :: IORef InputChannelIdentifier
