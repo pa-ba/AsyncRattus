@@ -36,7 +36,7 @@ module AsyncRattus.Strict
 import Prelude hiding (map)
 import Data.VectorSpace
 import AsyncRattus.Derive
-import GHC.Exts
+import GHC.Exts (IsList(..))
 
 infixr 2 :*
 -- | Strict pair type.

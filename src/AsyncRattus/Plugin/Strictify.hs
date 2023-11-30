@@ -49,7 +49,7 @@ isLit _ = False
 isFromList :: CoreExpr -> Bool
 isFromList (Var v) =
   case getNameModule v of
-    Just (name, mod) -> mod == "GHC.Exts" && (name == "fromList" || name == "fromListN")
+    Just (name, mod) -> (mod == "GHC.Exts" || mod == "GHC.IsList") && (name == "fromList" || name == "fromListN")
     _ -> False
 isFromList (App x _) = isFromList x
 isFromList _ = False
