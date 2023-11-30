@@ -10,7 +10,7 @@ module AsyncRattus.Primitives
   ,Select(..)
   ,delay
   ,adv
-  ,promote
+  ,progress
   ,box
   ,unbox
   ,select

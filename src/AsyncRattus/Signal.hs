@@ -170,18 +170,18 @@ const x = x ::: never
 -- Note: Unlike 'scanl', 'scan' starts with @x `f` v1@, not @x@.
 
 scan :: (Continuous b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
-scan f acc (a ::: as) = acc' ::: delay (scan f (promote acc') (adv as))
+scan f acc (a ::: as) = acc' ::: delay (scan f (progress acc') (adv as))
   where acc' = unbox f acc a
 
 -- | Like 'scan', but uses a delayed signal.
 scanAwait :: (Continuous b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
-scanAwait f acc as = acc ::: delay (scan f (promote acc) (adv as))
+scanAwait f acc as = acc ::: delay (scan f (progress acc) (adv as))
 
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
 -- > scanMap f g x === map g . scan f x
 scanMap :: (Continuous b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
-scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p (promote acc') (adv as))
+scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p (progress acc') (adv as))
   where acc' = unbox f acc a
 
 -- | This function allows to switch from one signal to another one
@@ -206,8 +206,8 @@ switch (x ::: xs) d = x ::: delay (case select xs d of
 switchS :: Continuous a => Sig a -> O (a -> Sig a) -> Sig a
 switchS (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switchS xs' d'
-                                     Snd   _    f  -> f (promote x)
-                                     Both  _    f  -> f (promote x))
+                                     Snd   _    f  -> f (progress x)
+                                     Both  _    f  -> f (progress x))
 
 -- | This function is similar to 'switch' but works on delayed signals
 -- instead of signals.
@@ -246,7 +246,7 @@ update :: (Continuous a) => Sig a -> O (Sig (a -> a)) -> Sig a
 update (x ::: xs) fs = x ::: delay 
   (case select xs fs of
     Fst xs' ys' -> update xs' ys'
-    Snd xs' (f ::: fs') -> update (f (promote x) ::: xs') fs'
+    Snd xs' (f ::: fs') -> update (f (progress x) ::: xs') fs'
     Both (x' ::: xs') (f ::: fs') -> update (f x' ::: xs') fs')
 
 
@@ -337,9 +337,9 @@ derivative xs = der zeroVector (current xs) xs where
 
 
 instance Continuous a => Continuous (Sig a) where
-    promoteInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
+    progressInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
         if channelMember chId cl then adv' xs inp
-        else promoteInternal inp x ::: xs
+        else progressInternal inp x ::: xs
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.

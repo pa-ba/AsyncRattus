@@ -25,10 +25,10 @@ import AsyncRattus.InternalPrimitives
 data SigE a = !a ::* !(O (SigE a)) | SigEnd
 
 instance Continuous a => Continuous (SigE a) where
-    promoteInternal _ SigEnd = SigEnd
-    promoteInternal inp@(InputValue chId _) (x ::* xs@(Delay cl _)) = 
+    progressInternal _ SigEnd = SigEnd
+    progressInternal inp@(InputValue chId _) (x ::* xs@(Delay cl _)) = 
         if channelMember chId cl then adv' xs inp
-        else promoteInternal inp x ::* xs
+        else progressInternal inp x ::* xs
 
 
 -- | Construct a constant signal that never updates.
@@ -107,7 +107,7 @@ updateWidgetGroup old = new where
 groupFuture :: WidgetGroup -> Box (O ()) -> O (Sig WidgetGroup)
 groupFuture old click = delay (
             let () = adv (unbox click)
-                new = updateWidgetGroup (promote old)
+                new = updateWidgetGroup (progress old)
             in new ::: groupFuture new click )
 
 -- This group describes the whole GUI

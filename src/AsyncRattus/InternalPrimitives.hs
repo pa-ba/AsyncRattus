@@ -166,13 +166,13 @@ unbox (Box d) = d
 
 
 class Continuous p where
-  promoteInternal :: InputValue -> p -> p
+  progressInternal :: InputValue -> p -> p
 
 instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
-    promoteInternal _ x = x
+    progressInternal _ x = x
 
-promote :: Continuous a => a -> a
-promote = asyncRattusError "promote"
+progress :: Continuous a => a -> a
+progress = asyncRattusError "progress"
 
 newtype Chan a = Chan InputChannelIdentifier
 

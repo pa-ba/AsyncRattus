@@ -86,7 +86,7 @@ continuous fname = do
       preCond = map (mkClassP ''Continuous . (: [])) argNames
       classType = AppT (ConT ''Continuous) complType
   constrs' <- mapM normalConExp constrs
-  promDecl <- funD 'promoteInternal (promClauses constrs')
+  promDecl <- funD 'progressInternal (promClauses constrs')
   return [mkInstanceD preCond classType [promDecl]]
       where promClauses = map genPromClause
             genPromClause (constr, args,_) = do
@@ -96,5 +96,5 @@ continuous fname = do
               let pat = ConP constr [] $ map VarP varNs
                   allVars = map varE varNs
                   inpVar = varE varIn
-              body <- appsE ( conE constr : (map (\ x -> [|promoteInternal $inpVar $x|]) allVars))
+              body <- appsE ( conE constr : (map (\ x -> [|progressInternal $inpVar $x|]) allVars))
               return $ Clause [VarP varIn, pat] (NormalB body) []
