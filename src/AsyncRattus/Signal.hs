@@ -322,9 +322,9 @@ derivative xs = der zeroVector (current xs) xs where
 
 
 instance Continuous a => Continuous (Sig a) where
-    promoteInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
+    progressInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
         if channelMember chId cl then adv' xs inp
-        else promoteInternal inp x ::: xs
+        else progressInternal inp x ::: xs
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
