@@ -90,6 +90,7 @@ validatePartialPrimInfo (PartialPrimInfo Select f [arg2V, argV] [arg2T, argT]) =
 validatePartialPrimInfo (PartialPrimInfo Delay f [_] [argT]) = Just $ DelayApp f argT
 validatePartialPrimInfo (PartialPrimInfo {primPart = Box, functionPart = f}) = Just $ BoxApp f
 validatePartialPrimInfo (PartialPrimInfo Adv f [argV] [argT]) = Just $ AdvApp f (argV, argT)
+validatePartialPrimInfo (PartialPrimInfo Progress f [_argV] [_argT]) = Just $ ProgressApp f
 validatePartialPrimInfo _ = Nothing
 
 isPrimExpr :: Expr Var -> Maybe PrimInfo

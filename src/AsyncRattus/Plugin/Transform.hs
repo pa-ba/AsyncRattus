@@ -37,20 +37,20 @@ replaceVar match rep (Case e b t alts) =
         newB = if b == match then rep else b
 replaceVar _ _ e = e
 
-transformPrim :: Ctx -> Expr Var -> CoreM (Expr Var, PrimInfo)
+transformPrim :: Ctx -> Expr Var -> CoreM (Expr Var, Maybe PrimInfo)
 transformPrim ctx expr@(App e e') = case isPrimExpr expr of
   Just primInfo@(AdvApp f _) -> do
     varAdv' <- adv'Var
     let newE = replaceVar f varAdv' e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
-  Just primInfo@(ProgressApp f) -> do
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), Just primInfo)
+  Just (ProgressApp f) -> do
     varProgress <- progressInternalVar
     let newE = replaceVar f varProgress e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), Nothing)
   Just primInfo@(SelectApp f _ _) -> do
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), Just primInfo)
   Just (DelayApp _ t) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
@@ -61,7 +61,7 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     let primInfo = fromJust maybePrimInfo
     let lambdaExpr = Lam inpVar newExpr
     clockCode <- constructClockExtractionCode primInfo
-    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, primInfo)
+    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, maybePrimInfo)
   Just primInfo -> do
         error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
   Nothing -> error "Cannot transform non-prim applications"
@@ -77,9 +77,9 @@ transform' ctx expr@(App e e') = case isPrimExpr expr of
     Just (BoxApp _) -> do
         (newExpr, primInfo) <- transform' ctx e'
         return (App e newExpr, primInfo)
-    Just _ -> do
+    (Just _) -> do
         (newExpr, primInfo) <- transformPrim ctx expr
-        return (newExpr, Just primInfo)
+        return (newExpr, primInfo)
     Nothing -> do
         (newExpr, primInfo) <- transform' ctx e
         (newExpr', primInfo') <- transform' ctx e'
@@ -117,8 +117,7 @@ transform' _ e = return (e, Nothing)
 
 constructClockExtractionCode :: PrimInfo -> CoreM CoreExpr
 constructClockExtractionCode (AdvApp _ arg) = createClockCode arg
-constructClockExtractionCode (SelectApp _ arg arg2) =
-    clockUnion arg arg2
+constructClockExtractionCode (SelectApp _ arg arg2) = clockUnion arg arg2
 constructClockExtractionCode primInfo = error $ "Cannot construct clock for prim " ++ showSDocUnsafe (ppr (prim primInfo))
 
 
