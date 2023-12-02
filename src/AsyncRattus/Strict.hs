@@ -95,7 +95,9 @@ continuous ''List
 singleton :: a -> List a
 singleton x = x :! Nil
 
-
+instance Traversable List where
+  traverse _ Nil = pure Nil
+  traverse f (x :! xs) = (:!) <$> (f x) <*> (traverse f xs)
 
 instance IsList (List a) where
   type Item (List a) = a
