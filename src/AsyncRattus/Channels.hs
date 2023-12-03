@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | This module is meant for library authors that want to build APIs
 -- for interacting with asynchronous resources, e.g. a GUI framework. 
@@ -20,9 +21,13 @@ module AsyncRattus.Channels (
   timer,
   Producer (..),
   chan,
+  C (..),
+  delayC,
   wait,
   Chan
 ) where
+
+import Debug.Trace
 
 import AsyncRattus.InternalPrimitives
 
@@ -60,10 +65,13 @@ instance Producer p a => Producer (Box p) a where
   getCurrent p = getCurrent (unbox p)
   getNext p cb = getNext (unbox p) cb
 
-{-# NOINLINE chan #-}
-chan :: Chan a
-chan = unsafePerformIO 
-            (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
+newtype C a = C {unC :: IO a} deriving (Functor, Applicative, Monad)
+
+chan :: C (Chan a)
+chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, trace "!!!!!!!!new channel!!!!!!!\n" $ x)))
+
+delayC :: O (C a) -> C (O a)
+delayC d = return (delay (unsafePerformIO (unC (adv d))))
 
 wait :: Chan a -> O a
 wait (Chan ch) = Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)
