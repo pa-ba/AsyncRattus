@@ -172,7 +172,10 @@ runApplication (C w) = do
     w' <- w
     Monomer.startApp (AppModel w') handler builder config
     where builder _ (AppModel w) = mkWidget w
-          handler _ _ (AppModel w) (AppEvent (Chan ch) d) = trace ("handler: " ++ show ch)  [Monomer.Model (AppModel (progressInternal (InputValue ch d) w))]
+          handler _ _ (AppModel w) (AppEvent (Chan ch) d) = 
+            let inp = (InputValue ch d) in unsafePerformIO $ do
+               progressPromoteStore inp
+               return (trace ("handler: " ++ show ch)  [Monomer.Model (AppModel (progressInternal inp w))])
           config = [
                 Monomer.appWindowTitle "Test",
                 Monomer.appTheme Monomer.lightTheme,

@@ -55,18 +55,18 @@ updateWidgetGroup old = do
     return (constE (Widget (HStack (const [newTf, newBtn]))) :! old)
 
 -- This describes future changes to the GUI
-groupFuture :: WidgetGroup -> Box (O ()) -> C (O (Sig WidgetGroup))
+groupFuture :: Box (WidgetGroup) -> Box (O ()) -> C (O (Sig WidgetGroup))
 groupFuture old click = delayC $ delay (do
             let () = adv (unbox click)
-            new <- updateWidgetGroup (progress old)
-            fut <- groupFuture new click 
+            new <- updateWidgetGroup (unbox old)
+            fut <- groupFuture (promote new) click 
             return (new ::: fut))
 
 -- This group describes the whole GUI
 wgroup :: C (Sig WidgetGroup)
 wgroup = do newBtn <-  mkButton (const "New") (const white)
             let grp =  [constE (Widget newBtn)]
-            fut <- groupFuture grp (btnOnClick newBtn)
+            fut <- groupFuture (promote grp) (btnOnClick newBtn)
             return (grp ::: fut)
 
 -- What to do when the "New" button is clicked
@@ -101,4 +101,4 @@ wlist = do newBtn <-  mkButton (const "New") (const white)
 --     sig = mkSig (btnOnClick newBtn)
     
 
-main = runApplication (VStack' <$> wlist)
+main = runApplication (VStack <$> wgroup)

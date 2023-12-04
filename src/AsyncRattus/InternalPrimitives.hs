@@ -7,6 +7,11 @@ module AsyncRattus.InternalPrimitives where
 import Prelude hiding (Left, Right)
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import Data.IORef
+import Data.Maybe
+import System.IO.Unsafe
+import System.Mem.Weak
+import Control.Monad
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
@@ -164,15 +169,63 @@ unbox :: Box a -> a
 unbox (Box d) = d
 
 
+defaultPromote :: Continuous a => a -> Box a
+defaultPromote x = unsafePerformIO $ 
+    do r <- newIORef x
+       r' <- mkWeakIORef r (return ()) 
+       modifyIORef promoteStore (ContinuousData r' :)
+       return (Box (unsafePerformIO $ readIORef r))
+
 
 class Continuous p where
   progressInternal :: InputValue -> p -> p
+  promoteInternal :: p -> Box p
+  promoteInternal = defaultPromote
 
+-- For stable types we can circumvent the "promote store".
 instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
     progressInternal _ x = x
+    promoteInternal = Box
 
+-- TODO: progress is not sound. Remove this from the language.
 progress :: Continuous a => a -> a
 progress = asyncRattusError "progress"
+
+data ContinuousData where
+   ContinuousData :: Continuous a => !(Weak (IORef a)) -> ContinuousData
+
+-- TODO: The list type needs to be replaced by a more efficient
+-- mutable data structure.
+{-# NOINLINE promoteStore #-}
+promoteStore :: IORef [ContinuousData]
+promoteStore = unsafePerformIO (newIORef [])
+
+-- | For promote to work, its argument must be stored in the "promote
+-- store", and whenenver an input is received on some channel, all
+-- values in the "promote store" must be advanced (using
+-- 'progressInternal').
+
+progressPromoteStore :: InputValue -> IO ()
+progressPromoteStore inp = do 
+    xs <- readIORef promoteStore
+    putStrLn ("promote store size: " ++ show (length xs))
+    mapM_ run xs
+    -- need to read again since promoteStore might have been updated
+    xs <- readIORef promoteStore
+    xs' <- filterM isActive xs
+    writeIORef promoteStore xs'
+
+  where run (ContinuousData x) = do
+          d <- deRefWeak x
+          case d of
+            Nothing -> return ()
+            Just x -> do modifyIORef' x (progressInternal inp)
+        isActive (ContinuousData x) = do
+          d <- deRefWeak x
+          return (isJust d)
+
+promote :: Continuous a => a -> Box a
+promote x = promoteInternal x
 
 newtype Chan a = Chan InputChannelIdentifier
 
