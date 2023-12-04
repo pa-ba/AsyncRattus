@@ -37,20 +37,16 @@ replaceVar match rep (Case e b t alts) =
         newB = if b == match then rep else b
 replaceVar _ _ e = e
 
-transformPrim :: Ctx -> Expr Var -> CoreM (Expr Var, Maybe PrimInfo)
+transformPrim :: Ctx -> Expr Var -> CoreM (Expr Var, PrimInfo)
 transformPrim ctx expr@(App e e') = case isPrimExpr expr of
   Just primInfo@(AdvApp f _) -> do
     varAdv' <- adv'Var
     let newE = replaceVar f varAdv' e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), Just primInfo)
-  Just (ProgressApp f) -> do
-    varProgress <- progressInternalVar
-    let newE = replaceVar f varProgress e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), Nothing)
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
   Just primInfo@(SelectApp f _ _) -> do
     varSelect' <- select'Var
     let newE = replaceVar f varSelect' e
-    return (App (App newE e') (Var (fromJust $ fresh ctx)), Just primInfo)
+    return (App (App newE e') (Var (fromJust $ fresh ctx)), primInfo)
   Just (DelayApp _ t) -> do
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
@@ -61,7 +57,7 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     let primInfo = fromJust maybePrimInfo
     let lambdaExpr = Lam inpVar newExpr
     clockCode <- constructClockExtractionCode primInfo
-    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, maybePrimInfo)
+    return (App (App (App (Var bigDelayVar) (Type t)) clockCode) lambdaExpr, primInfo)
   Just primInfo -> do
         error $ showSDocUnsafe $ text "transformPrim: Cannot transform " <> ppr (prim primInfo)
   Nothing -> error "Cannot transform non-prim applications"
@@ -79,7 +75,7 @@ transform' ctx expr@(App e e') = case isPrimExpr expr of
         return (App e newExpr, primInfo)
     (Just _) -> do
         (newExpr, primInfo) <- transformPrim ctx expr
-        return (newExpr, primInfo)
+        return (newExpr, Just primInfo)
     Nothing -> do
         (newExpr, primInfo) <- transform' ctx e
         (newExpr', primInfo') <- transform' ctx e'

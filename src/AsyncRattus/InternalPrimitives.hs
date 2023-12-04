@@ -187,10 +187,6 @@ instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
     progressInternal _ x = x
     promoteInternal = Box
 
--- TODO: progress is not sound. Remove this from the language.
-progress :: Continuous a => a -> a
-progress = asyncRattusError "progress"
-
 data ContinuousData where
    ContinuousData :: Continuous a => !(Weak (IORef a)) -> ContinuousData
 

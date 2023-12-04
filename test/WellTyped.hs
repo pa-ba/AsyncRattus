@@ -144,10 +144,4 @@ unusedAdv d = delay (adv d `seq` ())
 unusedAdv' :: O () -> O ()
 unusedAdv' d = delay (let _ = adv d in ())
 
-progressDelay :: Sig Int -> Sig Bool -> O () -> O (Sig Int :* Sig Bool)
-progressDelay xs ys x = delay (adv x `seq` (progress xs :* progress ys))
-
-progressListDelay :: List (Sig Int)  -> O () -> O (List (Sig Int))
-progressListDelay xs x = delay (adv x `seq` progress xs)
-
 main = putStrLn "This file should just type check"

@@ -196,8 +196,6 @@ checkExpr' c@Ctx{current = cur, earlier = earl} expr@(App e e') =
         Right _ -> return $ Right emptyCheckResult
     Just (Prim.AdvApp f _) | not (hasTick c) -> return $ Left $ typeError c f (text "can only use adv under delay")
     Just (Prim.AdvApp f (arg, _)) -> return $ Right $ CheckResult {prim = Just (f, mkClock1 arg)}
-    Just (Prim.ProgressApp f) | not (hasTick c) -> return $ Left $ typeError c f (text "can only use adv under delay")
-    Just (Prim.ProgressApp _) -> return $ Right $ CheckResult {prim = Nothing}
     Just (Prim.SelectApp f _ _) | not (hasTick c) -> return $ Left $ typeError c f (text "can only use select under delay")
     Just (Prim.SelectApp f (arg1, _) (arg2, _))-> return $ Right $ CheckResult {prim = Just (f, mkClock2 arg1 arg2)}
     Nothing -> checkBoth c e e'

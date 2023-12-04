@@ -163,8 +163,4 @@ addDelay :: O Int -> O Int -> O Int
 addDelay x y = delay (adv x + adv y)
 
 
-{-# ANN progressNoDelay ExpectError #-}
-progressNoDelay :: Sig Int -> Sig Int
-progressNoDelay xs = progress xs
-
 main = putStrLn "This file should not type check"

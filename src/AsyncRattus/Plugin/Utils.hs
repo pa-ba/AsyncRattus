@@ -8,7 +8,6 @@ module AsyncRattus.Plugin.Utils (
   Severity(..),
   isRattModule,
   adv'Var,
-  progressInternalVar,
   select'Var,
   bigDelay,
   inputValueVar,
@@ -151,9 +150,6 @@ getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOc
 
 adv'Var :: CoreM Var
 adv'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
-
-progressInternalVar :: CoreM Var
-progressInternalVar = getVarFromModule "AsyncRattus.InternalPrimitives" "progressInternal"
 
 select'Var :: CoreM Var
 select'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "select'"

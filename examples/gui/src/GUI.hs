@@ -92,13 +92,12 @@ wlist = do newBtn <-  mkButton (const "New") (const white)
            fut <- listFuture 1 (btnOnClick newBtn)
            return (grp `ConsU` (fut `InsertU` NilU))
 
--- alternative implementation of group using switchS
--- group' :: Sig WidgetGroup
--- group' = scanAwait (box (\ w () -> updateWidgetGroup w)) grp sig where 
---     newBtn = mkButton (const "New") (const white)
---     grp = [constE (Widget newBtn)]
---     sig :: O (Sig ())
---     sig = mkSig (btnOnClick newBtn)
-    
+-- alternative implementation of group using scanAwait
+group' :: C (Sig WidgetGroup)
+group' = do
+    newBtn <- mkButton (const "New") (const white)
+    let grp = [constE (Widget newBtn)]
+        sig = mkSig (btnOnClick newBtn)
+    scanAwaitC (box (\ w () -> updateWidgetGroup w)) grp sig
 
-main = runApplication (VStack <$> wgroup)
+main = runApplication (VStack <$> group')
