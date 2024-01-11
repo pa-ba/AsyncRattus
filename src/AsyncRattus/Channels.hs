@@ -167,6 +167,7 @@ update inp ref = do
 
 eventLoop :: IO ()
 eventLoop = do inp@(InputValue ch _) <- readChan input
+               progressPromoteStoreAtomic inp
                res <- H.lookup output ch
                case res of
                  Nothing -> return ()

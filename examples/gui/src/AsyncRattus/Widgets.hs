@@ -13,6 +13,7 @@ import AsyncRattus.Channels
 import Data.Text
 import AsyncRattus.InternalPrimitives
 import System.IO.Unsafe
+import Control.Concurrent hiding (Chan)
 
 import qualified Monomer
 
@@ -168,12 +169,13 @@ black = Color {redc = 0, greenc = 0, bluec = 0}
 
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
+    forkIO startEventLoop -- TODO: Can we run this rather as part of the Monomer event loop?
     w' <- w
     Monomer.startApp (AppModel w') handler builder config
     where builder _ (AppModel w) = mkWidget w
           handler _ _ (AppModel w) (AppEvent (Chan ch) d) = 
             let inp = (InputValue ch d) in unsafePerformIO $ do
-               progressPromoteStore inp
+               progressPromoteStoreAtomic inp
                return ([Monomer.Model (AppModel (progressInternal inp w))])
           config = [
                 Monomer.appWindowTitle "Test",
