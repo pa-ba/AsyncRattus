@@ -8,6 +8,7 @@ import Prelude hiding (Left, Right)
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Data.IORef
+import Control.Concurrent.MVar
 import Data.Maybe
 import System.IO.Unsafe
 import System.Mem.Weak
@@ -196,6 +197,20 @@ data ContinuousData where
 promoteStore :: IORef [ContinuousData]
 promoteStore = unsafePerformIO (newIORef [])
 
+{-# NOINLINE progressPromoteStoreMutex #-}
+progressPromoteStoreMutex :: MVar ()
+progressPromoteStoreMutex = unsafePerformIO (newMVar ())
+
+
+-- | Atomic version of 'progressPromoteStore'.
+
+progressPromoteStoreAtomic :: InputValue -> IO ()
+progressPromoteStoreAtomic inp = do
+    takeMVar progressPromoteStoreMutex
+    progressPromoteStore inp
+    putMVar progressPromoteStoreMutex ()
+
+
 -- | For promote to work, its argument must be stored in the "promote
 -- store", and whenenver an input is received on some channel, all
 -- values in the "promote store" must be advanced (using
@@ -203,22 +218,15 @@ promoteStore = unsafePerformIO (newIORef [])
 
 progressPromoteStore :: InputValue -> IO ()
 progressPromoteStore inp = do 
-    xs <- readIORef promoteStore
+    xs <- atomicModifyIORef promoteStore (\x -> ([],x))
     putStrLn ("promote store size: " ++ show (length xs))
-    mapM_ run xs
-    -- need to read again since promoteStore might have been updated
-    xs <- readIORef promoteStore
-    xs' <- filterM isActive xs
-    writeIORef promoteStore xs'
-
+    xs' <- filterM run xs
+    atomicModifyIORef promoteStore (\x -> (x ++ xs',()))
   where run (ContinuousData x) = do
           d <- deRefWeak x
           case d of
-            Nothing -> return ()
-            Just x -> do modifyIORef' x (progressInternal inp)
-        isActive (ContinuousData x) = do
-          d <- deRefWeak x
-          return (isJust d)
+            Nothing -> return False
+            Just x -> modifyIORef' x (progressInternal inp) >> return True
 
 promote :: Continuous a => a -> Box a
 promote x = promoteInternal x
