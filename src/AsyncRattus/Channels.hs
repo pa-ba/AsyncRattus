@@ -33,7 +33,7 @@ import AsyncRattus.InternalPrimitives
 
 import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Strict
-import Control.Concurrent.MVar
+import Control.Concurrent.Chan
 import Control.Monad
 import System.IO.Unsafe
 import Data.IORef
@@ -82,8 +82,8 @@ nextFreshChannel = unsafePerformIO (newIORef (-1))
 
 
 {-# NOINLINE input #-}
-input :: MVar InputValue
-input = unsafePerformIO newEmptyMVar
+input :: Chan InputValue
+input = unsafePerformIO newChan
 
 data OutputChannel where
   OutputChannel :: Producer p a => !(O p) -> !(a -> IO ()) -> OutputChannel
@@ -105,7 +105,7 @@ eventLoopStarted = unsafePerformIO (newIORef False)
 getInput :: IO (Box (O a) :* (a -> IO ()))
 getInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
               return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
-                       :* \ x -> putMVar input (InputValue ch x))
+                       :* \ x -> writeChan input (InputValue ch x))
 
 {-# ANN setOutput' AllowLazyData #-}
 setOutput' :: Producer p a => (a -> IO ()) -> O p -> IO ()
@@ -114,7 +114,7 @@ setOutput' cb !sig = do
   let upd Nothing = (Just (ref :! Nil),())
       upd (Just ls) = (Just (ref :! ls),())
   let upd' ch Nothing = do
-        forkIO (threadDelay ch >> putMVar input (InputValue ch ()))
+        forkIO (threadDelay ch >> writeChan input (InputValue ch ()))
         return (Just (ref :! Nil),())
       upd' _ (Just ls) = return (Just (ref :! ls),())
   let run pre ch =
@@ -169,7 +169,7 @@ update inp ref = do
 {-# ANN eventLoop AllowLazyData #-}
 
 eventLoop :: IO ()
-eventLoop = do inp@(InputValue ch _) <- takeMVar input
+eventLoop = do inp@(InputValue ch _) <- readChan input
                res <- H.lookup output ch
                case res of
                  Nothing -> return ()
