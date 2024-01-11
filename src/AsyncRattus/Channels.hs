@@ -33,7 +33,7 @@ import AsyncRattus.InternalPrimitives
 
 import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Strict
-import Control.Concurrent.Chan
+import qualified Control.Concurrent.Chan as Concurrent
 import Control.Monad
 import System.IO.Unsafe
 import Data.IORef
@@ -82,7 +82,7 @@ nextFreshChannel = unsafePerformIO (newIORef (-1))
 
 
 {-# NOINLINE input #-}
-input :: Chan InputValue
+input :: Concurrent.Chan InputValue
 input = unsafePerformIO newChan
 
 data OutputChannel where
