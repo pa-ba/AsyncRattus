@@ -12,7 +12,6 @@ import AsyncRattus.Signal
 import AsyncRattus.Channels
 import Data.Text
 import AsyncRattus.InternalPrimitives
-import Debug.Trace
 import System.IO.Unsafe
 
 import qualified Monomer
@@ -175,7 +174,7 @@ runApplication (C w) = do
           handler _ _ (AppModel w) (AppEvent (Chan ch) d) = 
             let inp = (InputValue ch d) in unsafePerformIO $ do
                progressPromoteStore inp
-               return (trace ("handler: " ++ show ch)  [Monomer.Model (AppModel (progressInternal inp w))])
+               return ([Monomer.Model (AppModel (progressInternal inp w))])
           config = [
                 Monomer.appWindowTitle "Test",
                 Monomer.appTheme Monomer.lightTheme,

@@ -26,9 +26,6 @@ module AsyncRattus.Channels (
   wait,
   Chan
 ) where
-
-import Debug.Trace
-
 import AsyncRattus.InternalPrimitives
 
 import AsyncRattus.Plugin.Annotation
@@ -68,7 +65,7 @@ instance Producer p a => Producer (Box p) a where
 newtype C a = C {unC :: IO a} deriving (Functor, Applicative, Monad)
 
 chan :: C (Chan a)
-chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, trace "!!!!!!!!new channel!!!!!!!\n" $ x)))
+chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
 
 delayC :: O (C a) -> C (O a)
 delayC d = return (delay (unsafePerformIO (unC (adv d))))
