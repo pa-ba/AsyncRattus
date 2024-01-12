@@ -1,7 +1,18 @@
+# 0.2
+
+Instead of marking individual function definitions as Async Rattus
+code, all function definitions are treated as Async Rattus if the
+Async Rattus plugin is enabled. In practice, this means that a whole
+module is declared as Async Rattus code by including the line
+```
+{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+```
+at the top of the file.
+
 # 0.1.0.3
 
 Fix concurrency bug in the interaction of output and input channels.
-This occurred when using mkInput (and thus also filter functions on
+This occurred when using `mkInput` (and thus also filter functions on
 signals).
 
 # 0.1.0.2
