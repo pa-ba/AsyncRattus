@@ -107,8 +107,8 @@ transform' ctx (Case e b t alts) = do
     let firstPrimInfo = foldl (\acc (p, _) -> acc <|> p) primInfo transformed
     let alts' = map snd transformed
     return (Case expr b t alts', firstPrimInfo)
-transform' ctx (Cast e _) = transform' ctx e
-transform' ctx (Tick _ e) = transform' ctx e
+transform' ctx (Cast e c) = do (e' , p) <- transform' ctx e; return (Cast e' c, p)
+transform' ctx (Tick t e) = do (e' , p) <- transform' ctx e; return (Tick t e', p)
 transform' _ e = return (e, Nothing)
 
 constructClockExtractionCode :: PrimInfo -> CoreM CoreExpr
