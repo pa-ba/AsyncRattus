@@ -1,3 +1,7 @@
+# 0.2.0.1
+
+Fix bug in elaboration of delay, adv, select
+
 # 0.2
 
 Instead of marking individual function definitions as Async Rattus
