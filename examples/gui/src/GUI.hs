@@ -26,7 +26,7 @@ isNumberText = Text.all isDigit
 -- Textfield that turns red if the text is not a natural number
 mkNumberTf :: C TextField
 mkNumberTf = do
-    tf <- mkTextField (const "number") (const black)
+    tf <- mkTextField' "number" (const black)
 
     let sig = (mkSig (tfOnInput tf))
     

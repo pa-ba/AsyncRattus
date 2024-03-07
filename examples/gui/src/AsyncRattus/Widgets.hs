@@ -145,6 +145,11 @@ mkTextField :: Sig Text -> Sig Color -> C TextField
 mkTextField t c = do ch <- chan
                      return (TextField {tfInput = ch, tfText = t, tfColor = c})
 
+
+mkTextField' :: Text -> Sig Color -> C TextField
+mkTextField' t c = do ch <- chan
+                      return (TextField {tfInput = ch, tfText = t ::: mkSig (box (wait ch)), tfColor = c})
+
 btnOnClick :: Button -> Box (O ())
 btnOnClick btn = let ch = btnClick btn
                  in box (wait ch)
