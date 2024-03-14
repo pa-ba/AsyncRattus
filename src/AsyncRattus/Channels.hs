@@ -30,7 +30,6 @@ import AsyncRattus.InternalPrimitives
 
 import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Strict
-import qualified Control.Concurrent.Chan as Concurrent
 import Control.Monad
 import System.IO.Unsafe
 import Data.IORef
@@ -70,17 +69,25 @@ chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
 delayC :: O (C a) -> C (O a)
 delayC d = return (delay (unsafePerformIO (unC (adv d))))
 
+{-# ANN wait AllowRecursion #-}
 wait :: Chan a -> O a
-wait (Chan ch) = Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)
+wait (Chan ch) = Delay (singletonClock ch) extract 
+  where extract (OneInput _ v) = unsafeCoerce v
+        extract (MoreInputs ch' v more) =
+            if ch == ch' then unsafeCoerce v else extract more
 
 {-# NOINLINE nextFreshChannel #-}
 nextFreshChannel :: IORef InputChannelIdentifier
 nextFreshChannel = unsafePerformIO (newIORef (-1))
 
 
-{-# NOINLINE input #-}
-input :: Concurrent.Chan InputValue
-input = unsafePerformIO newChan
+{-# NOINLINE inputValue #-}
+inputValue :: MVar (Maybe' InputValue)
+inputValue = unsafePerformIO (newMVar Nothing')
+
+{-# NOINLINE inputSem #-}
+inputSem :: MVar ()
+inputSem = unsafePerformIO newEmptyMVar
 
 data OutputChannel where
   OutputChannel :: Producer p a => !(O p) -> !(a -> IO ()) -> OutputChannel
@@ -101,8 +108,20 @@ eventLoopStarted = unsafePerformIO (newIORef False)
 -- function @cb@ is called with argument @v@.
 getInput :: IO (Box (O a) :* (a -> IO ()))
 getInput = do ch <- atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x))
-              return ((box (Delay (singletonClock ch) (\ (InputValue _ v) -> unsafeCoerce v)))
-                       :* \ x -> writeChan input (InputValue ch x))
+              return ((box (Delay (singletonClock ch) (lookupInp ch)))
+                       :* \ x -> newInput ch x)
+
+
+newInput :: InputChannelIdentifier -> a -> IO ()
+newInput ch x = do iv <- takeMVar inputValue
+                   case iv of 
+                    Nothing' -> putMVar inputValue (Just' (OneInput ch x)) >> putMVar inputSem ()
+                    Just' more -> putMVar inputValue (Just' (MoreInputs ch x more))
+
+{-# ANN lookupInp AllowRecursion #-}
+lookupInp :: InputChannelIdentifier -> InputValue -> a
+lookupInp _ (OneInput _ v) = unsafeCoerce v
+lookupInp ch (MoreInputs ch' v more) = if ch' == ch then unsafeCoerce v else lookupInp ch more
 
 {-# ANN setOutput' AllowLazyData #-}
 setOutput' :: Producer p a => (a -> IO ()) -> O p -> IO ()
@@ -111,7 +130,7 @@ setOutput' cb !sig = do
   let upd Nothing = (Just (ref :! Nil),())
       upd (Just ls) = (Just (ref :! ls),())
   let upd' ch Nothing = do
-        forkIO (threadDelay ch >> writeChan input (InputValue ch ()))
+        forkIO (threadDelay ch >> newInput ch ())
         return (Just (ref :! Nil),())
       upd' _ (Just ls) = return (Just (ref :! ls),())
   let run pre ch =
@@ -162,17 +181,29 @@ update inp ref = do
       getNext new (setOutput' cb)
 
 
+{-# ANN getOutputsForInputs AllowRecursion #-}
+{-# ANN getOutputsForInputs AllowLazyData #-}
+getOutputsForInputs :: List (IORef (Maybe' OutputChannel)) -> InputValue -> IO (List (IORef (Maybe' OutputChannel)))
+getOutputsForInputs acc (OneInput ch _) = do res <- H.lookup output ch
+                                             case res of 
+                                              Nothing -> return acc
+                                              Just ls -> H.delete output ch >> return (acc `union'` ls)
+getOutputsForInputs acc (MoreInputs ch _ more) = do res <- H.lookup output ch
+                                                    case res of 
+                                                      Nothing -> getOutputsForInputs acc more
+                                                      Just ls -> H.delete output ch >> getOutputsForInputs (acc `union'` ls) more
+
 {-# ANN eventLoop AllowRecursion #-}
 {-# ANN eventLoop AllowLazyData #-}
 
 eventLoop :: IO ()
-eventLoop = do inp@(InputValue ch _) <- readChan input
-               progressPromoteStoreAtomic inp
-               res <- H.lookup output ch
-               case res of
-                 Nothing -> return ()
-                 Just ls -> do
-                   H.delete output ch
+eventLoop = do _ <- takeMVar inputSem
+               minp <- takeMVar inputValue
+               putMVar inputValue Nothing'
+               case minp of
+                 Nothing' -> error "AsyncRattus.Channels.eventLoop unexpected state"
+                 Just' inp -> do
+                   ls <- getOutputsForInputs Nil inp
                    mapM_ (update inp) ls
                eventLoop
 

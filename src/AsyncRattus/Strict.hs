@@ -17,6 +17,13 @@ module AsyncRattus.Strict
     IsList(..),
     init',
     reverse',
+    union',
+    unionBy',
+    nub',
+    nubBy',
+    filter',
+    delete',
+    deleteBy',
     (+++),
     listToMaybe',
     map',
@@ -161,6 +168,33 @@ mapMaybe' f (x:!xs) =
  case f x of
   Nothing' -> rs
   Just' r  -> r:!rs
+
+union' :: (Eq a) => List a -> List a -> List a
+union' = unionBy' (==)
+
+unionBy' :: (a -> a -> Bool) -> List a -> List a -> List a
+unionBy' eq xs ys =  xs +++ foldl (flip (deleteBy' eq)) (nubBy' eq ys) xs
+
+delete' :: (Eq a) => a -> List a -> List a
+delete' =  deleteBy' (==)
+
+deleteBy' :: (a -> a -> Bool) -> a -> List a -> List a
+deleteBy' _  _ Nil        = Nil
+deleteBy' eq x (y :! ys)    = if x `eq` y then ys else y :! deleteBy' eq x ys
+
+
+nub' :: (Eq a) => List a -> List a
+nub' =  nubBy' (==)
+
+nubBy' :: (a -> a -> Bool) -> List a -> List a
+nubBy' _ Nil             =  Nil
+nubBy' eq (x:!xs)         =  x :! nubBy' eq (filter' (\ y -> not (eq x y)) xs)
+
+filter' :: (a -> Bool) -> List a -> List a
+filter' _ Nil    = Nil
+filter' pred (x :! xs)
+  | pred x         = x :! filter' pred xs
+  | otherwise      = filter' pred xs
 
 instance Foldable List where
   

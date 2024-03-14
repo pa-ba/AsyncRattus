@@ -9,7 +9,6 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Data.IORef
 import Control.Concurrent.MVar
-import Data.Maybe
 import System.IO.Unsafe
 import System.Mem.Weak
 import Control.Monad
@@ -29,7 +28,12 @@ channelMember :: InputChannelIdentifier -> Clock -> Bool
 channelMember = IntSet.member
 
 data InputValue where
-  InputValue :: !InputChannelIdentifier -> !a -> InputValue
+  OneInput :: !InputChannelIdentifier -> !a -> InputValue
+  MoreInputs :: !InputChannelIdentifier -> !a -> !InputValue -> InputValue
+
+inputInClock :: InputValue -> Clock -> Bool
+inputInClock (OneInput ch _) cl = channelMember ch cl
+inputInClock (MoreInputs ch _ more) cl = channelMember ch cl || inputInClock more cl
 
 
 -- | The "later" type modality. A value @v@ of type @O 𝜏@ consists of
@@ -112,11 +116,12 @@ select :: O a -> O b -> Select a b
 select _ _ = asyncRattusError "select"
 
 select' :: O a -> O b -> InputValue -> Select a b
-select' a@(Delay clA inpFA) b@(Delay clB inpFB) inputValue@(InputValue chId _)
-  = if chId `channelMember` clA then
-      if chId `channelMember` clB then Both (inpFA inputValue) (inpFB inputValue)
-      else Fst (inpFA inputValue) b
-    else Snd a (inpFB inputValue)
+select' a@(Delay clA inpFA) b@(Delay clB inpFB) inp
+  = if inputInClock inp clA then
+      if inputInClock inp clB then Both (inpFA inp) (inpFB inp)
+      else Fst (inpFA inp) b
+    else Snd a (inpFB inp)
+
 
 
 -- | The clock of @never :: O 𝜏@ will never tick, i.e. it will never

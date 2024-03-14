@@ -21,8 +21,8 @@ data SigE a = !a ::* !(O (SigE a)) | SigEnd
 
 instance Continuous a => Continuous (SigE a) where
     progressInternal _ SigEnd = SigEnd
-    progressInternal inp@(InputValue chId _) (x ::* xs@(Delay cl _)) = 
-        if channelMember chId cl then adv' xs inp
+    progressInternal inp (x ::* xs@(Delay cl _)) = 
+        if inputInClock inp cl then adv' xs inp
         else progressInternal inp x ::* xs
 
 
@@ -37,11 +37,11 @@ appendU (InsertU d xs) ys = InsertU d (appendU xs ys)
 instance Continuous a => Continuous (ListU a) where
     progressInternal _ NilU = NilU
     progressInternal inp (ConsU SigEnd xs) = (progressInternal inp xs)
-    progressInternal inp@(InputValue chId _) (ConsU x@(_ ::* xs'@(Delay cl _)) xs) = 
-        if channelMember chId cl then ConsU (adv' xs' inp) xs
+    progressInternal inp (ConsU x@(_ ::* xs'@(Delay cl _)) xs) = 
+        if inputInClock inp cl then ConsU (adv' xs' inp) xs
             else ConsU (progressInternal inp x) (progressInternal inp xs)
-    progressInternal inp@(InputValue chId _) (InsertU xs@(Delay cl _) ys) = 
-        if channelMember chId cl then appendU (adv' xs inp) ys
+    progressInternal inp (InsertU xs@(Delay cl _) ys) = 
+        if inputInClock inp cl then appendU (adv' xs inp) ys
         else  InsertU xs (progressInternal inp ys)
 
 
@@ -179,7 +179,7 @@ runApplication (C w) = do
     Monomer.startApp (AppModel w') handler builder config
     where builder _ (AppModel w) = mkWidget w
           handler _ _ (AppModel w) (AppEvent (Chan ch) d) = 
-            let inp = (InputValue ch d) in unsafePerformIO $ do
+            let inp = (OneInput ch d) in unsafePerformIO $ do
                progressPromoteStoreAtomic inp
                return ([Monomer.Model (AppModel (progressInternal inp w))])
           config = [

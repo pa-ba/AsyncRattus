@@ -358,8 +358,8 @@ derivative xs = der zeroVector (current xs) xs where
 
 
 instance Continuous a => Continuous (Sig a) where
-    progressInternal inp@(InputValue chId _) (x ::: xs@(Delay cl _)) = 
-        if channelMember chId cl then adv' xs inp
+    progressInternal inp (x ::: xs@(Delay cl _)) = 
+        if inputInClock inp cl then adv' xs inp
         else progressInternal inp x ::: xs
 
 -- Prevent functions from being inlined too early for the rewrite
