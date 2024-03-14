@@ -38,25 +38,19 @@ mkClassP name = foldl AppT (ConT name)
 {-| This function provides the name and the arity of the given data
 constructor, and if it is a GADT also its type.
 -}
-normalCon :: Con -> (Name,[StrictType], Maybe Type)
-normalCon (NormalC constr args) = (constr, args, Nothing)
-normalCon (RecC constr args) = (constr, map (\(_,s,t) -> (s,t)) args, Nothing)
-normalCon (InfixC a constr b) = (constr, [a,b], Nothing)
+normalCon :: Con -> [(Name,[StrictType], Maybe Type)]
+normalCon (NormalC constr args) = [(constr, args, Nothing)]
+normalCon (RecC constr args) = [(constr, map (\(_,s,t) -> (s,t)) args, Nothing)]
+normalCon (InfixC a constr b) = [(constr, [a,b], Nothing)]
 normalCon (ForallC _ _ constr) = normalCon constr
-normalCon (GadtC (constr:_) args typ) = (constr,args,Just typ)
+normalCon (GadtC (constr:_) args typ) = [(constr,args,Just typ)]
+normalCon (RecGadtC (constr : _) args typ) = [(constr,map dropFst args,Just typ)]
+  where dropFst (_,x,y) = (x,y)
 normalCon _ = error "missing case for 'normalCon'"
 
-normalCon' :: Con -> (Name,[Type], Maybe Type)
-normalCon' con = (n, map snd ts, t)
-  where (n, ts, t) = normalCon con
-      
-
--- | Same as normalCon' but expands type synonyms.
-normalConExp :: Con -> Q (Name,[Type], Maybe Type)
-normalConExp c = do
-  let (n,ts,t) = normalCon' c
-  return (n, ts,t)
-
+normalCon' :: Con -> [(Name,[Type], Maybe Type)]
+normalCon' con = map conv (normalCon con)
+  where conv (n, ts, t) = (n, map snd ts, t)
   
 mkInstanceD :: Cxt -> Type -> [Dec] -> Dec
 mkInstanceD cxt ty decs = InstanceD Nothing cxt ty decs
@@ -85,7 +79,7 @@ continuous fname = do
       complType = foldl AppT (ConT name) argNames
       preCond = map (mkClassP ''Continuous . (: [])) argNames
       classType = AppT (ConT ''Continuous) complType
-  constrs' <- mapM normalConExp constrs
+  let constrs' = concatMap normalCon' constrs
   promDecl <- funD 'progressInternal (promClauses constrs')
   return [mkInstanceD preCond classType [promDecl]]
       where promClauses = map genPromClause
