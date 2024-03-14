@@ -224,7 +224,6 @@ progressPromoteStoreAtomic inp = do
 progressPromoteStore :: InputValue -> IO ()
 progressPromoteStore inp = do 
     xs <- atomicModifyIORef promoteStore (\x -> ([],x))
-    putStrLn ("promote store size: " ++ show (length xs))
     xs' <- filterM run xs
     atomicModifyIORef promoteStore (\x -> (x ++ xs',()))
   where run (ContinuousData x) = do
