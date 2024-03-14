@@ -71,10 +71,7 @@ delayC d = return (delay (unsafePerformIO (unC (adv d))))
 
 {-# ANN wait AllowRecursion #-}
 wait :: Chan a -> O a
-wait (Chan ch) = Delay (singletonClock ch) extract 
-  where extract (OneInput _ v) = unsafeCoerce v
-        extract (MoreInputs ch' v more) =
-            if ch == ch' then unsafeCoerce v else extract more
+wait (Chan ch) = Delay (singletonClock ch) (lookupInp ch) 
 
 {-# NOINLINE nextFreshChannel #-}
 nextFreshChannel :: IORef InputChannelIdentifier
