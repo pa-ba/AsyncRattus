@@ -21,6 +21,9 @@ type Clock = IntSet
 singletonClock :: InputChannelIdentifier -> Clock
 singletonClock = IntSet.singleton
 
+emptyClock :: Clock
+emptyClock = IntSet.empty
+
 clockUnion :: Clock -> Clock -> Clock
 clockUnion = IntSet.union
 
@@ -129,7 +132,7 @@ select' a@(Delay clA inpFA) b@(Delay clB inpFB) inp
 -- implement the constant signal @x ::: never@ of type @Sig a@ for any @x ::
 -- a@.
 never :: O a
-never = Delay IntSet.empty (error "Trying to adv on the 'never' delayed computation")
+never = Delay emptyClock (error "Trying to adv on the 'never' delayed computation")
 
 -- | A type is @Stable@ if it is a strict type and the later modality
 -- @O@ and function types only occur under @Box@.
@@ -184,13 +187,17 @@ defaultPromote x = unsafePerformIO $
 
 
 class Continuous p where
+  progressAndNext :: InputValue -> p -> (p , Clock)
   progressInternal :: InputValue -> p -> p
+  nextProgress :: p -> Clock 
   promoteInternal :: p -> Box p
   promoteInternal = defaultPromote
 
 -- For stable types we can circumvent the "promote store".
 instance {-# OVERLAPPABLE #-} Stable a => Continuous a where
+    progressAndNext _ x = (x , emptyClock) 
     progressInternal _ x = x
+    nextProgress _ = emptyClock
     promoteInternal = Box
 
 data ContinuousData where

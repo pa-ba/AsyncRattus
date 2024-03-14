@@ -329,8 +329,8 @@ integral = int
           | otherwise = cur ::: delay (
               case select xs (unbox (timer dt)) of
                 Fst xs' _ -> int cur xs'
-                Snd xs' () -> int (dtf *^ (cur ^+^ x)) (x ::: xs')
-                Both (x' ::: xs') () ->  int (dtf *^ (cur ^+^ x')) (x'::: xs'))
+                Snd xs' _ -> int (dtf *^ (cur ^+^ x)) (x ::: xs')
+                Both (x' ::: xs') _ ->  int (dtf *^ (cur ^+^ x')) (x'::: xs'))
          -- sampling interval in seconds
         dtf :: a
         dtf = fromRational (fromIntegral dt % 1000000)
@@ -353,14 +353,18 @@ derivative xs = der zeroVector (current xs) xs where
     | otherwise = d ::: delay (
         case select xs (unbox (timer dt)) of
           Fst xs' _ -> der d last xs'
-          Snd xs' () -> der ((x ^-^ last) ^/ dtf) x (x ::: xs')
-          Both (x' ::: xs') () ->  der ((x' ^-^ last) ^/ dtf) x' (x' ::: xs'))
+          Snd xs' _ -> der ((x ^-^ last) ^/ dtf) x (x ::: xs')
+          Both (x' ::: xs') _ ->  der ((x' ^-^ last) ^/ dtf) x' (x' ::: xs'))
 
 
 instance Continuous a => Continuous (Sig a) where
     progressInternal inp (x ::: xs@(Delay cl _)) = 
-        if inputInClock inp cl then adv' xs inp
+        if inputInClock inp cl then (adv' xs inp)
         else progressInternal inp x ::: xs
+    progressAndNext inp (x ::: xs@(Delay cl _)) = 
+        if inputInClock inp cl then let n = adv' xs inp in (n, nextProgress n)
+        else let (n , cl') = progressAndNext inp x in (n ::: xs , cl `clockUnion` cl')
+    nextProgress (x ::: (Delay cl _)) = nextProgress x `clockUnion` cl
 
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.

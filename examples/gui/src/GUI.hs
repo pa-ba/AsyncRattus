@@ -19,6 +19,15 @@ import System.Exit
 import Data.Text.Read
 import Data.Char
 
+everySecond :: Box (O ())
+everySecond = timer 10000
+
+everySecondSig :: Sig ()
+everySecondSig = 0 ::: mkSig everySecond
+
+
+nats :: Int -> Sig Int
+nats init = scan (box (\ n _ -> n+1)) init everySecondSig
 
 isNumberText :: Text -> Bool
 isNumberText = Text.all isDigit
@@ -26,7 +35,7 @@ isNumberText = Text.all isDigit
 -- Textfield that turns red if the text is not a natural number
 mkNumberTf :: C TextField
 mkNumberTf = do
-    tf <- mkTextField' "number" (const black)
+    tf <- mkTextField (map (box (\ n -> pack (show n))) (nats 0)) (const black)
 
     let sig = (mkSig (tfOnInput tf))
     
@@ -69,28 +78,6 @@ wgroup = do newBtn <-  mkButton (const "New") (const white)
             fut <- groupFuture (promote grp) (btnOnClick newBtn)
             return (grp ::: fut)
 
--- What to do when the "New" button is clicked
-updateWidgetGroup' :: Int -> C (SigE Widget)
-updateWidgetGroup' num = do
-    removeBtn <- mkButton (const "Remove Me") (const red)
-    tf <- mkNumberTf' num
-    let newBtn = constE (Widget removeBtn) 
-    let newTf = constE (Widget tf)
-    return (endLater (Widget (HStack' (newTf `ConsU` (newBtn `ConsU` NilU)))) (unbox (btnOnClick removeBtn)))
-
--- This describes future changes to the GUI
-listFuture :: Int -> Box (O ()) -> C (O (ListU Widget))
-listFuture num click = delayC $ delay (do
-            let () = adv (unbox click)
-            new <- updateWidgetGroup' num
-            fut <- listFuture (num + 1) click 
-            return (new `ConsU` InsertU fut NilU))
--- This group describes the whole GUI
-wlist :: C (ListU Widget)
-wlist = do newBtn <-  mkButton (const "New") (const white)
-           let grp =  constE (Widget newBtn)
-           fut <- listFuture 1 (btnOnClick newBtn)
-           return (grp `ConsU` (fut `InsertU` NilU))
 
 -- alternative implementation of group using scanAwait
 group' :: C (Sig WidgetGroup)

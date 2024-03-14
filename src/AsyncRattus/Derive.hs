@@ -80,10 +80,26 @@ continuous fname = do
       preCond = map (mkClassP ''Continuous . (: [])) argNames
       classType = AppT (ConT ''Continuous) complType
   let constrs' = concatMap normalCon' constrs
-  promDecl <- funD 'progressInternal (promClauses constrs')
-  return [mkInstanceD preCond classType [promDecl]]
-      where promClauses = map genPromClause
-            genPromClause (constr, args,_) = do
+  progressAndNextDecl <- funD 'progressAndNext (map genProgressAndNext constrs')
+  progressInternalDecl <- funD 'progressInternal (map genProgressInternal constrs')
+  nextProgressDecl <- funD 'nextProgress (map genNextProgress constrs')
+  return [mkInstanceD preCond classType [progressAndNextDecl,progressInternalDecl,nextProgressDecl]]
+      where genProgressAndNext (constr, args,_) = do
+              let n = length args
+              varNs <- newNames n "x"
+              varNsR <- newNames n "y"
+              varNsS <- newNames n "z"
+              varIn <- newName "_inp"
+              let pat = ConP constr [] $ map VarP varNs
+
+              progressInternalExp <- [|progressAndNext|]
+              let lets = zipWith3 (\ x y z -> ValD (TupP [VarP y, VarP z]) (NormalB (progressInternalExp `AppE` VarE varIn `AppE` VarE x)) []) varNs varNsR varNsS
+              clockUnionExp <- [|clockUnion|]
+              result <- appsE ( conE constr : (map varE varNsR))
+              clock <- if n == 0 then [|emptyClock|] else return (foldl1 (\ x y -> (clockUnionExp `AppE` x) `AppE` y)  (map VarE varNsS))
+              let body = LetE lets (TupE [Just result, Just clock])
+              return $ Clause [VarP varIn, pat] (NormalB body) []
+            genProgressInternal (constr, args,_) = do
               let n = length args
               varNs <- newNames n "x"
               varIn <- newName "_inp"
@@ -92,3 +108,10 @@ continuous fname = do
                   inpVar = varE varIn
               body <- appsE ( conE constr : (map (\ x -> [|progressInternal $inpVar $x|]) allVars))
               return $ Clause [VarP varIn, pat] (NormalB body) []
+            genNextProgress (constr, args,_) = do
+              let n = length args
+              varNs <- newNames n "x"
+              let pat = ConP constr [] $ map VarP varNs
+                  allVars = map varE varNs
+              body <- if n == 0 then [|emptyClock|] else foldl1 (\ x y -> [|clockUnion $x $y|]) ((map (\ x -> [|nextProgress $x|]) allVars))
+              return $ Clause [pat] (NormalB body) []

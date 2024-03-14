@@ -14,7 +14,8 @@ import Data.Text
 import AsyncRattus.InternalPrimitives
 import System.IO.Unsafe
 import Control.Concurrent hiding (Chan)
-
+import Data.IntSet as IntSet
+import Prelude as Prelude
 import qualified Monomer
 
 data SigE a = !a ::* !(O (SigE a)) | SigEnd
@@ -24,25 +25,12 @@ instance Continuous a => Continuous (SigE a) where
     progressInternal inp (x ::* xs@(Delay cl _)) = 
         if inputInClock inp cl then adv' xs inp
         else progressInternal inp x ::* xs
-
-
-data ListU a = ConsU !(SigE a) !(ListU a) | InsertU !(O (ListU a)) !(ListU a) | NilU
-
-{-# ANN appendU AllowRecursion #-}
-appendU :: ListU a -> ListU a -> ListU a
-appendU NilU ys = ys
-appendU (ConsU x xs) ys = ConsU x (appendU xs ys)
-appendU (InsertU d xs) ys = InsertU d (appendU xs ys)
-
-instance Continuous a => Continuous (ListU a) where
-    progressInternal _ NilU = NilU
-    progressInternal inp (ConsU SigEnd xs) = (progressInternal inp xs)
-    progressInternal inp (ConsU x@(_ ::* xs'@(Delay cl _)) xs) = 
-        if inputInClock inp cl then ConsU (adv' xs' inp) xs
-            else ConsU (progressInternal inp x) (progressInternal inp xs)
-    progressInternal inp (InsertU xs@(Delay cl _) ys) = 
-        if inputInClock inp cl then appendU (adv' xs inp) ys
-        else  InsertU xs (progressInternal inp ys)
+    progressAndNext _ SigEnd = (SigEnd, emptyClock)
+    progressAndNext inp (x ::* xs@(Delay cl _)) = 
+        if inputInClock inp cl then let n = adv' xs inp in (n, nextProgress n)
+        else let (n , cl') = progressAndNext inp x in (n ::* xs , cl `clockUnion` cl')
+    nextProgress SigEnd = emptyClock
+    nextProgress (x ::* (Delay cl _)) = nextProgress x `clockUnion` cl
 
 
 -- | Construct a constant signal that never updates.
@@ -54,7 +42,7 @@ endLater :: a -> O () -> SigE a
 endLater x click = x ::* (delay (adv click `seq` SigEnd))
 
 data AppModel where
-    AppModel :: IsWidget a => !a -> AppModel
+    AppModel :: IsWidget a => !a -> !Clock -> AppModel
 
 instance (Eq AppModel) where
     _ == _ = False
@@ -68,8 +56,6 @@ class Continuous a => IsWidget a where
 instance IsWidget a => IsWidget (Sig a) where
     mkWidget (w ::: _) = mkWidget w
 
--- instance IsWidget a => IsWidget (SigE a) where
---     mkWidget (w ::* _) = mkWidget w
 
 data Color = Color {redc :: !Float, greenc :: !Float, bluec :: !Float}
 
@@ -118,24 +104,6 @@ instance IsWidget HStack where
 instance IsWidget VStack where
     mkWidget (VStack (ws ::: _)) = Monomer.vstack (mkWidget' ws)
 
-{-# ANN mkWidgetList AllowRecursion #-}
-mkWidgetList :: ListU Widget -> List (Monomer.WidgetNode AppModel AppEvent)
-mkWidgetList NilU = Nil
-mkWidgetList (ConsU SigEnd xs) = mkWidgetList xs
-mkWidgetList (ConsU (x ::* _) xs) = mkWidget x :! mkWidgetList xs
-mkWidgetList (InsertU _ xs) = mkWidgetList xs
-
-
-data HStack' = HStack' !(ListU Widget)
-data VStack' = VStack' !(ListU Widget)
-
-continuous ''HStack'
-continuous ''VStack'
-
-instance IsWidget HStack' where
-    mkWidget (HStack' ws) = Monomer.hstack (mkWidgetList ws)
-instance IsWidget VStack' where
-    mkWidget (VStack' ws) = Monomer.vstack (mkWidgetList ws)
 
 mkButton :: Sig Text -> Sig Color -> C Button
 mkButton t c  = do ch <- chan
@@ -171,19 +139,26 @@ white = Color {redc = 1, greenc = 1, bluec = 1}
 black :: Color
 black = Color {redc = 0, greenc = 0, bluec = 0}
 
+mkTimerEvent :: Int -> (AppEvent -> IO ()) -> IO ()
+mkTimerEvent n cb = (threadDelay n >> cb (AppEvent (Chan n) ())) >> return ()
 
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
-    forkIO startEventLoop -- TODO: Can we run this rather as part of the Monomer event loop?
     w' <- w
-    Monomer.startApp (AppModel w') handler builder config
-    where builder _ (AppModel w) = mkWidget w
-          handler _ _ (AppModel w) (AppEvent (Chan ch) d) = 
+    let cl = nextProgress w'
+    Monomer.startApp (AppModel w' emptyClock) handler builder config
+    where builder _ (AppModel w _) = mkWidget w
+          handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) = 
             let inp = (OneInput ch d) in unsafePerformIO $ do
                progressPromoteStoreAtomic inp
-               return ([Monomer.Model (AppModel (progressInternal inp w))])
+               let (w' , cl') = progressAndNext inp w
+               let activeTimers = if ch > 0 then IntSet.delete ch cl else cl
+               let newTimers = IntSet.filter (> 0) cl' `IntSet.difference` activeTimers
+               let timers = Prelude.map (Monomer.Producer . mkTimerEvent) (IntSet.toList newTimers)
+               return (Monomer.Model (AppModel w' (newTimers `IntSet.union` activeTimers)) : Monomer.Request Monomer.RenderOnce : timers )
           config = [
                 Monomer.appWindowTitle "Test",
                 Monomer.appTheme Monomer.lightTheme,
-                Monomer.appFontDef "Regular" "./assets/fonts/Roboto-Regular.ttf"
+                Monomer.appFontDef "Regular" "./assets/fonts/Roboto-Regular.ttf",
+                Monomer.appInitEvent (AppEvent (Chan 1) ())
                 ]

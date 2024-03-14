@@ -27,9 +27,7 @@ checkStrictData ss (Cast e _) = checkStrictData ss e
 checkStrictData ss (Tick (SourceNote span _) e) = 
   checkStrictData (ss{srcSpan = fromRealSrcSpan span}) e
 checkStrictData ss (App e1 e2)
-  | isPushCallStack e1 = return ()
-  | isFromList e1 = return ()
-  | isFromString e1 = return ()
+  | ignoreArgument e1 = return ()
   | otherwise = do 
     when (not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
         && not (isStrict (exprType e2)) && not (isDeepseqForce e2) && not (isLit e2))
@@ -46,29 +44,17 @@ isLit (App (Var v) Lit{})
 isLit _ = False
 
 
-isFromList :: CoreExpr -> Bool
-isFromList (Var v) =
+ignoreArgument :: CoreExpr -> Bool
+ignoreArgument (Var v) =
   case getNameModule v of
-    Just (name, mod) -> (mod == "GHC.Exts" || mod == "GHC.IsList") && (name == "fromList" || name == "fromListN")
+    Just (name, mod) -> 
+      ((mod == "GHC.Exts" || mod == "GHC.IsList") && (name == "fromList" || name == "fromListN")) ||
+      (mod == "Data.String" && name == "fromString") ||
+      (mod == "GHC.Stack.Types" && name == "pushCallStack") ||
+      (mod == "Data.Text.Internal" && name == "pack")
     _ -> False
-isFromList (App x _) = isFromList x
-isFromList _ = False
-
-isFromString :: CoreExpr -> Bool
-isFromString (Var v) =
-  case getNameModule v of
-    Just (name, mod) -> mod == "Data.String" && name == "fromString"
-    _ -> False
-isFromString (App x _) = isFromString x
-isFromString _ = False
-
-isPushCallStack :: CoreExpr -> Bool
-isPushCallStack (Var v) =
-  case getNameModule v of
-    Just (name, mod) -> mod == "GHC.Stack.Types" && name == "pushCallStack"
-    _ -> False
-isPushCallStack (App x _) = isPushCallStack x
-isPushCallStack _ = False
+ignoreArgument (App x _) = ignoreArgument x
+ignoreArgument _ = False
 
 isDeepseqForce :: CoreExpr -> Bool
 isDeepseqForce (App (App (App (Var v) _) _) _) =
