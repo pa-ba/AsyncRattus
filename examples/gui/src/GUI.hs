@@ -23,7 +23,7 @@ everySecond :: Box (O ())
 everySecond = timer 10000
 
 everySecondSig :: Sig ()
-everySecondSig = 0 ::: mkSig everySecond
+everySecondSig = () ::: mkSig everySecond
 
 
 nats :: Int -> Sig Int
