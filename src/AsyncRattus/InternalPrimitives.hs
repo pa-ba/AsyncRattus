@@ -187,8 +187,17 @@ defaultPromote x = unsafePerformIO $
 
 
 class Continuous p where
+  -- | Computes the same as 'progressInternal' and 'nextProgress'. In
+  -- particular @progressAndNext inp v = (progressInternal inp v,
+  -- nextProgress (progressInternal inp v))@.
   progressAndNext :: InputValue -> p -> (p , Clock)
+
+  -- | Progresses the continuous value, given the input value from
+  -- some channel
   progressInternal :: InputValue -> p -> p
+  -- | Computes the set of channels that the continuous value is
+  -- depending on. That is if @nextProgress v = cl@ and a new input
+  -- @inp@ on channel @ch@ arrives, then @progressInternal inp v = v@.
   nextProgress :: p -> Clock 
   promoteInternal :: p -> Box p
   promoteInternal = defaultPromote

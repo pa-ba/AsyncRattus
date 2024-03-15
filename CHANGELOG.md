@@ -1,3 +1,8 @@
+# 0.2
+
+Extend continuous types so that they can track their channel
+dependencies.
+
 # 0.1.1
 
 Multiple channels can fire simultaneously now. This makes filter
