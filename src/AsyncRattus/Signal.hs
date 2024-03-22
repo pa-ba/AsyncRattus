@@ -29,6 +29,9 @@ module AsyncRattus.Signal
   , current
   , future
   , const
+  , jump
+  , jumping
+  , stop
   , scan
   , scanC
   , scanAwait
@@ -202,6 +205,33 @@ scanMap :: (Continuous b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> 
 scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p (unbox accBox) (adv as))
   where acc' = unbox f acc a
         accBox = promote acc'
+
+-- | @jump (box f) xs@ first behaves like @xs@, but as soon as @f x =
+-- Just xs'@ for a (current or future) value @x@ of @xs@, it behaves
+-- like @xs'@.
+
+jump :: Box (a -> Maybe' (Sig a)) -> Sig a -> Sig a
+jump f (x ::: xs) = case unbox f x of
+                        Just' xs' -> xs'
+                        Nothing' -> x ::: delay (jump f (adv xs))
+
+
+-- | Similar to 'jump', but it can jump repeatedly. That is, @jumping
+-- (box f) xs@ first behaves like @xs@, but every time @f x = Just
+-- xs'@ for a (current or future) value @x@ of @jumping (box f) xs@,
+-- it behaves like @xs'@.
+
+jumping :: Box (a -> Maybe' (Sig a)) -> Sig a -> Sig a
+jumping f (x ::: xs) = case unbox f x of
+                         Just' (x' ::: xs') -> x' ::: delay (jumping f (adv xs'))
+                         Nothing'           -> x  ::: delay (jumping f (adv xs))
+
+-- | Stops as soon as the the predicate becomes true for the current
+-- value. That is, @stop (box p) xs@ first behaves as @xs@, but as
+-- soon as @f x = True@ for some (current or future) value @x@ of
+-- @xs@, then it behaves as @const x@.
+stop :: Box (a -> Bool) -> Sig a ->  Sig a
+stop p = jump (box (\ x -> if unbox p x then Just' (const x) else Nothing'))
 
 -- | This function allows to switch from one signal to another one
 -- dynamically. The signal defined by @switch xs ys@ first behaves
