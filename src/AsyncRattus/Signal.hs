@@ -22,6 +22,12 @@ module AsyncRattus.Signal
   , mapAwait
   , switch
   , switchS
+  , switchB
+  , combine
+  , triggerStable
+  , triggerStable3
+  , buffer
+  , bufferAwait
   , switchAwait
   , interleave
   , mkSig
@@ -333,6 +339,47 @@ cond = zipWith3 (box (\b x y -> if b then x else y))
 -- > zip = zipWith (box (:*))
 zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
+
+
+-- Variant of the switchS Async Rattus function
+-- switchB allows for recursive dynamic change in signal behaviour
+-- whenever the input signal ticks.
+-- The new behaviour is determined by the input function
+-- as well as the current value of the input and output signals.
+switchB :: Stable a => O (Sig (a -> a)) -> Box (a -> Sig a)-> a -> Sig a
+switchB steps f st = switchS ((unbox f) st)
+      (delay (let step ::: steps' = adv steps in switchB steps' f . step))
+
+
+-- Helper function that interleaves two signals of functions.
+combine :: O (Sig (a -> a)) -> O (Sig (a -> a)) -> O (Sig (a -> a))
+combine = interleave (box (.))
+
+-- Variant of the Async Rattus trigger function.
+-- Implemented without the Maybe monad, hence ticks in response
+-- to either input signal, but only changes its value when the 
+-- delayed signal ticks.
+triggerStable :: (Stable b, Stable c) => Box (a -> b -> c) -> c -> O (Sig a) -> Sig b -> Sig c
+triggerStable f c as (b ::: bs) = c :::
+    delay (case select as bs of
+            Fst (a' ::: as') bs' -> triggerStable f (unbox f a' b) as' (b ::: bs')
+            Snd as' bs' -> triggerStable f c as' bs'
+            Both (a' ::: as') (b' ::: bs') -> triggerStable f (unbox f a' b') as' (b' ::: bs'))
+
+-- Variant of triggerStable function that takes three inputs.
+-- The resulting signal only updates when the later signal ticks.
+triggerStable3 :: (Stable a, Stable b, Stable c, Stable d) => Box (a -> b -> c -> d) -> Box(c->d) -> d -> O (Sig a) -> Sig b -> Sig c -> Sig d
+triggerStable3 f g d as bs cs = triggerStable (box (\f x -> unbox f x)) d cds cs
+      where cds = future (triggerStable (box (\a b -> box (\ c -> unbox f a b c ))) g as bs)
+
+-- Buffer takes an initial value and a signal as input and returns a signal that
+-- is always one tick behind the input signal.
+buffer :: Stable a => a -> Sig a -> Sig a
+buffer x (y ::: ys) = x ::: delay (buffer y (adv ys))
+
+-- Like buffer but works for delayed signals
+bufferAwait :: Stable a => a -> O (Sig a) -> O (Sig a)
+bufferAwait x xs = delay (buffer x (adv xs))
 
 -- | Sampling interval (in microseconds) for the 'integral' and
 -- 'derivative' functions.

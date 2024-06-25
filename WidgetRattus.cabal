@@ -14,8 +14,8 @@ homepage:            https://github.com/pa-ba/AsyncRattus/
 bug-reports:         https://github.com/pa-ba/AsyncRattus/issues
 License:             BSD3
 License-file:        LICENSE
-copyright:           Copyright (C) 2023 Emil Houlborg, Gregers Rørdam, Patrick Bahr
-Author:              Emil Houlborg, Gregers Rørdam, Patrick Bahr
+copyright:           Copyright (C) 2023 Emil Houlborg, Gregers Rørdam, Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark Heegaard
+Author:              Emil Houlborg, Gregers Rørdam, Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark Heegaard
 maintainer:          Patrick Bahr <paba@itu.dk>
 stability:           experimental
 
