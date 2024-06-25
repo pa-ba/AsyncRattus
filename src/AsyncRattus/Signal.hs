@@ -174,37 +174,32 @@ const x = x ::: never
 --
 -- Note: Unlike 'scanl', 'scan' starts with @x `f` v1@, not @x@.
 
-scan :: (Continuous b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
-scan f acc (a ::: as) = acc' ::: delay (scan f (unbox accBox) (adv as))
+scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
+scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
-        accBox = promote acc'
 
-scanC :: (Continuous b) => Box(b -> a -> C b) -> b -> Sig a -> C (Sig b)
+scanC :: (Stable b) => Box(b -> a -> C b) -> b -> Sig a -> C (Sig b)
 scanC f acc (a ::: as) = do
     acc' <- unbox f acc a
-    let accBox = promote acc'
-    fut <- delayC $ delay (scanC f (unbox accBox) (adv as))
+    fut <- delayC $ delay (scanC f acc' (adv as))
     return (acc' ::: fut)
   where 
         
 -- | Like 'scan', but uses a delayed signal.
-scanAwait :: (Continuous b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
-scanAwait f acc as = acc ::: delay (scan f (unbox accBox) (adv as))
-  where accBox = promote acc 
+scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
+scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
-scanAwaitC :: (Continuous b) => Box (b -> a -> C b) -> b -> O (Sig a) -> C (Sig b)
+scanAwaitC :: (Stable b) => Box (b -> a -> C b) -> b -> O (Sig a) -> C (Sig b)
 scanAwaitC f acc as = do 
-    fut <- delayC $ delay (scanC f (unbox accBox) (adv as))
+    fut <- delayC $ delay (scanC f acc (adv as))
     return (acc ::: fut)
-  where accBox = promote acc 
 
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
 -- > scanMap f g x === map g . scan f x
-scanMap :: (Continuous b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
-scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p (unbox accBox) (adv as))
+scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig c
+scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
   where acc' = unbox f acc a
-        accBox = promote acc'
 
 -- | @jump (box f) xs@ first behaves like @xs@, but as soon as @f x =
 -- Just xs'@ for a (current or future) value @x@ of @xs@, it behaves
@@ -252,12 +247,11 @@ switch (x ::: xs) d = x ::: delay (case select xs d of
 
 -- | This function is similar to 'switch', but the (future) second
 -- signal may depend on the last value of the first signal.
-switchS :: Continuous a => Sig a -> O (a -> Sig a) -> Sig a
+switchS :: Stable a => Sig a -> O (a -> Sig a) -> Sig a
 switchS (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switchS xs' d'
-                                     Snd   _    f  -> f (unbox xBox)
-                                     Both  _    f  -> f (unbox xBox))
-  where xBox = promote x
+                                     Snd   _    f  -> f x
+                                     Both  _    f  -> f x)
 
 -- | This function is similar to 'switch' but works on delayed signals
 -- instead of signals.
@@ -292,13 +286,12 @@ interleave f xs ys = delay (case select xs ys of
 -- Law:
 --
 -- (xs `update` fs) `update` gs = (xs `update` (interleave (box (.)) gs fs))
-update :: (Continuous a) => Sig a -> O (Sig (a -> a)) -> Sig a
+update :: (Stable a) => Sig a -> O (Sig (a -> a)) -> Sig a
 update (x ::: xs) fs = x ::: delay 
     (case select xs fs of
       Fst xs' ys' -> update xs' ys'
-      Snd xs' (f ::: fs') -> update (f (unbox xBox) ::: xs') fs'
+      Snd xs' (f ::: fs') -> update (f x ::: xs') fs'
       Both (x' ::: xs') (f ::: fs') -> update (f x' ::: xs') fs')
-  where xBox = promote x
 
 
 -- | This function is a variant of combines the values of two signals
