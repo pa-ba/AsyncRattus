@@ -16,7 +16,7 @@ import Control.Concurrent ( forkIO )
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text.IO
-import Data.Text hiding (filter, map, all)
+import Data.Text hiding (filter, map, all, foldl1)
 import qualified AsyncRattus.Widgets
 import Data.Text.Array (equal)
 import Monomer.Common.Lens (HasY(y), HasX (x))
@@ -60,8 +60,8 @@ calc = do
             mapAwait (box (\ _ _ -> 0))
             (interleave (box (\ a b -> a)) (interleave (box (\ a b -> a)) (btnOnClickSig addBut) (btnOnClickSig subBut)) (btnOnClickSig eqBut))
 
-    let sigList = [onclick0, onclick1, onclick2, onclick3, onclick4, onclick5, onclick6, onclick7, onclick8, onclick9, resetSig] :: [O (Sig (Int->Int))]
-    let combinedSig = Prelude.foldl1 (interleave (box (\ a b -> a))) sigList
+    let sigList = [onclick0, onclick1, onclick2, onclick3, onclick4, onclick5, onclick6, onclick7, onclick8, onclick9, resetSig] :: List (O (Sig (Int->Int)))
+    let combinedSig = foldl1 (interleave (box (\ a b -> a))) sigList
 
     let numberSig = scanAwait (box (\ a f-> f a)) 0 combinedSig
     let bufferedSig = buffer 0 numberSig

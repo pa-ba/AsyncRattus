@@ -2,15 +2,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use newtype instead of data" #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# HLINT ignore "Use const" #-}
-{-# HLINT ignore "Use void" #-}
 
-module AsyncRattus.Widgets where
+
+module AsyncRattus.Widgets 
+(module AsyncRattus.Widgets.Types, module AsyncRattus.Widgets ) where
 
 import AsyncRattus
+import AsyncRattus.Widgets.Types
+import AsyncRattus.Plugin.Annotation
 import AsyncRattus.Signal
 import AsyncRattus.Channels ( chan, wait, C(C), Chan )
 import Data.Text
@@ -22,116 +21,14 @@ import Data.IntSet as IntSet
 
 import qualified Monomer
 
--- The Displayable typeclass is used to define the display function.
--- The display function is used to convert a datatype to Text.
-class Displayable a where
-      display :: a -> Text
-
 -- The identity function.
 instance Displayable Text where
-      display :: Text -> Text
       display x = x
 
 -- Convert Int to Text via String.
 instance Displayable Int where  
-      display x = pack (show x)
+      display x = toText x
 
--- The IsWidget typeclass is used to define the mkWidget function.
-class Continuous a => IsWidget a where
-      mkWidget :: a -> Monomer.WidgetNode AppModel AppEvent
-
--- The AppModel datatype used to contain the Widget passed to runApplication. 
--- The associated clock is a set of timers. 
--- Any timers created with mkTimerEvent will be added to the clock.
-data AppModel where
-    AppModel :: IsWidget a => !a -> !Clock -> AppModel
-
--- Instance decleration for AppModel making it possible to
--- compare two AppModels.
-instance (Eq AppModel) where
-      (==) :: AppModel -> AppModel -> Bool
-      _ == _ = False
-
--- AppEvent data type used to convert channels into events.
-data AppEvent where
-      AppEvent :: !(Chan a) -> !a -> AppEvent
-
--- Coustom data types for widgets.
-data Widget where
-    Widget :: IsWidget a => !a -> !(Sig Bool) -> Widget
-
-data Button where
-    Button :: (Displayable a, Stable a) =>  {btnContent :: !(Sig a) , btnClick :: !(Chan ())} -> Button
-
-data TextField = TextField {tfContent :: !(Sig Text), tfInput :: !(Chan Text)} 
-
-data Label where
-      Label :: (Displayable a, Stable a) => {labText :: !(Sig a)} -> Label
-
-data HStack = HStack {hGrp :: !(Sig (List Widget))}
-
-data VStack = VStack {vGrp :: !(Sig (List Widget))}
-
-data TextDropdown = TextDropdown {tddCurr :: !(Sig Text), tddEvent :: !(Chan Text), tddList :: !(Sig (List Text))}
-
-data Popup = Popup {popCurr :: !(Sig Bool), popEvent :: !(Chan Bool), popChild :: !(Sig Widget)}
-
-data Slider = Slider {sldCurr :: !(Sig Int), sldEvent :: !(Chan Int), sldMin :: !(Sig Int), sldMax :: !(Sig Int)}
-
--- Template Haskell code for generating instances of Continous.
-continuous ''Button
-continuous ''TextField
-continuous ''Label
-continuous ''Widget
-continuous ''HStack
-continuous ''VStack
-continuous ''TextDropdown
-continuous ''Popup
-continuous ''Slider
-
--- isWidget Instance declerations for Widgets.
--- Here widgget data types are passed to Monomer constructors.
-instance IsWidget Button where
-      mkWidget :: Button -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget Button{btnContent = txt ::: _ , btnClick = click} =
-            Monomer.button  (display txt) (AppEvent click ())
-
-instance IsWidget TextField where
-      mkWidget :: TextField -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget TextField{tfContent = txt ::: _, tfInput = inp} = 
-            Monomer.textFieldV txt (AppEvent inp)
-
-instance IsWidget Label where
-      mkWidget :: Label -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget Label{labText = txt ::: _} = Monomer.label (display txt)
-
-
-instance IsWidget HStack where
-      mkWidget :: HStack -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget HStack{hGrp = ws} = Monomer.hstack (fmap mkWidget (current ws))
-
-instance IsWidget VStack where
-      mkWidget :: VStack -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget VStack{vGrp = ws} = Monomer.vstack (fmap mkWidget (current ws))
-
-instance IsWidget TextDropdown where
-      mkWidget :: TextDropdown -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget TextDropdown{tddList = opts ::: _, tddCurr = curr ::: _, tddEvent = ch}
-            = Monomer.textDropdownV curr (AppEvent ch) opts
-
-instance IsWidget Popup where
-      mkWidget :: Popup -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget Popup{popCurr = curr ::: _, popEvent = ch, popChild = child}
-            = Monomer.popupV curr (AppEvent ch) (mkWidget (current child))
-
-instance IsWidget Slider where
-      mkWidget :: Slider -> Monomer.WidgetNode AppModel AppEvent
-      mkWidget Slider{sldCurr = curr ::: _, sldEvent = ch, sldMin = min ::: _, sldMax = max ::: _}
-            = Monomer.hsliderV curr (AppEvent ch) min max
-
-instance IsWidget Widget where
-    mkWidget :: Widget -> Monomer.WidgetNode AppModel AppEvent
-    mkWidget (Widget w (e ::: _)) = Monomer.nodeEnabled (mkWidget w) e
 
 
 -- Function to construct a Widget that never gets disabled
@@ -236,6 +133,7 @@ mkTimerEvent n cb = (threadDelay n >> cb (AppEvent (Chan n) ())) >> return ()
 
 -- runApplication takes as input a widget and starts the GUI applicaiton
 -- by calling Monomer's startApp function.
+{-# ANN runApplication AllowLazyData #-}
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
     w' <- w

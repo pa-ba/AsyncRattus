@@ -14,24 +14,24 @@ import Control.Concurrent ( forkIO )
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text.IO
-import Data.Text hiding (filter, map, all)
 import qualified Data.Text as Text
 import Data.Text (Text, unpack, splitOn)
 import Text.Read (readMaybe)
 import Data.Maybe (isNothing, isJust)
+import Control.DeepSeq
 
 -- Benchmark 3
 isDate :: Text -> Bool
-isDate txt = case splitOn "-" txt of
+isDate txt = case splitOn' "-" txt of
   [dayStr, monthStr, yearStr] ->
-    let day = readMaybe (unpack dayStr) :: Maybe Int
-        month = readMaybe (unpack monthStr) :: Maybe Int
-        year = readMaybe (unpack yearStr) :: Maybe Int
+    let day = readMaybe' dayStr
+        month = readMaybe' monthStr
+        year = readMaybe' yearStr
     in isValid day month year
   _ -> False
   where
-    isValid :: Maybe Int -> Maybe Int -> Maybe Int -> Bool
-    isValid (Just d) (Just m) (Just y)
+    isValid :: Maybe' Int -> Maybe' Int -> Maybe' Int -> Bool
+    isValid (Just' d) (Just' m) (Just' y)
       | m < 1 || m > 12 = False
       | d < 1 || d > daysInMonth m y = False
       | otherwise = True
@@ -39,7 +39,7 @@ isDate txt = case splitOn "-" txt of
 
     daysInMonth :: Int -> Int -> Int
     daysInMonth m y
-        | m `Prelude.elem` ([4, 6, 9, 11] :: [Int]) = 30
+        | m `elem` ([4, 6, 9, 11] :: List Int) = 30
         | m == 2 = if isLeapYear y then 29 else 28
         | otherwise = 31
 
@@ -47,15 +47,15 @@ isDate txt = case splitOn "-" txt of
     isLeapYear y = y `mod` 4 == 0 && (y `mod` 100 /= 0 || y `mod` 400 == 0)
 
 isLater :: Text -> Text -> Bool
-isLater dep ret = case (splitOn "-" dep, splitOn "-" ret) of
+isLater dep ret = case (splitOn' "-" dep, splitOn' "-" ret) of
   ([depDayStr, depMonthStr, depYearStr], [retDayStr, retMonthStr, retYearStr]) ->
-    let depDay = readMaybe (unpack depDayStr) :: Maybe Int
-        depMonth = readMaybe (unpack depMonthStr) :: Maybe Int
-        depYear = readMaybe (unpack depYearStr) :: Maybe Int
-        retDay = readMaybe (unpack retDayStr) :: Maybe Int
-        retMonth = readMaybe (unpack retMonthStr) :: Maybe Int
-        retYear = readMaybe (unpack retYearStr) :: Maybe Int
-    in all isJust ([depDay, depMonth, depYear, retDay, retMonth, retYear] :: [Maybe Int]) &&
+    let depDay = readMaybe' depDayStr
+        depMonth = readMaybe' depMonthStr
+        depYear = readMaybe' depYearStr
+        retDay = readMaybe' retDayStr
+        retMonth = readMaybe' retMonthStr
+        retYear = readMaybe' retYearStr
+    in all isJust' ([depDay, depMonth, depYear, retDay, retMonth, retYear] :: List (Maybe' Int)) &&
        (depYear < retYear ||
        (depYear == retYear && (depMonth < retMonth ||
        (depMonth == retMonth && depDay < retDay))))

@@ -24,13 +24,13 @@ import GHC.TypeError (ErrorMessage(Text))
 celsiusToFahrenheit :: Text -> Text
 celsiusToFahrenheit t =
         case signed decimal t of
-            Right (t', _) -> pack $ show (t' * 9 `div` 5 + 32)
+            Right (t', _) -> toText (t' * 9 `div` 5 + 32)
             Left _ -> "Invalid input"
 
 fahrenheitToCelsius :: Text -> Text
 fahrenheitToCelsius t =
     case signed decimal t of
-        Right (t', _) -> pack $ show ((t' - 32) * 5 `div` 9)
+        Right (t', _) -> toText ((t' - 32) * 5 `div` 9)
         Left _ -> "Invalid input"
 
 -- Initial version of benchmark 2.

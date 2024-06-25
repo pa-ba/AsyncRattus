@@ -34,16 +34,22 @@ module AsyncRattus.Strict
     Maybe'(..),
     maybe',
     fromMaybe',
+    isJust',
     fst',
     snd',
     curry',
-    uncurry'
+    uncurry',
+    toText,
+    readMaybe',
+    splitOn'
   )where
 
 import Prelude hiding (map)
 import Data.VectorSpace
 import AsyncRattus.Derive
+import AsyncRattus.Plugin.Annotation
 import GHC.Exts (IsList(..))
+import Data.Text hiding (foldl, singleton)
 
 infixr 2 :*
 -- | Strict pair type.
@@ -169,6 +175,10 @@ mapMaybe' f (x:!xs) =
   Nothing' -> rs
   Just' r  -> r:!rs
 
+isJust' :: Maybe' a -> Bool
+isJust' (Just' _) = True
+isJust' Nothing' = False
+
 union' :: (Eq a) => List a -> List a -> List a
 union' = unionBy' (==)
 
@@ -228,18 +238,9 @@ instance Show a => Show (List a) where
   show (x :! xs) = show x ++ " :! " ++ show xs
 
 -- | Strict variant of 'Maybe'.
-data Maybe' a = Just' !a | Nothing'
+data Maybe' a = Just' !a | Nothing' deriving (Show, Eq, Ord)
 
 continuous ''Maybe'
-
-instance Eq a => Eq (Maybe' a) where
-  Nothing' == Nothing' = True
-  Just' x == Just' y = x == y
-  _ == _ = False
-
-instance Show a => Show (Maybe' a) where
-  show Nothing' = "Nothing'"
-  show (Just' x) = "Just' " ++ show x
 
 -- | takes a default value, a function, and a 'Maybe'' value.  If the
 -- 'Maybe'' value is 'Nothing'', the function returns the default
@@ -253,3 +254,16 @@ fromMaybe' :: a -> Maybe' a -> a
 fromMaybe' _ (Just' x) = x
 fromMaybe' d Nothing' = d
 
+
+{-# ANN toText AllowLazyData #-}
+toText :: Show a => a -> Text
+toText x = pack (show x)
+
+{-# ANN readMaybe' AllowLazyData #-}
+readMaybe' :: Read a => Text -> Maybe' a
+readMaybe' x = case read (unpack x) of 
+                Just x -> Just' x
+                Nothing -> Nothing'
+                
+splitOn' :: Text -> Text -> List Text
+splitOn' x y = fromList (splitOn x y)
