@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module AsyncRattus.Plugin.PrimExpr (
+module WidgetRattus.Plugin.PrimExpr (
     Prim (..),
     PrimInfo (..),
     function,
@@ -11,7 +11,7 @@ module AsyncRattus.Plugin.PrimExpr (
 import Data.Map (Map)
 import qualified Data.Map as Map
 import GHC.Plugins
-import AsyncRattus.Plugin.Utils
+import WidgetRattus.Plugin.Utils
 import Prelude hiding ((<>))
 
 data Prim = Delay | Adv | Box | Select

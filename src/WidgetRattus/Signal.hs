@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,7 +9,7 @@
 
 -- | Programming with signals.
 
-module AsyncRattus.Signal
+module WidgetRattus.Signal
   ( map
   , mkInputSig
   , getInputSig
@@ -55,15 +55,15 @@ module AsyncRattus.Signal
 
 where
 
-import AsyncRattus
-import AsyncRattus.Channels
+import WidgetRattus
+import WidgetRattus.Channels
 import Prelude hiding (map, const, zipWith, zipWith3, zip, filter)
 import Data.VectorSpace
 import Data.Ratio ((%))
 -- TODO: InternalPrimitives is only used to implment instance of
 -- Continuous. Replace this manual instance declaration with Template
 -- Haskell.
-import AsyncRattus.InternalPrimitives
+import WidgetRattus.InternalPrimitives
 
 infixr 5 :::
 

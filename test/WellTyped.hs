@@ -1,11 +1,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE StrictData #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 module Main (module Main) where
 
-import AsyncRattus
-import AsyncRattus.Signal
+import WidgetRattus
+import WidgetRattus.Signal
 import Data.Set as Set
 import Data.Text
 

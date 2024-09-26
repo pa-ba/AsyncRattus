@@ -1,15 +1,15 @@
 
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module AsyncRattus.Widgets.Types where
+module WidgetRattus.Widgets.Types where
 
-import AsyncRattus
-import AsyncRattus.InternalPrimitives
-import AsyncRattus.Signal
-import AsyncRattus.Channels ( chan, wait, C(C), Chan )
+import WidgetRattus
+import WidgetRattus.InternalPrimitives
+import WidgetRattus.Signal
+import WidgetRattus.Channels ( chan, wait, C(C), Chan )
 import Data.Text
 
 import qualified Monomer

@@ -1,14 +1,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators, ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 module Main (module Main) where
 
-import AsyncRattus
---import AsyncRattus.Signal
-import AsyncRattus.Future
-import AsyncRattus.Channels
+import WidgetRattus
+--import WidgetRattus.Signal
+import WidgetRattus.Future
+import WidgetRattus.Channels
 
 import Control.Concurrent ( forkIO )
 import Control.Monad

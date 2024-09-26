@@ -5,15 +5,15 @@
 
 -- | The plugin to make it all work.
 
-module AsyncRattus.Plugin (plugin, AsyncRattus(..)) where
-import AsyncRattus.Plugin.StableSolver
-import AsyncRattus.Plugin.ScopeCheck
-import AsyncRattus.Plugin.Strictify
-import AsyncRattus.Plugin.SingleTick
-import AsyncRattus.Plugin.CheckClockCompatibility
-import AsyncRattus.Plugin.Utils
-import AsyncRattus.Plugin.Annotation
-import AsyncRattus.Plugin.Transform
+module WidgetRattus.Plugin (plugin, WidgetRattus(..)) where
+import WidgetRattus.Plugin.StableSolver
+import WidgetRattus.Plugin.ScopeCheck
+import WidgetRattus.Plugin.Strictify
+import WidgetRattus.Plugin.SingleTick
+import WidgetRattus.Plugin.CheckClockCompatibility
+import WidgetRattus.Plugin.Utils
+import WidgetRattus.Plugin.Annotation
+import WidgetRattus.Plugin.Transform
 
 import Prelude hiding ((<>))
 
@@ -30,10 +30,10 @@ import GHC.Plugins
 import GHC.Tc.Types
 
 -- | Use this to enable Asynchronous Rattus' plugin, either by supplying the option
--- @-fplugin=AsyncRattus.Plugin@ directly to GHC, or by including the
+-- @-fplugin=WidgetRattus.Plugin@ directly to GHC, or by including the
 -- following pragma in each source file:
 -- 
--- > {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+-- > {-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 plugin :: Plugin
 plugin = defaultPlugin {
   installCoreToDos = install,
@@ -135,12 +135,12 @@ getModuleAnnotations guts = anns'
 
 allowLazyData :: ModGuts -> CoreBndr -> CoreM Bool
 allowLazyData guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
+  l <- annotationsOn guts bndr :: CoreM [WidgetRattus]
   return (AllowLazyData `elem` l)
 
 allowRecursion :: ModGuts -> CoreBndr -> CoreM Bool
 allowRecursion guts bndr = do
-  l <- annotationsOn guts bndr :: CoreM [AsyncRattus]
+  l <- annotationsOn guts bndr :: CoreM [WidgetRattus]
   return (AllowRecursion `elem` l)
 
 expectError :: ModGuts -> CoreBndr -> CoreM Bool

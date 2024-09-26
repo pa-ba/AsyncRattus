@@ -4,7 +4,7 @@
 --  Rattus typing rules for these primitives are given below.
 
 {-# LANGUAGE TypeOperators #-}
-module AsyncRattus.Primitives
+module WidgetRattus.Primitives
   (O
   ,Box
   ,Select(..)
@@ -18,4 +18,4 @@ module AsyncRattus.Primitives
   ,Stable
   ,Continuous
   ) where
-import AsyncRattus.InternalPrimitives
+import WidgetRattus.InternalPrimitives

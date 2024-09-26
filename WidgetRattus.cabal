@@ -30,26 +30,26 @@ custom-setup
 
 
 library
-  exposed-modules:     AsyncRattus
-                       AsyncRattus.Signal
-                       AsyncRattus.Future
-                       AsyncRattus.Strict
-                       AsyncRattus.Plugin
-                       AsyncRattus.Primitives
-                       AsyncRattus.InternalPrimitives
-                       AsyncRattus.Channels
-                       AsyncRattus.Plugin.Annotation
+  exposed-modules:     WidgetRattus
+                       WidgetRattus.Signal
+                       WidgetRattus.Future
+                       WidgetRattus.Strict
+                       WidgetRattus.Plugin
+                       WidgetRattus.Primitives
+                       WidgetRattus.InternalPrimitives
+                       WidgetRattus.Channels
+                       WidgetRattus.Plugin.Annotation
                                               
-  other-modules:       AsyncRattus.Plugin.ScopeCheck
-                       AsyncRattus.Plugin.SingleTick
-                       AsyncRattus.Plugin.CheckClockCompatibility
-                       AsyncRattus.Plugin.Strictify
-                       AsyncRattus.Plugin.Utils
-                       AsyncRattus.Plugin.Dependency
-                       AsyncRattus.Plugin.StableSolver
-                       AsyncRattus.Plugin.Transform
-                       AsyncRattus.Plugin.PrimExpr
-                       AsyncRattus.Derive
+  other-modules:       WidgetRattus.Plugin.ScopeCheck
+                       WidgetRattus.Plugin.SingleTick
+                       WidgetRattus.Plugin.CheckClockCompatibility
+                       WidgetRattus.Plugin.Strictify
+                       WidgetRattus.Plugin.Utils
+                       WidgetRattus.Plugin.Dependency
+                       WidgetRattus.Plugin.StableSolver
+                       WidgetRattus.Plugin.Transform
+                       WidgetRattus.Plugin.PrimExpr
+                       WidgetRattus.Derive
   build-depends:       base >=4.16 && <5,
                        containers >= 0.6.5 && < 0.8,
                        ghc >= 9.2 && < 9.9,
@@ -70,7 +70,7 @@ Test-Suite ill-typed
   main-is:             test/IllTyped.hs
   default-language:    Haskell2010
   build-depends:       WidgetRattus, base
-  ghc-options:         -fplugin=AsyncRattus.Plugin
+  ghc-options:         -fplugin=WidgetRattus.Plugin
 
 
 Test-Suite well-typed
@@ -79,5 +79,5 @@ Test-Suite well-typed
   hs-source-dirs:      test
   default-language:    Haskell2010
   build-depends:       WidgetRattus, base, containers, text
-  ghc-options:         -fplugin=AsyncRattus.Plugin
+  ghc-options:         -fplugin=WidgetRattus.Plugin
 

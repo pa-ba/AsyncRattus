@@ -1,12 +1,12 @@
 {-# LANGUAGE TupleSections #-}
-module AsyncRattus.Plugin.Transform (
+module WidgetRattus.Plugin.Transform (
     transform
 ) where
 
 import GHC.Core.Opt.Monad
 import GHC.Plugins
-import AsyncRattus.Plugin.PrimExpr
-import AsyncRattus.Plugin.Utils
+import WidgetRattus.Plugin.PrimExpr
+import WidgetRattus.Plugin.Utils
 import Data.Maybe (fromJust)
 import Prelude hiding ((<>))
 import Data.Functor ((<&>))

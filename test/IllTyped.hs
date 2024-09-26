@@ -2,10 +2,10 @@
 
 module Main (module Main) where
 
-import AsyncRattus
-import AsyncRattus.Signal as S
+import WidgetRattus
+import WidgetRattus.Signal as S
 import Prelude
-import AsyncRattus.Plugin.Annotation (InternalAnn (..))
+import WidgetRattus.Plugin.Annotation (InternalAnn (..))
 
 
 {-# ANN loopIndirect ExpectError #-}

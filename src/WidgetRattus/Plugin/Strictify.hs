@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
-module AsyncRattus.Plugin.Strictify
+module WidgetRattus.Plugin.Strictify
   (checkStrictData, SCxt (..)) where
 import Prelude hiding ((<>))
 import Control.Monad
-import AsyncRattus.Plugin.Utils
+import WidgetRattus.Plugin.Utils
 
 import GHC.Plugins
 import GHC.Types.Tickish

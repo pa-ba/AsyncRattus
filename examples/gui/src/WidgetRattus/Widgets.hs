@@ -1,20 +1,20 @@
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 
-module AsyncRattus.Widgets 
-(module AsyncRattus.Widgets.Types, module AsyncRattus.Widgets ) where
+module WidgetRattus.Widgets 
+(module WidgetRattus.Widgets.Types, module WidgetRattus.Widgets ) where
 
-import AsyncRattus
-import AsyncRattus.Widgets.Types
-import AsyncRattus.Plugin.Annotation
-import AsyncRattus.Signal
-import AsyncRattus.Channels ( chan, wait, C(C), Chan )
+import WidgetRattus
+import WidgetRattus.Widgets.Types
+import WidgetRattus.Plugin.Annotation
+import WidgetRattus.Signal
+import WidgetRattus.Channels ( chan, wait, C(C), Chan )
 import Data.Text
 import Data.Char (isDigit)
-import AsyncRattus.InternalPrimitives
+import WidgetRattus.InternalPrimitives
 import System.IO.Unsafe
 import Control.Concurrent hiding (Chan)
 import Data.IntSet as IntSet
@@ -33,7 +33,7 @@ instance Displayable Int where
 
 -- Function to construct a Widget that never gets disabled
 enabledWidget :: IsWidget a => a -> Widget
-enabledWidget w = Widget w (AsyncRattus.Signal.const True)
+enabledWidget w = Widget w (WidgetRattus.Signal.const True)
 
 -- Functions for constructing Async Rattus widgets. 
 mkButton :: (Displayable a, Stable a) => Sig a -> C Button
@@ -80,7 +80,7 @@ mkSlider start min max = do
 mkProgressBar :: Sig Int -> Sig Int -> Sig Int -> C Slider
 mkProgressBar min max curr = do
       c <- chan
-      let boundedCurrent = AsyncRattus.Signal.zipWith (box Prelude.min) curr max
+      let boundedCurrent = WidgetRattus.Signal.zipWith (box Prelude.min) curr max
       return Slider{sldCurr = boundedCurrent, sldEvent = c, sldMin = min, sldMax = max}
 
 

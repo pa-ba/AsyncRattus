@@ -11,7 +11,7 @@
 
 
 
-module AsyncRattus.Strict
+module WidgetRattus.Strict
   ( List(..),
     singleton,
     IsList(..),
@@ -46,8 +46,8 @@ module AsyncRattus.Strict
 
 import Prelude hiding (map)
 import Data.VectorSpace
-import AsyncRattus.Derive
-import AsyncRattus.Plugin.Annotation
+import WidgetRattus.Derive
+import WidgetRattus.Plugin.Annotation
 import GHC.Exts (IsList(..))
 import Data.Text hiding (foldl, singleton)
 

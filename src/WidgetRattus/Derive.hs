@@ -2,9 +2,9 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 
-module AsyncRattus.Derive (continuous) where
+module WidgetRattus.Derive (continuous) where
 
-import AsyncRattus.InternalPrimitives
+import WidgetRattus.InternalPrimitives
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import Control.Monad

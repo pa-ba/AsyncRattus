@@ -2,12 +2,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 
 -- | Programming with futures.
 
-module AsyncRattus.Future
+module WidgetRattus.Future
   ( F(..)
   , SigF(..)
   , mkSigF
@@ -38,10 +38,10 @@ module AsyncRattus.Future
 
 where
 
-import AsyncRattus
-import AsyncRattus.Signal (Sig(..))
+import WidgetRattus
+import WidgetRattus.Signal (Sig(..))
 import Prelude hiding (map, filter, zipWith)
-import AsyncRattus.Channels
+import WidgetRattus.Channels
 
 newtype OneShot a = OneShot (F a)
 

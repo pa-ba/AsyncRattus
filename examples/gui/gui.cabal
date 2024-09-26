@@ -10,6 +10,6 @@ build-type:          Simple
 executable gui
   hs-source-dirs:      src
   main-is:             GUI.hs
-  other-modules:       AsyncRattus.Widgets, AsyncRattus.Widgets.Types, Counter, TemperatureConverter, FlightBooker, Timer, Calculator
+  other-modules:       WidgetRattus.Widgets, WidgetRattus.Widgets.Types, Counter, TemperatureConverter, FlightBooker, Timer, Calculator
   default-language:    Haskell2010
   build-depends:       WidgetRattus>=0.2, base, text, monomer, containers, deepseq

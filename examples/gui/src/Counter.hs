@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Counter where
-import AsyncRattus
-import AsyncRattus.Signal ( Sig, const, map, mkSig, scanAwait )
-import AsyncRattus.Channels
-import AsyncRattus.Widgets
+import WidgetRattus
+import WidgetRattus.Signal ( Sig, const, map, mkSig, scanAwait )
+import WidgetRattus.Channels
+import WidgetRattus.Widgets
 
 import Control.Concurrent ( forkIO )
 import Control.Monad

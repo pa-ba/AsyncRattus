@@ -1,23 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Calculator where
-import AsyncRattus
-import AsyncRattus.Signal
-import AsyncRattus.Channels
-import AsyncRattus.Widgets
+import WidgetRattus
+import WidgetRattus.Signal
+import WidgetRattus.Channels
+import WidgetRattus.Widgets
 
 import Control.Concurrent ( forkIO )
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text.IO
 import Data.Text hiding (filter, map, all, foldl1)
-import qualified AsyncRattus.Widgets
+import qualified WidgetRattus.Widgets
 import Data.Text.Array (equal)
 import Monomer.Common.Lens (HasY(y), HasX (x))
 import GHC.Base (VecElem(Int16ElemRep), map)
@@ -72,7 +72,7 @@ calc = do
 
     let calcSig = triggerStable (box (\ op x ->box (unbox op x))) (box (0 +)) opSig bufferedSig
 
-    let resultSig = AsyncRattus.Signal.zipWith (box (\ f x -> unbox f x)) calcSig bufferedSig
+    let resultSig = WidgetRattus.Signal.zipWith (box (\ f x -> unbox f x)) calcSig bufferedSig
   
     let eqSig = triggerStable (box (\ _ x -> x)) 0 (btnOnClickSig eqBut) resultSig
 

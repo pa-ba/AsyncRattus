@@ -1,4 +1,4 @@
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,7 +13,7 @@
 -- | This module is meant for library authors that want to build APIs
 -- for interacting with asynchronous resources, e.g. a GUI framework. 
 
-module AsyncRattus.Channels (
+module WidgetRattus.Channels (
   getInput,
   setOutput,
   mkInput,
@@ -26,10 +26,10 @@ module AsyncRattus.Channels (
   wait,
   Chan
 ) where
-import AsyncRattus.InternalPrimitives
+import WidgetRattus.InternalPrimitives
 
-import AsyncRattus.Plugin.Annotation
-import AsyncRattus.Strict
+import WidgetRattus.Plugin.Annotation
+import WidgetRattus.Strict
 import Control.Monad
 import System.IO.Unsafe
 import Data.IORef
@@ -198,7 +198,7 @@ eventLoop = do _ <- takeMVar inputSem
                minp <- takeMVar inputValue
                putMVar inputValue Nothing'
                case minp of
-                 Nothing' -> error "AsyncRattus.Channels.eventLoop unexpected state"
+                 Nothing' -> error "WidgetRattus.Channels.eventLoop unexpected state"
                  Just' inp -> do
                    ls <- getOutputsForInputs Nil inp
                    mapM_ (update inp) ls

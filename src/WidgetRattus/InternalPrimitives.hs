@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module AsyncRattus.InternalPrimitives where
+module WidgetRattus.InternalPrimitives where
 
 import Prelude hiding (Left, Right)
 import Data.IntSet (IntSet)
@@ -51,7 +51,7 @@ data O a = Delay !Clock (InputValue -> a)
 -- | The return type of the 'select' primitive.
 data Select a b = Fst !a !(O b) | Snd !(O a) !b | Both !a !b
 
-asyncRattusError pr = error (pr ++ ": Did you forget to mark this as Async Rattus code?")
+rattusError pr = error (pr ++ ": Did you forget to mark this as Async Rattus code?")
 
 -- | This is the constructor for the "later" modality 'O':
 --
@@ -63,7 +63,7 @@ asyncRattusError pr = error (pr ++ ": Did you forget to mark this as Async Rattu
 -- additional tick @✓θ@ of some clock @θ@.
 {-# INLINE [1] delay #-}
 delay :: a -> O a
-delay _ = asyncRattusError "delay"
+delay _ = rattusError "delay"
 
 extractClock :: O a -> Clock
 extractClock (Delay cl _) = cl
@@ -84,7 +84,7 @@ adv' (Delay _ f) inp = f inp
 
 {-# INLINE [1] adv #-}
 adv :: O a -> a
-adv _ = asyncRattusError "adv"
+adv _ = rattusError "adv"
 
 -- | If we want to eliminate more than one delayed computation, i.e.\
 -- two @s :: O σ@ and @t :: O 𝜏@, we need to use 'select' instead of
@@ -116,7 +116,7 @@ adv _ = asyncRattusError "adv"
 
 {-# INLINE [1] select #-}
 select :: O a -> O b -> Select a b
-select _ _ = asyncRattusError "select"
+select _ _ = rattusError "select"
 
 select' :: O a -> O b -> InputValue -> Select a b
 select' a@(Delay clA inpFA) b@(Delay clB inpFB) inp

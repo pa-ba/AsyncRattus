@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 
 module FlightBooker where
-import AsyncRattus
-import AsyncRattus.Signal
-import AsyncRattus.Channels
-import AsyncRattus.Widgets
+import WidgetRattus
+import WidgetRattus.Signal
+import WidgetRattus.Channels
+import WidgetRattus.Widgets
 import Control.Concurrent ( forkIO )
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
@@ -76,7 +76,7 @@ benchmark3 = do
     let isRF = map (box (== "Return-Flight")) (tddCurr dropDown)
     let isOW = map (box (== "One-Way")) (tddCurr dropDown)
     
-    let labelSig = AsyncRattus.Signal.zipWith3 (box bookingToText) isOW (tfContent tf1) (tfContent tf2)
+    let labelSig = WidgetRattus.Signal.zipWith3 (box bookingToText) isOW (tfContent tf1) (tfContent tf2)
 
     let sig = scanAwait (box (\ b _ -> True )) False (btnOnClickSig button)
 
@@ -86,11 +86,11 @@ benchmark3 = do
 
     let tf1IsDate = map (box isDate) (tfContent tf1)
     let tf2IsDate = map (box isDate) (tfContent tf2)
-    let tf1IsLater = AsyncRattus.Signal.zipWith (box isLater) (tfContent tf1) (tfContent tf2)
+    let tf1IsLater = WidgetRattus.Signal.zipWith (box isLater) (tfContent tf1) (tfContent tf2)
 
-    let oneWayAndDate = AsyncRattus.Signal.zipWith (box (&&)) isOW tf1IsDate
-    let returnFlightAndIsLater = AsyncRattus.Signal.zipWith (box (&&)) isRF tf1IsLater
-    let validBooking = AsyncRattus.Signal.zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
+    let oneWayAndDate = WidgetRattus.Signal.zipWith (box (&&)) isOW tf1IsDate
+    let returnFlightAndIsLater = WidgetRattus.Signal.zipWith (box (&&)) isRF tf1IsLater
+    let validBooking = WidgetRattus.Signal.zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
 
     mkVStack (const
         [enabledWidget popup, enabledWidget dropDown,

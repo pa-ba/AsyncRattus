@@ -14,11 +14,11 @@
 -- | This module implements the source plugin that checks the variable
 -- scope of of Async Rattus programs.
 
-module AsyncRattus.Plugin.ScopeCheck (checkAll) where
+module WidgetRattus.Plugin.ScopeCheck (checkAll) where
 
-import AsyncRattus.Plugin.Utils
-import AsyncRattus.Plugin.Dependency
-import AsyncRattus.Plugin.Annotation
+import WidgetRattus.Plugin.Utils
+import WidgetRattus.Plugin.Dependency
+import WidgetRattus.Plugin.Annotation
 
 import Control.Monad.Trans.State.Strict
 import Data.IORef

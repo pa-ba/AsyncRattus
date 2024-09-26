@@ -1,23 +1,23 @@
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 
 module TemperatureConverter where
-import AsyncRattus
-import AsyncRattus.Signal
-import AsyncRattus.Channels
-import AsyncRattus.Widgets
+import WidgetRattus
+import WidgetRattus.Signal
+import WidgetRattus.Channels
+import WidgetRattus.Widgets
 import Control.Concurrent ( forkIO )
 import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text.IO
 import Data.Text hiding (filter, map, all)
 import Data.Text.Read
-import qualified AsyncRattus.Widgets
+import qualified WidgetRattus.Widgets
 import GHC.TypeError (ErrorMessage(Text))
 
 -- Benchmark 2

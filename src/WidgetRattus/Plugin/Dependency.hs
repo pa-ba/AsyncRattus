@@ -9,7 +9,7 @@
 -- (mutual) recursive. To this end, this module also provides
 -- functions to compute, bound variables and variable occurrences.
 
-module AsyncRattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
+module WidgetRattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
 
 
 import GHC.Plugins

@@ -5,14 +5,14 @@
 -- | This module implements the check that the transformed code is
 -- typable in the single tick calculus.
 
-module AsyncRattus.Plugin.CheckClockCompatibility
+module WidgetRattus.Plugin.CheckClockCompatibility
   (checkExpr, CheckExpr (..)) where
 
 import GHC.Types.Tickish
 import GHC.Plugins
 
-import AsyncRattus.Plugin.Utils
-import qualified AsyncRattus.Plugin.PrimExpr as Prim
+import WidgetRattus.Plugin.Utils
+import qualified WidgetRattus.Plugin.PrimExpr as Prim
 import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -171,7 +171,7 @@ checkExpr c e = do
             
           else do
             printMessage SevError noSrcSpan ("Internal error in Async Rattus Plugin: single tick transformation did not preserve typing." $$
-                                  "Compile with flags \"-fplugin-opt AsyncRattus.Plugin:debug\" and \"-g2\" for detailed information")
+                                  "Compile with flags \"-fplugin-opt WidgetRattus.Plugin:debug\" and \"-g2\" for detailed information")
       in do
         printErrMsg
         liftIO exitFailure

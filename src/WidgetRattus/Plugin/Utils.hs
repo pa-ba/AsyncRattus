@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
-module AsyncRattus.Plugin.Utils (
+module WidgetRattus.Plugin.Utils (
   printMessage,
   Severity(..),
   isRattModule,
@@ -149,25 +149,25 @@ getTyConFromModule :: String -> String -> CoreM TyCon
 getTyConFromModule moduleName = fmap tyThingTyCon . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.tcName
 
 adv'Var :: CoreM Var
-adv'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "adv'"
+adv'Var = getVarFromModule "WidgetRattus.InternalPrimitives" "adv'"
 
 select'Var :: CoreM Var
-select'Var = getVarFromModule "AsyncRattus.InternalPrimitives" "select'"
+select'Var = getVarFromModule "WidgetRattus.InternalPrimitives" "select'"
 
 bigDelay :: CoreM Var
-bigDelay = getVarFromModule "AsyncRattus.InternalPrimitives" "Delay"
+bigDelay = getVarFromModule "WidgetRattus.InternalPrimitives" "Delay"
 
 inputValueVar :: CoreM TyCon
-inputValueVar = getTyConFromModule "AsyncRattus.InternalPrimitives" "InputValue"
+inputValueVar = getTyConFromModule "WidgetRattus.InternalPrimitives" "InputValue"
 
 extractClockVar :: CoreM Var
-extractClockVar = getVarFromModule "AsyncRattus.InternalPrimitives" "extractClock"
+extractClockVar = getVarFromModule "WidgetRattus.InternalPrimitives" "extractClock"
 
 unionVar :: CoreM Var
-unionVar = getVarFromModule "AsyncRattus.InternalPrimitives" "clockUnion"
+unionVar = getVarFromModule "WidgetRattus.InternalPrimitives" "clockUnion"
 
 rattModules :: Set FastString
-rattModules = Set.fromList ["AsyncRattus.InternalPrimitives","AsyncRattus.Channels"]
+rattModules = Set.fromList ["WidgetRattus.InternalPrimitives","WidgetRattus.Channels"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName

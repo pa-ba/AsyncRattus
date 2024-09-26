@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module AsyncRattus.Plugin.Annotation (AsyncRattus(..), InternalAnn (..)) where
+module WidgetRattus.Plugin.Annotation (WidgetRattus(..), InternalAnn (..)) where
 
 import Data.Data
 
@@ -23,7 +23,7 @@ import Data.Data
 -- > {-# ANN module AllowRecursion #-}
 
 
-data AsyncRattus = AllowLazyData | AllowRecursion deriving (Typeable, Data, Show, Ord, Eq)
+data WidgetRattus = AllowLazyData | AllowRecursion deriving (Typeable, Data, Show, Ord, Eq)
 
 
 -- | This annotation type is for internal use only.
