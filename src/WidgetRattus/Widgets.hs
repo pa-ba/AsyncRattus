@@ -9,11 +9,8 @@ module WidgetRattus.Widgets
 
 import WidgetRattus
 import WidgetRattus.Widgets.Types
-import WidgetRattus.Plugin.Annotation
 import WidgetRattus.Signal
-import WidgetRattus.Channels ( chan, wait, C(C), Chan )
 import Data.Text
-import Data.Char (isDigit)
 import WidgetRattus.InternalPrimitives
 import System.IO.Unsafe
 import Control.Concurrent hiding (Chan)
@@ -68,7 +65,7 @@ mkTextDropdown opts init = do
 mkPopup :: Sig Bool -> Sig Widget -> C Popup 
 mkPopup b w = do
       c <- chan
-      let sig = current b ::: interleave (box (\x y -> x)) (future b) (mkSig (box (wait c)))
+      let sig = current b ::: interleave (box (\x _ -> x)) (future b) (mkSig (box (wait c)))
       return Popup{popCurr = sig, popEvent = c, popChild = w}
 
 mkSlider :: Int -> Sig Int -> Sig Int -> C Slider
@@ -111,7 +108,7 @@ setInputSigTF tf sig = tf{tfContent = sig}
 -- Hence if both are part of a GUI they will be written to simultaneously
 addInputSigTF :: TextField -> O (Sig Text) -> TextField
 addInputSigTF tf sig =
-      let leaved = current (tfContent tf) ::: interleave (box (\x y -> x)) (future (tfContent tf)) sig
+      let leaved = current (tfContent tf) ::: interleave (box (\x _ -> x)) (future (tfContent tf)) sig
       in tf{tfContent = leaved, tfInput = tfInput tf}
 
 -- Helper function that takes a TextField and returns a boxed delayed computation.
@@ -137,7 +134,6 @@ mkTimerEvent n cb = (threadDelay n >> cb (AppEvent (Chan n) ())) >> return ()
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
     w' <- w
-    let cl = nextProgress w' 
     Monomer.startApp (AppModel w' emptyClock) handler builder config
     where builder _ (AppModel w _) = mkWidget w
           handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) =

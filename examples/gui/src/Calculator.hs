@@ -19,7 +19,6 @@ import Data.Text.IO
 import Data.Text hiding (filter, map, all, foldl1)
 import qualified WidgetRattus.Widgets
 import Data.Text.Array (equal)
-import Monomer.Common.Lens (HasY(y), HasX (x))
 import GHC.Base (VecElem(Int16ElemRep), map)
 
 -- Benchmark 4

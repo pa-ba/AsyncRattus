@@ -56,7 +56,6 @@ module WidgetRattus.Signal
 where
 
 import WidgetRattus
-import WidgetRattus.Channels
 import Prelude hiding (map, const, zipWith, zipWith3, zip, filter)
 import Data.VectorSpace
 import Data.Ratio ((%))

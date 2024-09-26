@@ -41,7 +41,6 @@ where
 import WidgetRattus
 import WidgetRattus.Signal (Sig(..))
 import Prelude hiding (map, filter, zipWith)
-import WidgetRattus.Channels
 
 newtype OneShot a = OneShot (F a)
 

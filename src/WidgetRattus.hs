@@ -7,6 +7,8 @@
 module WidgetRattus (
   -- * Asynchronous Rattus language primitives
   module WidgetRattus.Primitives,
+  -- * Channels API
+  module WidgetRattus.Channels,
   -- * Strict data types
   module WidgetRattus.Strict,
   -- * Derive class instance declarations
@@ -22,6 +24,7 @@ import WidgetRattus.Plugin
 import WidgetRattus.Strict
 import WidgetRattus.Primitives
 import WidgetRattus.Derive
+import WidgetRattus.Channels
 
 mapO :: Box (a -> b) -> O a -> O b
 mapO f later = delay (unbox f (adv later))

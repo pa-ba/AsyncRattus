@@ -197,7 +197,8 @@ class Continuous p where
   progressInternal :: InputValue -> p -> p
   -- | Computes the set of channels that the continuous value is
   -- depending on. That is if @nextProgress v = cl@ and a new input
-  -- @inp@ on channel @ch@ arrives, then @progressInternal inp v = v@.
+  -- @inp@ on channel @ch@ arrives, then @progressInternal inp v = v@
+  -- if @not (ch `channelMember` cl)@.
   nextProgress :: p -> Clock 
   promoteInternal :: p -> Box p
   promoteInternal = defaultPromote

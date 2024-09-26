@@ -9,7 +9,6 @@ module WidgetRattus.Widgets.Types where
 import WidgetRattus
 import WidgetRattus.InternalPrimitives
 import WidgetRattus.Signal
-import WidgetRattus.Channels ( chan, wait, C(C), Chan )
 import Data.Text
 
 import qualified Monomer

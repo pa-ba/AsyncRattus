@@ -39,6 +39,8 @@ library
                        WidgetRattus.InternalPrimitives
                        WidgetRattus.Channels
                        WidgetRattus.Plugin.Annotation
+                       WidgetRattus.Widgets
+                       WidgetRattus.Widgets.Types
                                               
   other-modules:       WidgetRattus.Plugin.ScopeCheck
                        WidgetRattus.Plugin.SingleTick
@@ -58,7 +60,8 @@ library
                        simple-affine-space >= 0.2.1 && < 0.3,
                        transformers >= 0.5.6 && < 0.7,
                        template-haskell >= 2.17 && < 2.22,
-                       text
+                       text,
+                       monomer
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -W
