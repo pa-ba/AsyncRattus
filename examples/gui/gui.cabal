@@ -7,10 +7,37 @@ author:              Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark H
 maintainer:          paba@itu.dk
 build-type:          Simple
 
-executable gui
+executable calculator
   hs-source-dirs:      src
-  main-is:             GUI.hs
-  other-modules:       Counter, TemperatureConverter, FlightBooker, Timer, Calculator
+  main-is:             Calculator.hs
   default-language:    Haskell2010
-  build-depends:       WidgetRattus>=0.2, base, text, containers, deepseq
+  build-depends:       WidgetRattus>=0.2, base, text, containers
+  ghc-options:         -W
+
+executable counter
+  hs-source-dirs:      src
+  main-is:             Counter.hs
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers
+  ghc-options:         -W
+
+executable flight
+  hs-source-dirs:      src
+  main-is:             FlightBooker.hs
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers
+  ghc-options:         -W
+
+executable converter
+  hs-source-dirs:      src
+  main-is:             TemperatureConverter.hs
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers
+  ghc-options:         -W
+
+executable timer
+  hs-source-dirs:      src
+  main-is:             timer.hs
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers
   ghc-options:         -W

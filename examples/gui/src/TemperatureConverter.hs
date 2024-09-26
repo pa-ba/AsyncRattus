@@ -6,7 +6,7 @@
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 
-module TemperatureConverter where
+
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
@@ -27,35 +27,8 @@ fahrenheitToCelsius t =
         Right (t', _) -> toText ((t' - 32) * 5 `div` 9)
         Left _ -> "Invalid input"
 
--- Initial version of benchmark 2.
-initialbenchmark2 :: C HStack
-initialbenchmark2 = do
-    c1 <- chan
-    c2 <- chan
-
-    let sigC = mkSig (box (wait c1))
-    let sigF = mkSig (box (wait c2))
-
-    let convertFtoC = mapAwait (box fahrenheitToCelsius) sigF
-    let convertCtoF = mapAwait (box celsiusToFahrenheit) sigC
-
-    let sigC' = "0":::interleave (box (\ x _ -> x)) convertFtoC sigC
-    let sigF' = "32":::interleave (box (\ x _ -> x)) convertCtoF sigF
-
-    let tfC = TextField {tfContent = sigC', tfInput = c1}
-    let tfF = TextField {tfContent = sigF', tfInput = c2}
-
-    fLabel <- mkLabel (const ("Fahrenheit" :: Text)) -- requires type annotations
-    cLabel <- mkLabel (const ("Celsius" :: Text)) 
-
-    fStack <- mkVStack (const [enabledWidget tfC, enabledWidget cLabel])
-    cStack <- mkVStack (const [enabledWidget tfF, enabledWidget fLabel])
-
-    mkHStack (const [enabledWidget fStack, enabledWidget cStack])
-
--- Improved version of Benchmark 2
-benchmark2 :: C HStack
-benchmark2 = do
+window :: C HStack
+window = do
     tfF1 <- mkTextField "32"
     tfC1 <- mkTextField "0"
 
@@ -73,3 +46,5 @@ benchmark2 = do
     mkHStack (const [enabledWidget fStack, enabledWidget cStack])          
  
 
+main :: IO ()
+main = runApplication window

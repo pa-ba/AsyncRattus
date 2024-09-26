@@ -5,7 +5,6 @@
 {-# HLINT ignore "Evaluate" #-}
 {-# HLINT ignore "Use const" #-}
 
-module FlightBooker where
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
@@ -58,8 +57,8 @@ bookingToText oneWay dep ret =
   "You have booked a " <> if oneWay then "one-way flight on " <> dep
   else "return flight from " <> dep <> " to " <> ret
 
-benchmark3 :: C VStack
-benchmark3 = do
+window :: C VStack
+window = do
     dropDown <- mkTextDropdown (const ["One-Way", "Return-Flight"]) "One-Way"
     tf1 <- mkTextField "01-01-2021"
     tf2 <- mkTextField "01-02-2021"
@@ -86,3 +85,6 @@ benchmark3 = do
     mkVStack (const
         [enabledWidget popup, enabledWidget dropDown,
          enabledWidget tf1, Widget tf2 isRF, Widget button validBooking])
+
+main :: IO ()
+main = runApplication window

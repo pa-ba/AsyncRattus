@@ -6,21 +6,16 @@
 {-# HLINT ignore "Use const" #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Calculator where
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text hiding (filter, map, all, foldl1)
 
--- Benchmark 4
-
-reset :: Int -> Int
-reset _ = 0
 
 
-calc :: C VStack
-calc = do
+window :: C VStack
+window = do
     zero <- mkButton (const ("0" ::Text))
     one <- mkButton (const ("1" ::Text))
     two <- mkButton (const ("2" ::Text))
@@ -84,3 +79,6 @@ calc = do
     input <- mkHStack (const [enabledWidget numbers, enabledWidget operators])
 
     mkVStack (const [enabledWidget result, enabledWidget input])
+
+main :: IO ()
+main = runApplication window

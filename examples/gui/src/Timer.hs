@@ -7,7 +7,7 @@
 
 {-# LANGUAGE TypeOperators #-}
 
-module Timer where
+
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
@@ -37,8 +37,8 @@ first (x :* _) = x
 second :: (a :* b) -> b
 second (_ :* y) = y
 
-benchmark4 :: C VStack
-benchmark4 = do
+window :: C VStack
+window = do
     slider <- mkSlider 50 (const 1) (const 100)
     resetBtn <- mkButton (const  (pack "Reset"))
 
@@ -62,3 +62,6 @@ benchmark4 = do
                      enabledWidget resetBtn,
                      enabledWidget label,
                      enabledWidget pb])
+
+main :: IO ()
+main = runApplication window
