@@ -1,42 +1,26 @@
+{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Evaluate" #-}
-{-# HLINT ignore "Use const" #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text hiding (filter, map, all, foldl1)
+import Data.Text (Text)
 
-
+nums :: List Int
+nums = [0..9]
 
 window :: C VStack
 window = do
-    zero <- mkButton (const ("0" ::Text))
-    one <- mkButton (const ("1" ::Text))
-    two <- mkButton (const ("2" ::Text))
-    three <- mkButton (const ("3" ::Text))
-    four <- mkButton (const ("4" ::Text))
-    five <- mkButton (const ("5" ::Text))
-    six <- mkButton (const ("6" ::Text))
-    seven <- mkButton (const ("7" ::Text))
-    eight <- mkButton (const ("8" ::Text))
-    nine <- mkButton (const ("9" ::Text))
+    numBtns :: List Button  
+        <- mapM (mkButton . const) nums
 
-    let onclick0 = mapAwait (box (\ _ x -> x * 10)) (btnOnClickSig zero)
-    let onclick1 = mapAwait (box (\ _ x -> x * 10 + 1)) (btnOnClickSig one)
-    let onclick2 = mapAwait (box (\ _ x -> x * 10 + 2)) (btnOnClickSig two)
-    let onclick3 = mapAwait (box (\ _ x -> x * 10 + 3)) (btnOnClickSig three)
-    let onclick4 = mapAwait (box (\ _ x -> x * 10 + 4)) (btnOnClickSig four)
-    let onclick5 = mapAwait (box (\ _ x -> x * 10 + 5)) (btnOnClickSig five)
-    let onclick6 = mapAwait (box (\ _ x -> x * 10 + 6)) (btnOnClickSig six)
-    let onclick7 = mapAwait (box (\ _ x -> x * 10 + 7)) (btnOnClickSig seven)
-    let onclick8 = mapAwait (box (\ _ x -> x * 10 + 8)) (btnOnClickSig eight)
-    let onclick9 = mapAwait (box (\ _ x -> x * 10 + 9)) (btnOnClickSig nine)
+    let numClicks :: List (O (Sig (Int -> Int))) 
+          = zipWith' (\b n -> mapAwait (box (\ _ x -> x * 10 + n)) (btnOnClickSig b)) numBtns nums
+          
+    let [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9] = numBtns
 
     addBut <- mkButton (const ("+"::Text))
     subBut <- mkButton (const ("-"::Text))
@@ -46,7 +30,7 @@ window = do
             mapAwait (box (\ _ _ -> 0))
             (interleave (box (\ a _ -> a)) (interleave (box (\ a _ -> a)) (btnOnClickSig addBut) (btnOnClickSig subBut)) (btnOnClickSig eqBut))
 
-    let sigList = [onclick0, onclick1, onclick2, onclick3, onclick4, onclick5, onclick6, onclick7, onclick8, onclick9, resetSig] :: List (O (Sig (Int->Int)))
+    let sigList = resetSig :! numClicks :: List (O (Sig (Int->Int)))
     let combinedSig = foldl1 (interleave (box (\ a _ -> a))) sigList
 
     let numberSig = scanAwait (box (\ a f-> f a)) 0 combinedSig
@@ -58,7 +42,7 @@ window = do
 
     let calcSig = triggerStable (box (\ op x -> box (unbox op x))) (box (0 +)) opSig bufferedSig
 
-    let resultSig = WidgetRattus.Signal.zipWith (box (\ f x -> unbox f x)) calcSig bufferedSig
+    let resultSig = zipWith (box (\ f x -> unbox f x)) calcSig bufferedSig
   
     let eqSig = triggerStable (box (\ _ x -> x)) 0 (btnOnClickSig eqBut) resultSig
 
@@ -69,12 +53,12 @@ window = do
 
     result <- mkLabel displaySig
 
-    operators <- mkHStack (const [enabledWidget addBut, enabledWidget subBut, enabledWidget eqBut])
-    firstRow <- mkHStack (const [enabledWidget seven, enabledWidget eight, enabledWidget nine])
-    secondRow <- mkHStack (const [enabledWidget four, enabledWidget five, enabledWidget six])
-    thirdRow <- mkHStack (const [enabledWidget one, enabledWidget two, enabledWidget three])
-    fourthRow <- mkHStack (const [enabledWidget zero])
-    numbers <- mkVStack (const [enabledWidget firstRow, enabledWidget secondRow, enabledWidget thirdRow, enabledWidget fourthRow])
+    operators <- mkHStack (const [addBut, subBut, eqBut])
+    row1 <- mkHStack (const [b7, b8, b9])
+    row2 <- mkHStack (const [b4, b5, b6])
+    row3 <- mkHStack (const [b1, b2, b3])
+    row4 <- mkHStack (const [b0])
+    numbers <- mkVStack (const [row1, row2 , row3, row4])
 
     input <- mkHStack (const [enabledWidget numbers, enabledWidget operators])
 

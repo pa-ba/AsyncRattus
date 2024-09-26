@@ -297,13 +297,14 @@ isStrictRec d pr t = do
   let pr' = Set.insert (TC t) pr
   let (_,t') = splitForAllTys' t
   let (c, tys) = repSplitAppTys t'
-  if isJust (getTyVar_maybe c) then and (map (isStrictRec (d+1) pr') tys)
+  if isJust (getTyVar_maybe c) then all (isStrictRec (d+1) pr') tys
   else  case splitTyConApp_maybe t' of
     Nothing -> isJust (getTyVar_maybe t)
     Just (con,args) ->
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
+          | (mod == "GHC.Internal.IsList" || mod == "GHC.IsList") && name == "Item" -> all (isStrictRec (d+1) pr') args
           | mod == "GHC.Num.Integer" && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           | mod == "GHC.IORef" && name == "IORef" -> True
@@ -321,10 +322,10 @@ isStrictRec d pr t = do
               DataTyCon {data_cons = cons, is_enum = enum}
                 | enum -> True
                 | all hasStrictArgs cons ->
-                  and  (map check cons)
+                  all check cons
                 | otherwise -> False
                 where check con = case dataConInstSig con args of
-                        (_, _,tys) -> and (map (isStrictRec (d+1) pr') tys)
+                        (_, _,tys) -> all (isStrictRec (d+1) pr') tys
               TupleTyCon {} -> null args
               NewTyCon {nt_rhs = ty} -> isStrictRec (d+1) pr' ty
               _ -> False

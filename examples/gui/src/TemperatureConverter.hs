@@ -43,7 +43,7 @@ window = do
 
     fStack <- mkVStack (const [enabledWidget tfF2, enabledWidget fLabel])
     cStack <- mkVStack (const [enabledWidget tfC2, enabledWidget cLabel])  
-    mkHStack (const [enabledWidget fStack, enabledWidget cStack])          
+    mkHStack (const [fStack, cStack])          
  
 
 main :: IO ()

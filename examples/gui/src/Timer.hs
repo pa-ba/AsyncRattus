@@ -40,7 +40,7 @@ second (_ :* y) = y
 window :: C VStack
 window = do
     slider <- mkSlider 50 (const 1) (const 100)
-    resetBtn <- mkButton (const  (pack "Reset"))
+    resetBtn <- mkButton (const ("Reset" :: Text))
 
     let resSig = mkSig (btnOnClick resetBtn)
     let resetSig = mapAwait (box (\ _ -> reset)) resSig

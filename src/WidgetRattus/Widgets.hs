@@ -48,13 +48,13 @@ mkLabel :: (Displayable a, Stable a) => Sig a -> C Label
 mkLabel t = do
       return Label{labText = t}
 
-mkHStack :: Sig(List Widget) -> C HStack
+mkHStack :: IsWidget a => Sig(List a) -> C HStack
 mkHStack wl = do
-      return HStack{hGrp = wl}
+      return (HStack wl)
 
-mkVStack :: Sig(List Widget) -> C VStack
+mkVStack :: IsWidget a => Sig(List a) -> C VStack
 mkVStack wl = do
-      return VStack{vGrp = wl}
+      return (VStack wl)
 
 mkTextDropdown :: Sig (List Text) -> Text -> C TextDropdown
 mkTextDropdown opts init = do

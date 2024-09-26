@@ -8,7 +8,7 @@
 import WidgetRattus
 import WidgetRattus.Signal
 import WidgetRattus.Widgets
-import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
+import Prelude hiding (map, const, zipWith, zipWith3, zip, filter, getLine, putStrLn,null)
 import Data.Text (Text)
 
 -- Benchmark 3
@@ -67,7 +67,7 @@ window = do
     let isRF = map (box (== "Return-Flight")) (tddCurr dropDown)
     let isOW = map (box (== "One-Way")) (tddCurr dropDown)
     
-    let labelSig = WidgetRattus.Signal.zipWith3 (box bookingToText) isOW (tfContent tf1) (tfContent tf2)
+    let labelSig = zipWith3 (box bookingToText) isOW (tfContent tf1) (tfContent tf2)
 
     let sig = scanAwait (box (\ _ _ -> True )) False (btnOnClickSig button)
 
@@ -76,11 +76,11 @@ window = do
     popup <- mkPopup sig (const (enabledWidget label))
 
     let tf1IsDate = map (box isDate) (tfContent tf1)
-    let tf1IsLater = WidgetRattus.Signal.zipWith (box isLater) (tfContent tf1) (tfContent tf2)
+    let tf1IsLater = zipWith (box isLater) (tfContent tf1) (tfContent tf2)
 
-    let oneWayAndDate = WidgetRattus.Signal.zipWith (box (&&)) isOW tf1IsDate
-    let returnFlightAndIsLater = WidgetRattus.Signal.zipWith (box (&&)) isRF tf1IsLater
-    let validBooking = WidgetRattus.Signal.zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
+    let oneWayAndDate = zipWith (box (&&)) isOW tf1IsDate
+    let returnFlightAndIsLater = zipWith (box (&&)) isRF tf1IsLater
+    let validBooking = zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
 
     mkVStack (const
         [enabledWidget popup, enabledWidget dropDown,

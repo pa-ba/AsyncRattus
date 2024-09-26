@@ -2,7 +2,7 @@
 {-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 module WidgetRattus.Widgets.Types where
 
@@ -42,9 +42,11 @@ class Continuous a => IsWidget a where
 data Widget where
     Widget :: IsWidget a => !a -> !(Sig Bool) -> Widget
 
-data HStack = HStack {hGrp :: !(Sig (List Widget))}
+data HStack where 
+      HStack :: IsWidget a => !(Sig (List a)) -> HStack
 
-data VStack = VStack {vGrp :: !(Sig (List Widget))}
+data VStack where 
+      VStack :: IsWidget a => !(Sig (List a)) -> VStack
 
 data TextDropdown = TextDropdown {tddCurr :: !(Sig Text), tddEvent :: !(Chan Text), tddList :: !(Sig (List Text))}
 
@@ -87,10 +89,10 @@ instance IsWidget Label where
 
 
 instance IsWidget HStack where
-      mkWidget HStack{hGrp = ws} = Monomer.hstack (fmap mkWidget (current ws))
+      mkWidget (HStack ws) = Monomer.hstack (fmap mkWidget (current ws))
 
 instance IsWidget VStack where
-      mkWidget VStack{vGrp = ws} = Monomer.vstack (fmap mkWidget (current ws))
+      mkWidget (VStack ws) = Monomer.vstack (fmap mkWidget (current ws))
 
 instance IsWidget TextDropdown where
       mkWidget TextDropdown{tddList = opts ::: _, tddCurr = curr ::: _, tddEvent = ch}
