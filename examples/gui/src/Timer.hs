@@ -10,16 +10,9 @@
 module Timer where
 import WidgetRattus
 import WidgetRattus.Signal
-import WidgetRattus.Channels
 import WidgetRattus.Widgets
-import Control.Concurrent ( forkIO )
-import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text.IO
 import Data.Text hiding (filter, map, all)
-import qualified Data.Text as Text
-import System.Exit
-import Data.Text.Read
 
 -- Benchmark 4
 everySecond :: Box (O())
@@ -33,10 +26,10 @@ nats (n :* max) = stop (box (\ (n :* max) -> n >= max)) (scan (box (\ (n :* max)
 
 
 reset :: (Int :* Int) -> (Int :* Int)
-reset (n :* max) = (0 :* max)
+reset (_ :* max) = (0 :* max)
 
 setMax :: Int -> (Int :* Int) -> (Int :* Int)
-setMax max' (n :* max) = ((min n max') :* max')
+setMax max' (n :* _) = ((min n max') :* max')
 
 first :: (a :* b) -> a
 first (x :* _) = x

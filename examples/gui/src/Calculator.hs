@@ -9,17 +9,9 @@
 module Calculator where
 import WidgetRattus
 import WidgetRattus.Signal
-import WidgetRattus.Channels
 import WidgetRattus.Widgets
-
-import Control.Concurrent ( forkIO )
-import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text.IO
 import Data.Text hiding (filter, map, all, foldl1)
-import qualified WidgetRattus.Widgets
-import Data.Text.Array (equal)
-import GHC.Base (VecElem(Int16ElemRep), map)
 
 -- Benchmark 4
 
@@ -57,19 +49,19 @@ calc = do
 
     let resetSig =
             mapAwait (box (\ _ _ -> 0))
-            (interleave (box (\ a b -> a)) (interleave (box (\ a b -> a)) (btnOnClickSig addBut) (btnOnClickSig subBut)) (btnOnClickSig eqBut))
+            (interleave (box (\ a _ -> a)) (interleave (box (\ a _ -> a)) (btnOnClickSig addBut) (btnOnClickSig subBut)) (btnOnClickSig eqBut))
 
     let sigList = [onclick0, onclick1, onclick2, onclick3, onclick4, onclick5, onclick6, onclick7, onclick8, onclick9, resetSig] :: List (O (Sig (Int->Int)))
-    let combinedSig = foldl1 (interleave (box (\ a b -> a))) sigList
+    let combinedSig = foldl1 (interleave (box (\ a _ -> a))) sigList
 
     let numberSig = scanAwait (box (\ a f-> f a)) 0 combinedSig
     let bufferedSig = buffer 0 numberSig
 
     let addSig = mapAwait (box (\ _ -> box (+))) (btnOnClickSig addBut)
     let subSig = mapAwait (box (\ _ -> box (-))) (btnOnClickSig subBut)
-    let opSig = interleave (box (\ a b -> a)) addSig subSig
+    let opSig = interleave (box (\ a _ -> a)) addSig subSig
 
-    let calcSig = triggerStable (box (\ op x ->box (unbox op x))) (box (0 +)) opSig bufferedSig
+    let calcSig = triggerStable (box (\ op x -> box (unbox op x))) (box (0 +)) opSig bufferedSig
 
     let resultSig = WidgetRattus.Signal.zipWith (box (\ f x -> unbox f x)) calcSig bufferedSig
   
@@ -77,7 +69,7 @@ calc = do
 
    
 
-    let displaySig = 0 ::: interleave (box (\ a b -> b)) (future numberSig) (future eqSig)
+    let displaySig = 0 ::: interleave (box (\ _ b -> b)) (future numberSig) (future eqSig)
     
 
     result <- mkLabel displaySig

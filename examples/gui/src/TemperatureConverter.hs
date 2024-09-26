@@ -9,16 +9,10 @@
 module TemperatureConverter where
 import WidgetRattus
 import WidgetRattus.Signal
-import WidgetRattus.Channels
 import WidgetRattus.Widgets
-import Control.Concurrent ( forkIO )
-import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text.IO
 import Data.Text hiding (filter, map, all)
 import Data.Text.Read
-import qualified WidgetRattus.Widgets
-import GHC.TypeError (ErrorMessage(Text))
 
 -- Benchmark 2
 celsiusToFahrenheit :: Text -> Text
@@ -45,8 +39,8 @@ initialbenchmark2 = do
     let convertFtoC = mapAwait (box fahrenheitToCelsius) sigF
     let convertCtoF = mapAwait (box celsiusToFahrenheit) sigC
 
-    let sigC' = "0":::interleave (box (\ x y -> x)) convertFtoC sigC
-    let sigF' = "32":::interleave (box (\ x y -> x)) convertCtoF sigF
+    let sigC' = "0":::interleave (box (\ x _ -> x)) convertFtoC sigC
+    let sigF' = "32":::interleave (box (\ x _ -> x)) convertCtoF sigF
 
     let tfC = TextField {tfContent = sigC', tfInput = c1}
     let tfF = TextField {tfContent = sigF', tfInput = c2}

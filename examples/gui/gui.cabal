@@ -13,3 +13,4 @@ executable gui
   other-modules:       Counter, TemperatureConverter, FlightBooker, Timer, Calculator
   default-language:    Haskell2010
   build-depends:       WidgetRattus>=0.2, base, text, containers, deepseq
+  ghc-options:         -W

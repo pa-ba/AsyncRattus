@@ -8,17 +8,9 @@
 module FlightBooker where
 import WidgetRattus
 import WidgetRattus.Signal
-import WidgetRattus.Channels
 import WidgetRattus.Widgets
-import Control.Concurrent ( forkIO )
-import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text.IO
-import qualified Data.Text as Text
-import Data.Text (Text, unpack, splitOn)
-import Text.Read (readMaybe)
-import Data.Maybe (isNothing, isJust)
-import Control.DeepSeq
+import Data.Text (Text)
 
 -- Benchmark 3
 isDate :: Text -> Bool
@@ -78,14 +70,13 @@ benchmark3 = do
     
     let labelSig = WidgetRattus.Signal.zipWith3 (box bookingToText) isOW (tfContent tf1) (tfContent tf2)
 
-    let sig = scanAwait (box (\ b _ -> True )) False (btnOnClickSig button)
+    let sig = scanAwait (box (\ _ _ -> True )) False (btnOnClickSig button)
 
     label <- mkLabel labelSig
     
     popup <- mkPopup sig (const (enabledWidget label))
 
     let tf1IsDate = map (box isDate) (tfContent tf1)
-    let tf2IsDate = map (box isDate) (tfContent tf2)
     let tf1IsLater = WidgetRattus.Signal.zipWith (box isLater) (tfContent tf1) (tfContent tf2)
 
     let oneWayAndDate = WidgetRattus.Signal.zipWith (box (&&)) isOW tf1IsDate

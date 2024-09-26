@@ -8,16 +8,11 @@
 
 module Counter where
 import WidgetRattus
-import WidgetRattus.Signal ( Sig, const, map, mkSig, scanAwait )
-import WidgetRattus.Channels
+import WidgetRattus.Signal
 import WidgetRattus.Widgets
 
-import Control.Concurrent ( forkIO )
-import Control.Monad
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
-import Data.Text.IO
 import Data.Text hiding (filter, map, all)
-import qualified Data.Text as Text
 
 --Benchmark 1
 benchmark1 :: C VStack

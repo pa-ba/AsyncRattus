@@ -10,7 +10,7 @@ import FlightBooker
 import Timer
 import Calculator
 import WidgetRattus.Widgets
-import WidgetRattus.Channels (timer)
+
 -- main module for specifying which benchmark should be rendered.
 main :: IO ()
 main = runApplication benchmark2 -- change name of benchmark to render here
