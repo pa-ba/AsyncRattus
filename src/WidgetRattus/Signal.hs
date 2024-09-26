@@ -11,14 +11,6 @@
 
 module WidgetRattus.Signal
   ( map
-  , mkInputSig
-  , getInputSig
-  , filterMap
-  , filterMapAwait
-  , filter
-  , filterAwait
-  , trigger
-  , triggerAwait
   , mapAwait
   , switch
   , switchS
@@ -91,70 +83,6 @@ future (_ ::: xs) = xs
 -- | Apply a function to the value of a signal.
 map :: Box (a -> b) -> Sig a -> Sig b
 map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
-
--- | Variant of 'getInput' that returns a signal instead of a boxed
--- delayed computation.
-getInputSig :: IO (Box (O (Sig a)) :* (a -> IO ()))
-getInputSig = do (s :* cb) <- getInput
-                 return (mkBoxSig s :* cb)
-
--- | Turn a producer into a signal. This is a variant of 'mkInput'
--- that returns a signal instead of a boxed delayed computation.
-mkInputSig :: Producer p a => p -> IO (Box (O (Sig a)))
-mkInputSig p = mkBoxSig <$> mkInput p
-
-
--- | This function is essentially the composition of 'filter' with
--- 'map'. The signal produced by @filterMap f s@ has the value @v@
--- whenever @s@ has the value @u@ such that @unbox f u = Just' v@.
-filterMap :: Box (a -> Maybe' b) -> Sig a -> IO (Box (O (Sig b)))
-filterMap f s = mkInputSig (SigMaybe (map f s))
-
--- | This function is similar to 'filterMap' but takes a delayed
--- signal (type @O (Sig a)@) as an argument instead of a signal (@Sig
--- a@).
-filterMapAwait :: Box (a -> Maybe' b) -> O (Sig a) -> IO (Box (O (Sig b)))
-filterMapAwait f s = mkInputSig (delay (SigMaybe (map f (adv s))))
-
--- | Filter the given signal using a predicate. The signal produced by
--- @filter p s@ contains only values from @s@ that satisfy the
--- predicate @p@.
-filter :: Box (a -> Bool) -> Sig a -> IO (Box (O (Sig a)))
-filter p = filterMap (box (\ x -> if unbox p x then Just' x else Nothing'))
-
--- | This function is similar to 'filter' but takes a delayed signal
--- (type @O (Sig a)@) as an argument instead of a signal (@Sig a@).
-filterAwait :: Box (a -> Bool) -> O (Sig a) -> IO (Box (O (Sig a)))
-filterAwait p = filterMapAwait (box (\ x -> if unbox p x then Just' x else Nothing'))
-
-
--- | This function is a variant of 'zipWith'. Whereas @zipWith f xs
--- ys@ produces a new value whenever @xs@ or @ys@ produce a new value,
--- @trigger f xs ys@ only produces a new value when xs produces a new
--- value.
---
--- Example:
---
--- >                      xs:  1 2 3     2
--- >                      ys:  1     0 5 2
--- >
--- > zipWith (box (+)) xs ys:  2 3 4 3 8 4
--- > trigger (box (+)) xy ys:  2     3 8 4
-
-trigger :: (Stable a, Stable b) => Box (a -> b -> c) -> Sig a -> Sig b -> IO (Box (Sig c))
-trigger f (a ::: as) bs@(b:::_) = do s <- triggerAwait f as bs
-                                     return (box (unbox f a b ::: unbox s))
--- | This function is similar to 'trigger' but takes a delayed signal
--- (type @O (Sig a)@) as an argument instead of a signal (@Sig a@).
-triggerAwait :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> IO (Box (O (Sig c)))
-triggerAwait f as bs = mkBoxSig <$> mkInput (box SigMaybe `mapO` (trig f as bs)) where
-  trig :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
-  trig f as (b ::: bs) =
-    delay (case select as bs of
-            Fst (a' ::: as') bs' -> Just' (unbox f a' b) ::: trig f as' (b ::: bs')
-            Snd as' bs' -> Nothing' ::: trig f as' bs'
-            Both (a' ::: as') (b' ::: bs') -> Just' (unbox f a' b') ::: trig f as' (b' ::: bs')
-          )
 
 -- | A version of @map@ for delayed signals.
 mapAwait :: Box (a -> b) -> O (Sig a) -> O (Sig b)
