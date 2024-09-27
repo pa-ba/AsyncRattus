@@ -29,8 +29,8 @@ instance Displayable Int where
 
 
 -- Function to construct a Widget that never gets disabled
-enabledWidget :: IsWidget a => a -> Widget
-enabledWidget w = Widget w (WidgetRattus.Signal.const True)
+mkWidget :: IsWidget a => a -> Widget
+mkWidget w = Widget w (WidgetRattus.Signal.const True)
 
 -- Functions for constructing Async Rattus widgets. 
 mkButton :: (Displayable a, Stable a) => Sig a -> C Button
@@ -135,7 +135,7 @@ runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
     w' <- w
     M.startApp (AppModel w' emptyClock) handler builder config
-    where builder _ (AppModel w _) = mkWidget w
+    where builder _ (AppModel w _) = mkWidgetNode w
           handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) =
             let inp = OneInput ch d in unsafePerformIO $ do
                progressPromoteStoreAtomic inp

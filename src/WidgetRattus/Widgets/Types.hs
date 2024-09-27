@@ -35,10 +35,10 @@ instance (Eq AppModel) where
 data AppEvent where
       AppEvent :: !(Chan a) -> !a -> AppEvent
 
--- The IsWidget typeclass is used to define the mkWidget function.
+-- The IsWidget typeclass is used to define the mkWidgetNode function.
 class Continuous a => IsWidget a where
-      mkWidget :: a -> M.WidgetNode AppModel AppEvent
-      
+      mkWidgetNode :: a -> M.WidgetNode AppModel AppEvent
+
 -- Custom data types for widgets.
 data Widget where
     Widget :: IsWidget a => !a -> !(Sig Bool) -> Widget
@@ -78,34 +78,34 @@ continuous ''Slider
 -- isWidget Instance declerations for Widgets.
 -- Here widgget data types are passed to Monomer constructors.
 instance IsWidget Button where
-      mkWidget Button{btnContent = txt ::: _ , btnClick = click} =
+      mkWidgetNode Button{btnContent = txt ::: _ , btnClick = click} =
             M.button  (display txt) (AppEvent click ())
 
 instance IsWidget TextField where
-      mkWidget TextField{tfContent = txt ::: _, tfInput = inp} = 
+      mkWidgetNode TextField{tfContent = txt ::: _, tfInput = inp} = 
             M.textFieldV txt (AppEvent inp)
 
 instance IsWidget Label where
-      mkWidget Label{labText = txt ::: _} = M.label (display txt)
+      mkWidgetNode Label{labText = txt ::: _} = M.label (display txt)
 
 
 instance IsWidget HStack where
-      mkWidget (HStack ws) = M.hstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidget (current ws))
+      mkWidgetNode (HStack ws) = M.hstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidgetNode (current ws))
 
 instance IsWidget VStack where
-      mkWidget (VStack ws) = M.vstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidget (current ws))
+      mkWidgetNode (VStack ws) = M.vstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidgetNode (current ws))
 
 instance IsWidget TextDropdown where
-      mkWidget TextDropdown{tddList = opts ::: _, tddCurr = curr ::: _, tddEvent = ch}
+      mkWidgetNode TextDropdown{tddList = opts ::: _, tddCurr = curr ::: _, tddEvent = ch}
             = M.textDropdownV curr (AppEvent ch) opts
 
 instance IsWidget Popup where
-      mkWidget Popup{popCurr = curr ::: _, popEvent = ch, popChild = child}
-            = M.popupV curr (AppEvent ch) (mkWidget (current child))
+      mkWidgetNode Popup{popCurr = curr ::: _, popEvent = ch, popChild = child}
+            = M.popupV curr (AppEvent ch) (mkWidgetNode (current child))
 
 instance IsWidget Slider where
-      mkWidget Slider{sldCurr = curr ::: _, sldEvent = ch, sldMin = min ::: _, sldMax = max ::: _}
+      mkWidgetNode Slider{sldCurr = curr ::: _, sldEvent = ch, sldMin = min ::: _, sldMax = max ::: _}
             = M.hsliderV curr (AppEvent ch) min max
 
 instance IsWidget Widget where
-    mkWidget (Widget w (e ::: _)) = M.nodeEnabled (mkWidget w) e
+    mkWidgetNode (Widget w (e ::: _)) = M.nodeEnabled (mkWidgetNode w) e

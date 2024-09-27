@@ -73,7 +73,7 @@ window = do
 
     label <- mkLabel labelSig
     
-    popup <- mkPopup sig (const (enabledWidget label))
+    popup <- mkPopup sig (const (mkWidget label))
 
     let tf1IsDate = map (box isDate) (tfContent tf1)
     let tf1IsLater = zipWith (box isLater) (tfContent tf1) (tfContent tf2)
@@ -83,8 +83,8 @@ window = do
     let validBooking = zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
 
     mkVStack (const
-        [enabledWidget popup, enabledWidget dropDown,
-         enabledWidget tf1, Widget tf2 isRF, Widget button validBooking])
+        [mkWidget popup, mkWidget dropDown,
+         mkWidget tf1, Widget tf2 isRF, Widget button validBooking])
 
 main :: IO ()
 main = runApplication window

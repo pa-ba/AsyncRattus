@@ -12,7 +12,7 @@ import WidgetRattus.Widgets
 import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text hiding (filter, map, all)
 
--- Benchmark 4
+
 everySecond :: Box (O())
 everySecond = timer 1000000
 
@@ -30,12 +30,6 @@ reset (_ :* max) = (0 :* max)
 
 setMax :: Int -> (Int :* Int) -> (Int :* Int)
 setMax max' (n :* _) = ((min n max') :* max')
-
-first :: (a :* b) -> a
-first (x :* _) = x
-
-second :: (a :* b) -> b
-second (_ :* y) = y
 
 window :: C VStack
 window = do
@@ -58,16 +52,16 @@ window = do
     let counterSig :: Sig (Int :* Int)
          = switchB inputSig (box nats) (0 :* currentMax)
     
-    let currentSig = map (box first) counterSig
-    let maxSig = map (box second) counterSig
+    let currentSig = map (box fst') counterSig
+    let maxSig = map (box snd') counterSig
 
     label <- mkLabel (map (box display) currentSig)
     pb <- mkProgressBar (const 0) maxSig currentSig
 
-    mkVStack (const [enabledWidget slider,
-                     enabledWidget resetBtn,
-                     enabledWidget label,
-                     enabledWidget pb])
+    mkVStack (const [mkWidget slider,
+                     mkWidget resetBtn,
+                     mkWidget label,
+                     mkWidget pb])
 
 main :: IO ()
 main = runApplication window

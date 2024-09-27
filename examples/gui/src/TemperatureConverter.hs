@@ -41,8 +41,8 @@ window = do
     fLabel <- mkLabel (const ("Fahrenheit" :: Text))
     cLabel <- mkLabel (const ("Celsius" :: Text))
 
-    fStack <- mkVStack (const [enabledWidget tfF2, enabledWidget fLabel])
-    cStack <- mkVStack (const [enabledWidget tfC2, enabledWidget cLabel])  
+    fStack <- mkVStack (const [mkWidget tfF2, mkWidget fLabel])
+    cStack <- mkVStack (const [mkWidget tfC2, mkWidget cLabel])  
     mkHStack (const [fStack, cStack])          
  
 

@@ -58,11 +58,11 @@ window = do
     row2 <- mkHStack (const [b4, b5, b6])
     row3 <- mkHStack (const [b1, b2, b3])
 
-    numbers <- mkVStack (const [enabledWidget row1, enabledWidget row2 , enabledWidget row3,  enabledWidget b0])
+    numbers <- mkVStack (const [mkWidget row1, mkWidget row2 , mkWidget row3,  mkWidget b0])
 
-    input <- mkHStack (const [enabledWidget numbers, enabledWidget operators])
+    input <- mkHStack (const [mkWidget numbers, mkWidget operators])
 
-    mkVStack (const [enabledWidget result, enabledWidget input])
+    mkVStack (const [mkWidget result, mkWidget input])
 
 main :: IO ()
 main = runApplication window

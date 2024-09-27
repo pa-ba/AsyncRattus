@@ -19,7 +19,7 @@ window = do
     let sig = btnOnClickSig btn
     let sig' = scanAwait (box (\ n _ -> n+1 :: Int)) 0 sig 
     lbl <- mkLabel sig'
-    mkVStack (const [enabledWidget lbl, enabledWidget btn])
+    mkVStack (const [mkWidget lbl, mkWidget btn])
     
 
 main :: IO ()
