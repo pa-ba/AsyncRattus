@@ -11,7 +11,7 @@ import WidgetRattus.InternalPrimitives
 import WidgetRattus.Signal
 import Data.Text
 
-import qualified Monomer
+import qualified Monomer as M
 {-# ANN module AllowLazyData #-}
 
 -- The Displayable typeclass is used to define the display function.
@@ -37,8 +37,9 @@ data AppEvent where
 
 -- The IsWidget typeclass is used to define the mkWidget function.
 class Continuous a => IsWidget a where
-      mkWidget :: a -> Monomer.WidgetNode AppModel AppEvent
--- Coustom data types for widgets.
+      mkWidget :: a -> M.WidgetNode AppModel AppEvent
+      
+-- Custom data types for widgets.
 data Widget where
     Widget :: IsWidget a => !a -> !(Sig Bool) -> Widget
 
@@ -78,33 +79,33 @@ continuous ''Slider
 -- Here widgget data types are passed to Monomer constructors.
 instance IsWidget Button where
       mkWidget Button{btnContent = txt ::: _ , btnClick = click} =
-            Monomer.button  (display txt) (AppEvent click ())
+            M.button  (display txt) (AppEvent click ())
 
 instance IsWidget TextField where
       mkWidget TextField{tfContent = txt ::: _, tfInput = inp} = 
-            Monomer.textFieldV txt (AppEvent inp)
+            M.textFieldV txt (AppEvent inp)
 
 instance IsWidget Label where
-      mkWidget Label{labText = txt ::: _} = Monomer.label (display txt)
+      mkWidget Label{labText = txt ::: _} = M.label (display txt)
 
 
 instance IsWidget HStack where
-      mkWidget (HStack ws) = Monomer.hstack (fmap mkWidget (current ws))
+      mkWidget (HStack ws) = M.hstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidget (current ws))
 
 instance IsWidget VStack where
-      mkWidget (VStack ws) = Monomer.vstack (fmap mkWidget (current ws))
+      mkWidget (VStack ws) = M.vstack_ [ M.childSpacing_ 2] (reverse' $ fmap mkWidget (current ws))
 
 instance IsWidget TextDropdown where
       mkWidget TextDropdown{tddList = opts ::: _, tddCurr = curr ::: _, tddEvent = ch}
-            = Monomer.textDropdownV curr (AppEvent ch) opts
+            = M.textDropdownV curr (AppEvent ch) opts
 
 instance IsWidget Popup where
       mkWidget Popup{popCurr = curr ::: _, popEvent = ch, popChild = child}
-            = Monomer.popupV curr (AppEvent ch) (mkWidget (current child))
+            = M.popupV curr (AppEvent ch) (mkWidget (current child))
 
 instance IsWidget Slider where
       mkWidget Slider{sldCurr = curr ::: _, sldEvent = ch, sldMin = min ::: _, sldMax = max ::: _}
-            = Monomer.hsliderV curr (AppEvent ch) min max
+            = M.hsliderV curr (AppEvent ch) min max
 
 instance IsWidget Widget where
-    mkWidget (Widget w (e ::: _)) = Monomer.nodeEnabled (mkWidget w) e
+    mkWidget (Widget w (e ::: _)) = M.nodeEnabled (mkWidget w) e

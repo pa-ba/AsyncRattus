@@ -53,12 +53,12 @@ window = do
 
     result <- mkLabel displaySig
 
-    operators <- mkHStack (const [addBut, subBut, eqBut])
+    operators <- mkVStack (const [addBut, subBut, eqBut])
     row1 <- mkHStack (const [b7, b8, b9])
     row2 <- mkHStack (const [b4, b5, b6])
     row3 <- mkHStack (const [b1, b2, b3])
-    row4 <- mkHStack (const [b0])
-    numbers <- mkVStack (const [row1, row2 , row3, row4])
+
+    numbers <- mkVStack (const [enabledWidget row1, enabledWidget row2 , enabledWidget row3,  enabledWidget b0])
 
     input <- mkHStack (const [enabledWidget numbers, enabledWidget operators])
 

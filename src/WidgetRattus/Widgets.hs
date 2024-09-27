@@ -16,7 +16,7 @@ import System.IO.Unsafe
 import Control.Concurrent hiding (Chan)
 import Data.IntSet as IntSet
 
-import qualified Monomer
+import qualified Monomer as M
 
 -- The identity function.
 instance Displayable Text where
@@ -134,7 +134,7 @@ mkTimerEvent n cb = (threadDelay n >> cb (AppEvent (Chan n) ())) >> return ()
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
     w' <- w
-    Monomer.startApp (AppModel w' emptyClock) handler builder config
+    M.startApp (AppModel w' emptyClock) handler builder config
     where builder _ (AppModel w _) = mkWidget w
           handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) =
             let inp = OneInput ch d in unsafePerformIO $ do
@@ -142,11 +142,11 @@ runApplication (C w) = do
                let (w' , cl') = progressAndNext inp w
                let activeTimers = if ch > 0 then IntSet.delete ch cl else cl
                let newTimers = IntSet.filter (> 0) cl' `IntSet.difference` activeTimers
-               let timers = Prelude.map (Monomer.Producer . mkTimerEvent) (IntSet.toList newTimers)
-               return (Monomer.Model (AppModel w' (newTimers `IntSet.union` activeTimers)) : Monomer.Request Monomer.RenderOnce : timers )
+               let timers = Prelude.map (M.Producer . mkTimerEvent) (IntSet.toList newTimers)
+               return (M.Model (AppModel w' (newTimers `IntSet.union` activeTimers)) : M.Request M.RenderOnce : timers )
           config = [
-                Monomer.appWindowTitle "GUI Application",
-                Monomer.appTheme Monomer.lightTheme,
-                Monomer.appFontDef "Regular" "./assets/fonts/Roboto-Regular.ttf",
-                Monomer.appInitEvent (AppEvent (Chan 1) ())
+                M.appWindowTitle "GUI Application",
+                M.appTheme M.lightTheme,
+                M.appFontDef "Regular" "./assets/fonts/Roboto-Regular.ttf",
+                M.appInitEvent (AppEvent (Chan 1) ())
                 ]
