@@ -30,6 +30,7 @@ module WidgetRattus.Strict
     zip',
     zipWith',
     mapMaybe',
+    concatMap',
     (:*)(..),
     Maybe'(..),
     maybe',
@@ -151,6 +152,10 @@ listToMaybe' (x :! _) = Just' x
 map' :: (a -> b) -> List a -> List b
 map' _ Nil = Nil
 map' f (x :! xs) = f x :! map' f xs
+
+concatMap' :: (a -> List b) -> List a -> List b
+concatMap' _ Nil = Nil
+concatMap' f (x :! xs) = f x +++ concatMap' f xs
 
 zip' :: List a -> List b -> List (a :* b)
 zip' Nil _ = Nil

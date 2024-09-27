@@ -58,10 +58,7 @@ window = do
     label <- mkLabel (map (box display) currentSig)
     pb <- mkProgressBar (const 0) maxSig currentSig
 
-    mkVStack (const [mkWidget slider,
-                     mkWidget resetBtn,
-                     mkWidget label,
-                     mkWidget pb])
+    mkConstVStack (slider :* resetBtn :* label :* pb)
 
 main :: IO ()
 main = runApplication window

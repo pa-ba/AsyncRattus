@@ -2,6 +2,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TypeOperators #-}
 
 
 module WidgetRattus.Widgets 
@@ -15,6 +19,7 @@ import WidgetRattus.InternalPrimitives
 import System.IO.Unsafe
 import Control.Concurrent hiding (Chan)
 import Data.IntSet as IntSet
+import Prelude hiding (const)
 
 import qualified Monomer as M
 
@@ -26,11 +31,6 @@ instance Displayable Text where
 instance Displayable Int where  
       display x = toText x
 
-
-
--- Function to construct a Widget that never gets disabled
-mkWidget :: IsWidget a => a -> Widget
-mkWidget w = Widget w (WidgetRattus.Signal.const True)
 
 -- Functions for constructing Async Rattus widgets. 
 mkButton :: (Displayable a, Stable a) => Sig a -> C Button
@@ -48,13 +48,33 @@ mkLabel :: (Displayable a, Stable a) => Sig a -> C Label
 mkLabel t = do
       return Label{labText = t}
 
+class Widgets ws where
+      toWidgetList :: ws -> List Widget
+
+instance {-# OVERLAPPABLE #-} IsWidget w => Widgets w where
+      toWidgetList w = [ mkWidget w ]
+
+instance {-# OVERLAPPING #-} (Widgets w, Widgets v) => Widgets (w :* v) where
+      toWidgetList (w :* v) = toWidgetList w +++ toWidgetList v
+
+
+instance {-# OVERLAPPING #-} (Widgets w) => Widgets (List w) where
+      toWidgetList w = concatMap' toWidgetList w
+
+
 mkHStack :: IsWidget a => Sig(List a) -> C HStack
 mkHStack wl = do
       return (HStack wl)
+      
+mkConstHStack :: Widgets ws => ws -> C HStack
+mkConstHStack w = mkHStack (const (toWidgetList w))
 
 mkVStack :: IsWidget a => Sig(List a) -> C VStack
 mkVStack wl = do
       return (VStack wl)
+
+mkConstVStack :: Widgets ws => ws -> C VStack
+mkConstVStack w = mkVStack (const (toWidgetList w))
 
 mkTextDropdown :: Sig (List Text) -> Text -> C TextDropdown
 mkTextDropdown opts init = do
@@ -135,7 +155,7 @@ runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
     w' <- w
     M.startApp (AppModel w' emptyClock) handler builder config
-    where builder _ (AppModel w _) = mkWidgetNode w
+    where builder _ (AppModel w _) = mkWidgetNode w `M.styleBasic` [M.padding 3]
           handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) =
             let inp = OneInput ch d in unsafePerformIO $ do
                progressPromoteStoreAtomic inp

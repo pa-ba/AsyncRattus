@@ -53,16 +53,16 @@ window = do
 
     result <- mkLabel displaySig
 
-    operators <- mkVStack (const [addBut, subBut, eqBut])
-    row1 <- mkHStack (const [b7, b8, b9])
-    row2 <- mkHStack (const [b4, b5, b6])
-    row3 <- mkHStack (const [b1, b2, b3])
+    operators <- mkConstVStack (addBut :* subBut :* eqBut)
+    row1 <- mkConstHStack (b7 :* b8 :* b9)
+    row2 <- mkConstHStack (b4 :* b5 :* b6)
+    row3 <- mkConstHStack (b1 :* b2 :* b3)
 
-    numbers <- mkVStack (const [mkWidget row1, mkWidget row2 , mkWidget row3,  mkWidget b0])
+    numbers <- mkConstVStack (row1 :* row2 :* row3 :* b0)
 
-    input <- mkHStack (const [mkWidget numbers, mkWidget operators])
+    input <- mkConstHStack (numbers :* operators)
 
-    mkVStack (const [mkWidget result, mkWidget input])
+    mkConstVStack (result :* input)
 
 main :: IO ()
 main = runApplication window

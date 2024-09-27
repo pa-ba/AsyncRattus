@@ -38,6 +38,13 @@ data AppEvent where
 -- The IsWidget typeclass is used to define the mkWidgetNode function.
 class Continuous a => IsWidget a where
       mkWidgetNode :: a -> M.WidgetNode AppModel AppEvent
+      
+      mkWidget :: a -> Widget
+      mkWidget w = Widget w (WidgetRattus.Signal.const True)
+
+
+      setEnabled :: a -> Sig Bool -> Widget
+      setEnabled = Widget
 
 -- Custom data types for widgets.
 data Widget where
@@ -109,3 +116,7 @@ instance IsWidget Slider where
 
 instance IsWidget Widget where
     mkWidgetNode (Widget w (e ::: _)) = M.nodeEnabled (mkWidgetNode w) e
+
+    mkWidget w = w
+
+    setEnabled (Widget w _) es = Widget w es

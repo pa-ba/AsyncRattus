@@ -82,9 +82,7 @@ window = do
     let returnFlightAndIsLater = zipWith (box (&&)) isRF tf1IsLater
     let validBooking = zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
 
-    mkVStack (const
-        [mkWidget popup, mkWidget dropDown,
-         mkWidget tf1, Widget tf2 isRF, Widget button validBooking])
+    mkConstVStack (popup :* dropDown :* tf1 :* setEnabled tf2 isRF :* setEnabled button validBooking)
 
 main :: IO ()
 main = runApplication window
