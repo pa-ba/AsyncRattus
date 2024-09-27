@@ -1,11 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Evaluate" #-}
-{-# HLINT ignore "Use const" #-}
 
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 
 import WidgetRattus
@@ -22,7 +20,9 @@ everySecondSig :: Sig ()
 everySecondSig = () ::: mkSig everySecond
 
 nats :: (Int :* Int) -> Sig (Int :* Int)
-nats (n :* max) = stop (box (\ (n :* max) -> n >= max)) (scan (box (\ (n :* max) _ -> (min (n + 1) max) :* max)) (n :* max) everySecondSig)
+nats (n :* max) = stop 
+    (box (\ (n :* max) -> n >= max)) 
+    (scanAwait (box (\ (n :* max) _ -> (min (n + 1) max) :* max)) (n :* max) (future everySecondSig))
 
 
 reset :: (Int :* Int) -> (Int :* Int)
@@ -42,15 +42,21 @@ window = do
     slider <- mkSlider 50 (const 1) (const 100)
     resetBtn <- mkButton (const ("Reset" :: Text))
 
-    let resSig = mkSig (btnOnClick resetBtn)
-    let resetSig = mapAwait (box (\ _ -> reset)) resSig
+    let resSig :: O (Sig ()) 
+         = mkSig (btnOnClick resetBtn)
+    let resetSig :: O (Sig (Int :* Int -> Int :* Int))
+         = mapAwait (box (\ _ -> reset)) resSig
 
-    let currentMax = current (sldCurr slider)
-    let setMaxSig = mapAwait (box setMax) (future (sldCurr slider))
+    let currentMax :: Int
+         = current (sldCurr slider)
+    let setMaxSig :: O (Sig (Int :* Int -> Int :* Int)) 
+         = mapAwait (box setMax) (future (sldCurr slider))
  
-    let inputSig = interleave (box (.)) resetSig setMaxSig
+    let inputSig :: O (Sig (Int :* Int -> Int :* Int))
+         = interleave (box (.)) resetSig setMaxSig
 
-    let counterSig = switchB inputSig (box nats) (0 :* currentMax)
+    let counterSig :: Sig (Int :* Int)
+         = switchB inputSig (box nats) (0 :* currentMax)
     
     let currentSig = map (box first) counterSig
     let maxSig = map (box second) counterSig
