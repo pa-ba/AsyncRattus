@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
-        cabal: ["3.12.0.0"]
+        cabal: ["3.12.1.0"]
         ghc: ["9.2", "9.4" , "9.6" , "9.8" , "9.10"]
     runs-on: ${{ matrix.os }}
     env:
