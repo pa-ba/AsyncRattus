@@ -15,7 +15,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-latest]
         cabal: ["3.12.1.0"]
         ghc: ["9.2", "9.4" , "9.6"]
     runs-on: ${{ matrix.os }}
@@ -28,6 +28,7 @@ jobs:
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
+      - run: sudo apt-get update && sudo apt-get install --assume-yes libsdl2-dev libglew-dev
       - run: cabal update
       - run: cabal freeze $CONFIG
       - uses: actions/cache@v3
