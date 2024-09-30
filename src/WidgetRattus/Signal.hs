@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedLists #-}
 
 
 -- | Programming with signals.
@@ -22,6 +23,7 @@ module WidgetRattus.Signal
   , bufferAwait
   , switchAwait
   , interleave
+  , interleaveAll
   , mkSig
   , mkBoxSig
   , current
@@ -211,6 +213,13 @@ interleave f xs ys = delay (case select xs ys of
                               Fst (x ::: xs') ys' -> x ::: interleave f xs' ys'
                               Snd xs' (y ::: ys') -> y ::: interleave f xs' ys'
                               Both (x ::: xs') (y ::: ys') -> unbox f x y ::: interleave f xs' ys')
+
+
+{-# ANN interleaveAll AllowRecursion #-}
+interleaveAll :: Box (a -> a -> a) -> List (O (Sig a)) -> O (Sig a)
+interleaveAll _ Nil = error "interleaveAll: List must be nonempty"
+interleaveAll _ [s] = s
+interleaveAll f (x :! xs) = interleave f x (interleaveAll f xs)
 
 
 -- | Takes two signals and updates the first signal using the
