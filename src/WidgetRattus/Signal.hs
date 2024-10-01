@@ -15,14 +15,16 @@ module WidgetRattus.Signal
   , mapAwait
   , switch
   , switchS
-  , switchB
-  , combine
-  , triggerStable
-  , triggerStable3
+  , switchR
+  , trigger
+  , triggerAwait
+  , triggerM
+  , triggerAwaitM
   , buffer
   , bufferAwait
   , switchAwait
   , interleave
+  , mapInterleave
   , interleaveAll
   , mkSig
   , mkBoxSig
@@ -113,6 +115,8 @@ scan :: (Stable b) => Box(b -> a -> b) -> b -> Sig a -> Sig b
 scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
   where acc' = unbox f acc a
 
+-- | A variant of 'scan' that works with the 'C' monad.
+
 scanC :: (Stable b) => Box(b -> a -> C b) -> b -> Sig a -> C (Sig b)
 scanC f acc (a ::: as) = do
     acc' <- unbox f acc a
@@ -123,6 +127,8 @@ scanC f acc (a ::: as) = do
 -- | Like 'scan', but uses a delayed signal.
 scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
 scanAwait f acc as = acc ::: delay (scan f acc (adv as))
+
+-- | A variant of 'scanAwait' that works with the 'C' monad.
 
 scanAwaitC :: (Stable b) => Box (b -> a -> C b) -> b -> O (Sig a) -> C (Sig b)
 scanAwaitC f acc as = do 
@@ -196,6 +202,19 @@ switchAwait xs ys = delay (case select xs ys of
                                   Snd  _    d'  -> d'
                                   Both _    d'  -> d')
 
+-- | Variant of 'switchS' that repeatedly switches. The output signal
+-- @switch xs ys@ first behaves like @xs@, but whenever @ys@ produces
+-- a value @f@, the signal switches to @f v@ where @v@ is the previous
+-- value of the output signal. 
+--
+-- 'switchS' can be considered a special case of 'switchR' that only
+-- makes a single switch. That is we have the following:
+--
+-- > switchS xs ys = switchR (delay (const (adv xs))) ys
+switchR :: Stable a => Sig a -> O (Sig (a -> Sig a)) -> Sig a
+switchR sig steps = switchS sig
+      (delay (let step ::: steps' = adv steps in \ x -> switchR (step x) steps'))
+
 -- | This function interleaves two signals producing a new value @v@
 -- whenever either input stream produces a new value @v@. In case the
 -- input signals produce a new value simultaneously, the function
@@ -215,6 +234,16 @@ interleave f xs ys = delay (case select xs ys of
                               Both (x ::: xs') (y ::: ys') -> unbox f x y ::: interleave f xs' ys')
 
 
+-- | This is the composition of 'mapAwait' and 'interleave'. That is,
+-- 
+-- > mapInterleave f g xs ys = mapAwait f (interleave xs ys)
+mapInterleave :: Box (a -> a) -> Box (a -> a -> a) -> O (Sig a) -> O (Sig a) -> O (Sig a)
+mapInterleave g f xs ys = delay (case select xs ys of
+                              Fst (x ::: xs') ys' -> unbox g x ::: mapInterleave g f xs' ys'
+                              Snd xs' (y ::: ys') -> unbox g y ::: mapInterleave g f xs' ys'
+                              Both (x ::: xs') (y ::: ys') -> unbox g (unbox f x y) ::: mapInterleave g f xs' ys')
+
+
 {-# ANN interleaveAll AllowRecursion #-}
 interleaveAll :: Box (a -> a -> a) -> List (O (Sig a)) -> O (Sig a)
 interleaveAll _ Nil = error "interleaveAll: List must be nonempty"
@@ -227,7 +256,7 @@ interleaveAll f (x :! xs) = interleave f x (interleaveAll f xs)
 --
 -- Law:
 --
--- (xs `update` fs) `update` gs = (xs `update` (interleave (box (.)) gs fs))
+-- > (xs `update` fs) `update` gs = (xs `update` (interleave (box (.)) gs fs))
 update :: (Stable a) => Sig a -> O (Sig (a -> a)) -> Sig a
 update (x ::: xs) fs = x ::: delay 
     (case select xs fs of
@@ -276,37 +305,77 @@ cond = zipWith3 (box (\b x y -> if b then x else y))
 zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
 
+-- | This function is a variant of 'trigger' that works on a delayed
+-- input signal. To this end, 'triggerAwait' takes an additional
+-- argument that is the initial value of output signal.
+--
+-- Example:
+--
+-- >                             xs:    1     0 5 2
+-- >                             ys:  5 1 2 3     2
+-- >
+-- > triggerAwait (box (+)) 0 xy ys:  0 2 2 2 3 8 4
 
--- Variant of the switchS Async Rattus function
--- switchB allows for recursive dynamic change in signal behaviour
--- whenever the input signal ticks.
--- The new behaviour is determined by the input function
--- as well as the current value of the input and output signals.
-switchB :: Stable a => O (Sig (a -> a)) -> Box (a -> Sig a)-> a -> Sig a
-switchB steps f st = switchS ((unbox f) st)
-      (delay (let step ::: steps' = adv steps in switchB steps' f . step))
-
-
--- Helper function that interleaves two signals of functions.
-combine :: O (Sig (a -> a)) -> O (Sig (a -> a)) -> O (Sig (a -> a))
-combine = interleave (box (.))
-
--- Variant of the Async Rattus trigger function.
--- Implemented without the Maybe monad, hence ticks in response
--- to either input signal, but only changes its value when the 
--- delayed signal ticks.
-triggerStable :: (Stable b, Stable c) => Box (a -> b -> c) -> c -> O (Sig a) -> Sig b -> Sig c
-triggerStable f c as (b ::: bs) = c :::
+triggerAwait :: (Stable b, Stable c) => Box (a -> b -> c) -> c -> O (Sig a) -> Sig b -> Sig c
+triggerAwait f c as (b ::: bs) = c :::
     delay (case select as bs of
-            Fst (a' ::: as') bs' -> triggerStable f (unbox f a' b) as' (b ::: bs')
-            Snd as' bs' -> triggerStable f c as' bs'
-            Both (a' ::: as') (b' ::: bs') -> triggerStable f (unbox f a' b') as' (b' ::: bs'))
+            Fst (a' ::: as') bs' -> triggerAwait f (unbox f a' b) as' (b ::: bs')
+            Snd as' bs' -> triggerAwait f c as' bs'
+            Both (a' ::: as') (b' ::: bs') -> triggerAwait f (unbox f a' b') as' (b' ::: bs'))
 
--- Variant of triggerStable function that takes three inputs.
--- The resulting signal only updates when the later signal ticks.
-triggerStable3 :: (Stable a, Stable b, Stable c, Stable d) => Box (a -> b -> c -> d) -> Box(c->d) -> d -> O (Sig a) -> Sig b -> Sig c -> Sig d
-triggerStable3 f g d as bs cs = triggerStable (box (\f x -> unbox f x)) d cds cs
-      where cds = future (triggerStable (box (\a b -> box (\ c -> unbox f a b c ))) g as bs)
+
+-- | This function is a variant of 'triggerAwait' that only produces a
+-- value when the first signal ticks; otherwise it produces
+-- @Nothing'@.
+--
+-- Example:
+--
+-- >                             xs:    1     0 5 2
+-- >                             ys:  5 1 2 3     2
+-- >
+-- > triggerAwaitM (box plus) xy ys:    2 N N 3 8 4 where plus x y =
+-- Just' (x+y)
+
+triggerAwaitM :: Stable b => Box (a -> b -> Maybe' c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
+triggerAwaitM f as (b ::: bs) = 
+    delay (case select as bs of
+            Fst (a' ::: as') bs' -> unbox f a' b ::: triggerAwaitM f as' (b ::: bs')
+            Snd as' bs' -> Nothing' ::: triggerAwaitM f as' bs'
+            Both (a' ::: as') (b' ::: bs') -> unbox f a' b' ::: triggerAwaitM f as' (b' ::: bs'))
+
+-- | This function is a variant of 'zipWith'. Whereas @zipWith f xs
+-- ys@ produces a new value whenever @xs@ or @ys@ produce a new value,
+-- @trigger f xs ys@ only produces a new value when xs produces a new
+-- value, otherwise it just repeats the previous value.
+--
+-- Example:
+--
+-- >                      xs:  1     0 5 2
+-- >                      ys:  1 2 3     2
+-- >
+-- > zipWith (box (+)) xs ys:  2 3 4 3 8 4
+-- > trigger (box (+)) xy ys:  2 2 2 3 8 4
+
+trigger :: (Stable b, Stable c) => Box (a -> b -> c) -> Sig a -> Sig b -> Sig c
+trigger f (a:::as) bs@(b ::: _) = triggerAwait f (unbox f a b) as bs
+
+-- | This function is a variant of 'trigger' that only produces a
+-- value when the first signal ticks; otherwise it produces
+-- @Nothing'@.
+--
+-- Example:
+--
+-- >                      xs:  1     0 5 2
+-- >                      ys:  1 2 3     2
+-- >
+-- > zipWith (box plus) xs ys:  2 3 4 3 8 4
+-- > trigger (box plus) xy ys:  2 N N 3 8 4
+-- where
+-- > plus x y = Just' (x+y)
+
+triggerM :: Stable b => Box (a -> b -> Maybe' c) -> Sig a -> Sig b -> Sig (Maybe' c)
+triggerM f (a:::as) bs@(b ::: _) = unbox f a b ::: triggerAwaitM f as bs
+
 
 -- Buffer takes an initial value and a signal as input and returns a signal that
 -- is always one tick behind the input signal.
@@ -382,6 +451,8 @@ instance Continuous a => Continuous (Sig a) where
 {-# NOINLINE [1] zip #-}
 {-# NOINLINE [1] update #-}
 {-# NOINLINE [1] switch #-}
+{-# NOINLINE [1] interleave #-}
+{-# NOINLINE [1] mapAwait #-}
 
 
 {-# RULES
@@ -400,6 +471,9 @@ instance Continuous a => Continuous (Sig a) where
 
   "map/scan" forall f p acc as.
     map p (scan f acc as) = scanMap f p acc as ;
+
+  "mapAwait/interleave" forall f g xs ys.
+    mapAwait f (interleave g xs ys) = mapInterleave f g xs ys ;
 
   "zip/map" forall xs ys f.
     map f (zip xs ys) = let f' = unbox f in zipWith (box (\ x y -> f' (x :* y))) xs ys;

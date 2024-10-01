@@ -49,8 +49,11 @@ window = do
     let inputSig :: O (Sig (Int :* Int -> Int :* Int))
          = interleave (box (.)) resetSig setMaxSig
 
+    let inputSig' :: O (Sig (Int :* Int -> Sig (Int :* Int)))
+         = mapAwait (box (nats .)) inputSig
+
     let counterSig :: Sig (Int :* Int)
-         = switchB inputSig (box nats) (0 :* currentMax)
+         = switchR (nats (0 :* currentMax)) inputSig'
     
     let currentSig = map (box fst') counterSig
     let maxSig = map (box snd') counterSig

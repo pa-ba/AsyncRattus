@@ -304,7 +304,7 @@ isStrictRec d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
-          | (mod == "GHC.Internal.IsList" || mod == "GHC.IsList") && name == "Item" -> all (isStrictRec (d+1) pr') args
+          | (mod == "GHC.Internal.IsList" || mod == "GHC.IsList" || mod == "GHC.Exts") && name == "Item" -> all (isStrictRec (d+1) pr') args
           | mod == "GHC.Num.Integer" && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           | mod == "GHC.IORef" && name == "IORef" -> True
