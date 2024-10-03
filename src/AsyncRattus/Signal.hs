@@ -120,8 +120,8 @@ filterAwait p = filterMapAwait (box (\ x -> if unbox p x then Just' x else Nothi
 --
 -- Example:
 --
--- >                      xs:  1 2 3     2
--- >                      ys:  1     0 5 2
+-- >                      xs:  1     0 5 2
+-- >                      ys:  1 2 3     2
 -- >
 -- > zipWith (box (+)) xs ys:  2 3 4 3 8 4
 -- > trigger (box (+)) xy ys:  2     3 8 4
@@ -131,6 +131,13 @@ trigger f (a ::: as) bs@(b:::_) = do s <- triggerAwait f as bs
                                      return (box (unbox f a b ::: unbox s))
 -- | This function is similar to 'trigger' but takes a delayed signal
 -- (type @O (Sig a)@) as an argument instead of a signal (@Sig a@).
+--
+-- Example:
+--
+-- >                      xs:    1     0 5 2
+-- >                      ys:  1   2 3     2
+-- >
+-- > trigger (box (+)) xy ys:    2     3 8 4
 triggerAwait :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> IO (Box (O (Sig c)))
 triggerAwait f as bs = mkBoxSig <$> mkInput (box SigMaybe `mapO` (trig f as bs)) where
   trig :: Stable b => Box (a -> b -> c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
