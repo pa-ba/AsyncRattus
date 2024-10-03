@@ -1,3 +1,10 @@
+# 0.2.0.2
+
+- Fix strictness/stable checker: It now recognises `Word8/16/32/64` and
+  `Int8/16/32/64` as strict and stable.
+- Fix documentation for signal combinators `trigger` and
+  `triggerAwait`.
+
 # 0.2.0.1
 
 Fix bug in elaboration of delay, adv, select
