@@ -175,8 +175,11 @@ getModuleFS = moduleNameFS . moduleName
 isRattModule :: FastString -> Bool
 isRattModule = (`Set.member` rattModules)
 
+ghcModules :: Set FastString
+ghcModules = Set.fromList ["GHC.Types","GHC.Word","GHC.Int"]
+
 isGhcModule :: FastString -> Bool
-isGhcModule = (== "GHC.Types")
+isGhcModule = (`Set.member` ghcModules)
 
 getNameModule :: NamedThing a => a -> Maybe (FastString, FastString)
 getNameModule v = do
@@ -187,7 +190,7 @@ getNameModule v = do
 
 -- | The set of stable built-in types.
 ghcStableTypes :: Set FastString
-ghcStableTypes = Set.fromList ["Word","Int","Bool","Float","Double","Char", "IO"]
+ghcStableTypes = Set.fromList ["Word", "Word8", "Word16","Word32", "Word64","Int","Int8","Int16","Int32","Int64","Bool","Float","Double","Char", "IO"]
 
 isGhcStableType :: FastString -> Bool
 isGhcStableType = (`Set.member` ghcStableTypes)
