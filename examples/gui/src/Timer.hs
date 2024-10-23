@@ -58,7 +58,7 @@ window = do
     let currentSig = map (box fst') counterSig
     let maxSig = map (box snd') counterSig
 
-    label <- mkLabel (map (box display) currentSig)
+    label <- mkLabel currentSig
     pb <- mkProgressBar (const 0) maxSig currentSig
 
     mkConstVStack (slider :* resetBtn :* label :* pb)
