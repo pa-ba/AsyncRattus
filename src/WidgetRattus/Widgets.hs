@@ -33,7 +33,7 @@ instance Displayable Int where
 
 
 -- Functions for constructing Async Rattus widgets. 
-mkButton :: (Displayable a, Stable a) => Sig a -> C Button
+mkButton :: (Displayable a) => Sig a -> C Button
 mkButton t = do
       c <- chan
       return Button{btnContent = t, btnClick = c}
@@ -44,7 +44,7 @@ mkTextField txt = do
       let sig = txt ::: mkSig (box (wait c))
       return TextField{tfContent = sig, tfInput = c}
 
-mkLabel :: (Displayable a, Stable a) => Sig a -> C Label
+mkLabel :: (Displayable a) => Sig a -> C Label
 mkLabel t = do
       return Label{labText = t}
 

@@ -16,7 +16,7 @@ import qualified Monomer as M
 
 -- The Displayable typeclass is used to define the display function.
 -- The display function is used to convert a datatype to Text.
-class Displayable a where
+class Stable a => Displayable a where
       display :: a -> Text
 
 -- The AppModel datatype used to contain the Widget passed to runApplication. 
@@ -63,11 +63,11 @@ data Popup = Popup {popCurr :: !(Sig Bool), popEvent :: !(Chan Bool), popChild :
 data Slider = Slider {sldCurr :: !(Sig Int), sldEvent :: !(Chan Int), sldMin :: !(Sig Int), sldMax :: !(Sig Int)}
 
 data Button where
-    Button :: (Displayable a, Stable a) =>  {btnContent :: !(Sig a) , btnClick :: !(Chan ())} -> Button
+    Button :: (Displayable a) =>  {btnContent :: !(Sig a) , btnClick :: !(Chan ())} -> Button
 
 
 data Label where
-      Label :: (Displayable a, Stable a) => {labText :: !(Sig a)} -> Label
+      Label :: (Displayable a) => {labText :: !(Sig a)} -> Label
 
 data TextField = TextField {tfContent :: !(Sig Text), tfInput :: !(Chan Text)} 
 
