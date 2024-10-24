@@ -51,6 +51,7 @@ import WidgetRattus.Derive
 import WidgetRattus.Plugin.Annotation
 import GHC.Exts (IsList(..))
 import Data.Text hiding (foldl, singleton)
+import Text.Read (readMaybe)
 
 infixr 2 :*
 -- | Strict pair type.
@@ -266,7 +267,7 @@ toText x = pack (show x)
 
 {-# ANN readMaybe' AllowLazyData #-}
 readMaybe' :: Read a => Text -> Maybe' a
-readMaybe' x = case read (unpack x) of 
+readMaybe' x = case readMaybe  (unpack x) of 
                 Just x -> Just' x
                 Nothing -> Nothing'
                 
