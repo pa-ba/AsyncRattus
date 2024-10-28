@@ -8,7 +8,9 @@ description:
             This library implements an experimental variant of the Async Rattus
             programming language that features extensions for implementing GUIs.
             A comprehensive introduction can be found in this 
-            <src/docs/paper.pdf paper>
+            <src/docs/paper.pdf paper>.
+
+            .
 
             Several example GUIs implemented using Widget Rattus can be found
             <https://github.com/pa-ba/AsyncRattus/tree/WidgetRattus/examples/gui here>.
@@ -27,6 +29,9 @@ stability:           experimental
 build-type:          Custom
 
 extra-source-files:  CHANGELOG.md
+                     examples/gui/src/*.hs
+extra-doc-files:     docs/paper.pdf
+
                      
 custom-setup
   setup-depends:
