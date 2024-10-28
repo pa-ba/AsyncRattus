@@ -16,13 +16,13 @@ import Data.Text hiding (filter, map, all)
 everySecond :: Box (O())
 everySecond = timer 1000000
 
-everySecondSig :: Sig ()
-everySecondSig = () ::: mkSig everySecond
+everySecondSig :: O (Sig ())
+everySecondSig = mkSig everySecond
 
 nats :: (Int :* Int) -> Sig (Int :* Int)
 nats (n :* max) = stop 
     (box (\ (n :* max) -> n >= max)) 
-    (scanAwait (box (\ (n :* max) _ -> (min (n + 1) max) :* max)) (n :* max) (future everySecondSig))
+    (scanAwait (box (\ (n :* max) _ -> (n + 1) :* max)) (n :* max) everySecondSig)
 
 
 reset :: (Int :* Int) -> (Int :* Int)
