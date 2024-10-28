@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs #-}
 
 
-module WidgetRattus.Widgets.Types where
+module WidgetRattus.Widgets.InternalTypes where
 
 import WidgetRattus
 import WidgetRattus.InternalPrimitives

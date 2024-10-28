@@ -1,6 +1,6 @@
 cabal-version:       1.18
 name:                WidgetRattus
-version:             0.2
+version:             0.3
 category:            FRP
 synopsis:            An asynchronous modal FRP language
 description:
@@ -10,7 +10,7 @@ description:
             
 
 
-homepage:            https://github.com/pa-ba/AsyncRattus/
+homepage:            https://github.com/pa-ba/AsyncRattus/tree/WidgetRattus
 bug-reports:         https://github.com/pa-ba/AsyncRattus/issues
 License:             BSD3
 License-file:        LICENSE
@@ -40,7 +40,6 @@ library
                        WidgetRattus.Channels
                        WidgetRattus.Plugin.Annotation
                        WidgetRattus.Widgets
-                       WidgetRattus.Widgets.Types
                                               
   other-modules:       WidgetRattus.Plugin.ScopeCheck
                        WidgetRattus.Plugin.SingleTick
@@ -51,6 +50,7 @@ library
                        WidgetRattus.Plugin.StableSolver
                        WidgetRattus.Plugin.Transform
                        WidgetRattus.Plugin.PrimExpr
+                       WidgetRattus.Widgets.InternalTypes
                        WidgetRattus.Derive
   build-depends:       base >=4.16 && <5,
                        containers >= 0.6.5 && < 0.8,

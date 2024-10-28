@@ -9,10 +9,55 @@
 
 
 module WidgetRattus.Widgets 
-(module WidgetRattus.Widgets.Types, module WidgetRattus.Widgets ) where
+  ( Displayable (..)
+  , IsWidget (..)
+  , Widgets (..)
+  , Widget
+  , HStack
+  , VStack
+  , TextDropdown
+  , tddCurr
+  , tddEvent
+  , tddList
+  , Popup
+  , popCurr
+  , popEvent
+  , popChild
+  , Slider
+  , sldCurr
+  , sldEvent
+  , sldMin
+  , sldMax
+  , Button
+  , btnContent
+  , btnClick
+  , Label
+  , labText
+  , TextField
+  , tfContent
+  , tfInput
+  , mkButton
+  , mkTextField
+  , addInputSigTF
+  , mkLabel
+  , mkHStack
+  , mkConstHStack
+  , mkVStack
+  , mkConstVStack
+  , mkTextDropdown
+  , mkPopup
+  , mkSlider
+  , mkProgressBar
+  , btnOnClick
+  , btnOnClickSig
+  , setInputSigTF
+  , textFieldOnInput
+  , textFieldOnInputSig
+  , runApplication
+      ) where
 
 import WidgetRattus
-import WidgetRattus.Widgets.Types
+import WidgetRattus.Widgets.InternalTypes
 import WidgetRattus.Signal
 import Data.Text
 import WidgetRattus.InternalPrimitives
