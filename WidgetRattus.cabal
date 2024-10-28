@@ -2,11 +2,16 @@ cabal-version:       1.18
 name:                WidgetRattus
 version:             0.3
 category:            FRP
-synopsis:            An asynchronous modal FRP language
+synopsis:            An asynchronous modal FRP language for GUI programming
 description:
 
             This library implements an experimental variant of the Async Rattus
             programming language that features extensions for implementing GUIs.
+            A comprehensive introduction can be found in this 
+            <src/docs/paper.pdf paper>
+
+            Several example GUIs implemented using Widget Rattus can be found
+            <https://github.com/pa-ba/AsyncRattus/tree/WidgetRattus/examples/gui here>.
             
 
 
@@ -14,7 +19,7 @@ homepage:            https://github.com/pa-ba/AsyncRattus/tree/WidgetRattus
 bug-reports:         https://github.com/pa-ba/AsyncRattus/issues
 License:             BSD3
 License-file:        LICENSE
-copyright:           Copyright (C) 2023 Emil Houlborg, Gregers Rørdam, Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark Heegaard
+copyright:           Copyright (C) 2024 Emil Houlborg, Gregers Rørdam, Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark Heegaard
 Author:              Emil Houlborg, Gregers Rørdam, Patrick Bahr, Jean-Claude Sebastian Disch, Asger Lademark Heegaard
 maintainer:          Patrick Bahr <paba@itu.dk>
 stability:           experimental

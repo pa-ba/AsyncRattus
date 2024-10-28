@@ -1,3 +1,8 @@
+# 0.3
+
+- Include the Widgets library.
+- Replace module names from AsyncRattus to WidgetRattus
+
 # 0.2
 
 Extend continuous types so that they can track their channel
