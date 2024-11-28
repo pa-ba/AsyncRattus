@@ -194,9 +194,9 @@ scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
 -- Example:
 --
 -- >           xs: 1 2 3 4 5   6 7 8   9
--- >           ys:         1 2   3 4 5 6
+-- >           ys:       1 2   3 4 5 6
 -- >
--- > switch xs ys: 1 2 3 1 2 4   3 4 5 6
+-- > switch xs ys: 1 2 3 1 2   3 4 5 6
 switch :: Sig a -> O (Sig a) -> Sig a
 switch (x ::: xs) d = x ::: delay (case select xs d of
                                      Fst   xs'  d'  -> switch xs' d'
