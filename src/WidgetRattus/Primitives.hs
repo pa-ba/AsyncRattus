@@ -17,5 +17,11 @@ module WidgetRattus.Primitives
   ,never
   ,Stable
   ,Continuous
+  ,chan
+  ,Chan
+  ,C
+  ,delayC
+  ,timer
+  ,wait
   ) where
 import WidgetRattus.InternalPrimitives

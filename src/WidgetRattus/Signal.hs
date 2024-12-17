@@ -65,16 +65,6 @@ infixr 5 :::
 -- | @Sig a@ is a stream of values of type @a@.
 data Sig a = !a ::: !(O (Sig a))
 
-instance Producer (Sig a) a where
-  getCurrent p = Just' (current p)
-  getNext p cb = cb (future p)
-
-newtype SigMaybe a = SigMaybe (Sig (Maybe' a))
-
-instance Producer (SigMaybe a) a where
-  getCurrent (SigMaybe p) = current p
-  getNext (SigMaybe p) cb = cb (delay (SigMaybe (adv (future p))))
-
 -- | Get the current value of a signal.
 current :: Sig a -> a
 current (x ::: _) = x
@@ -120,9 +110,7 @@ scan f acc (a ::: as) = acc' ::: delay (scan f acc' (adv as))
 scanC :: (Stable b) => Box(b -> a -> C b) -> b -> Sig a -> C (Sig b)
 scanC f acc (a ::: as) = do
     acc' <- unbox f acc a
-    fut <- delayC $ delay (scanC f acc' (adv as))
-    return (acc' ::: fut)
-  where 
+    return (acc' ::: delayC (delay (scanC f acc' (adv as))))
         
 -- | Like 'scan', but uses a delayed signal.
 scanAwait :: (Stable b) => Box (b -> a -> b) -> b -> O (Sig a) -> Sig b
@@ -130,10 +118,8 @@ scanAwait f acc as = acc ::: delay (scan f acc (adv as))
 
 -- | A variant of 'scanAwait' that works with the 'C' monad.
 
-scanAwaitC :: (Stable b) => Box (b -> a -> C b) -> b -> O (Sig a) -> C (Sig b)
-scanAwaitC f acc as = do 
-    fut <- delayC $ delay (scanC f acc (adv as))
-    return (acc ::: fut)
+scanAwaitC :: (Stable b) => Box (b -> a -> C b) -> b -> O (Sig a) -> Sig b
+scanAwaitC f acc as = acc ::: delayC (delay (scanC f acc (adv as)))
 
 -- | 'scanMap' is a composition of 'map' and 'scan':
 --
@@ -402,7 +388,7 @@ integral = int
   where int cur (x ::: xs)
           | x == zeroVector = cur ::: delay (int cur (adv xs))
           | otherwise = cur ::: delay (
-              case select xs (unbox (timer dt)) of
+              case select xs (timer dt) of
                 Fst xs' _ -> int cur xs'
                 Snd xs' _ -> int (dtf *^ (cur ^+^ x)) (x ::: xs')
                 Both (x' ::: xs') _ ->  int (dtf *^ (cur ^+^ x')) (x'::: xs'))
@@ -426,7 +412,7 @@ derivative xs = der zeroVector (current xs) xs where
                         (let x' ::: xs' = adv xs
                          in der ((x' ^-^ x) ^/ dtf) x (x' ::: xs'))
     | otherwise = d ::: delay (
-        case select xs (unbox (timer dt)) of
+        case select xs (timer dt) of
           Fst xs' _ -> der d last xs'
           Snd xs' _ -> der ((x ^-^ last) ^/ dtf) x (x ::: xs')
           Both (x' ::: xs') _ ->  der ((x' ^-^ last) ^/ dtf) x' (x' ::: xs'))

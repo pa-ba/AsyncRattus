@@ -47,7 +47,6 @@ library
                        WidgetRattus.Plugin
                        WidgetRattus.Primitives
                        WidgetRattus.InternalPrimitives
-                       WidgetRattus.Channels
                        WidgetRattus.Plugin.Annotation
                        WidgetRattus.Widgets
                                               

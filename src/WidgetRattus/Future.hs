@@ -42,28 +42,6 @@ import WidgetRattus
 import WidgetRattus.Signal (Sig(..))
 import Prelude hiding (map, filter, zipWith)
 
-newtype OneShot a = OneShot (F a)
-
-instance Producer (OneShot a) a where
-  getCurrent (OneShot (Now x)) = Just' x
-  getCurrent (OneShot (Wait _)) = Nothing'
-
-  getNext (OneShot (Now _)) cb = cb (never :: O (OneShot a))
-  getNext (OneShot (Wait x)) cb = cb (delay (OneShot (adv x)))
-
-instance Producer p a => Producer (F p) a where
-  getCurrent (Now x) = getCurrent x
-  getCurrent (Wait _) = Nothing'
-  
-  getNext (Now x) cb = getNext x cb
-  getNext (Wait x) cb = cb x
-
-instance Producer (SigF a) a where
-  getCurrent (x :>: _) = Just' x
-  getNext (_ :>: xs) cb = cb xs
-
-
-
 -- | @F a@ will produces a value of type @a@ after zero or more ticks
 -- of some clocks
 data F a = Now !a | Wait !(O (F a))

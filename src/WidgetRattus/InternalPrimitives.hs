@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module WidgetRattus.InternalPrimitives where
 
@@ -12,6 +13,7 @@ import Control.Concurrent.MVar
 import System.IO.Unsafe
 import System.Mem.Weak
 import Control.Monad
+import Unsafe.Coerce
 
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
@@ -32,11 +34,9 @@ channelMember = IntSet.member
 
 data InputValue where
   OneInput :: !InputChannelIdentifier -> !a -> InputValue
-  MoreInputs :: !InputChannelIdentifier -> !a -> !InputValue -> InputValue
 
 inputInClock :: InputValue -> Clock -> Bool
 inputInClock (OneInput ch _) cl = channelMember ch cl
-inputInClock (MoreInputs ch _ more) cl = channelMember ch cl || inputInClock more cl
 
 
 -- | The "later" type modality. A value @v@ of type @O 𝜏@ consists of
@@ -252,7 +252,33 @@ progressPromoteStore inp = do
 promote :: Continuous a => a -> Box a
 promote x = promoteInternal x
 
+
+-- Channels
+
+newtype C a = C {unC :: IO a} deriving (Functor, Applicative, Monad)
+
 newtype Chan a = Chan InputChannelIdentifier
+
+chan :: C (Chan a)
+chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
+
+delayC :: O (C a) -> O a
+delayC (Delay c f) = Delay c (\ inp -> unsafePerformIO (unC (f inp)))
+
+wait :: Chan a -> O a
+wait (Chan ch) = Delay (singletonClock ch) (\(OneInput _ v) -> unsafeCoerce v)
+
+{-# NOINLINE nextFreshChannel #-}
+nextFreshChannel :: IORef InputChannelIdentifier
+nextFreshChannel = unsafePerformIO (newIORef (-1))
+
+
+-- | @timer n@ produces a delayed computation that ticks every @n@
+-- milliseconds. In particular @mkSig (timer n)@ is a signal that
+-- produces a new value every #n# milliseconds.
+timer :: Int -> O ()
+timer d = Delay (singletonClock (d `max` 10)) (\ _ -> ())
+
 
 {-# RULES
   "unbox/box"    forall x. unbox (box x) = x

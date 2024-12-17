@@ -167,7 +167,7 @@ unionVar :: CoreM Var
 unionVar = getVarFromModule "WidgetRattus.InternalPrimitives" "clockUnion"
 
 rattModules :: Set FastString
-rattModules = Set.fromList ["WidgetRattus.InternalPrimitives","WidgetRattus.Channels"]
+rattModules = Set.fromList ["WidgetRattus.InternalPrimitives"]
 
 getModuleFS :: Module -> FastString
 getModuleFS = moduleNameFS . moduleName

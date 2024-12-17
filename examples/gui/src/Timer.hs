@@ -13,11 +13,8 @@ import Prelude hiding (map, const, zipWith, zip, filter, getLine, putStrLn,null)
 import Data.Text hiding (filter, map, all)
 
 
-everySecond :: Box (O())
-everySecond = timer 1000000
-
 everySecondSig :: O (Sig ())
-everySecondSig = mkSig everySecond
+everySecondSig = mkSig (box (timer 1000000))
 
 nats :: (Int :* Int) -> Sig (Int :* Int)
 nats (n :* max) = stop 
