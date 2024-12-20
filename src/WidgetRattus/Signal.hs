@@ -27,7 +27,7 @@ module WidgetRattus.Signal
   , mapInterleave
   , interleaveAll
   , mkSig
-  , mkBoxSig
+  , mkSig'
   , current
   , future
   , const
@@ -86,9 +86,12 @@ mapAwait f d = delay (map f (adv d))
 mkSig :: Box (O a) -> O (Sig a)
 mkSig b = delay (adv (unbox b) ::: mkSig b)
 
--- | Variant of 'mkSig' that returns a boxed delayed signal
-mkBoxSig :: Box (O a) -> Box (O (Sig a))
-mkBoxSig b = box (mkSig b)
+
+-- | Turns a boxed delayed computation into a delayed signal.
+mkSig' :: Box (O (C a)) -> O (Sig a)
+mkSig' b = delayC $ delay (do a <- adv (unbox b)
+                              return (a ::: mkSig' b))
+
 
 
 -- | Construct a constant signal that never updates.

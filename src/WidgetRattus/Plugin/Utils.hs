@@ -276,6 +276,7 @@ isStableRec c d pr t = do
                 where check con = case dataConInstSig con args of
                         (_, _,tys) -> and (map (isStableRec c (d+1) pr') tys)
               TupleTyCon {} -> null args
+              NewTyCon {nt_rhs = ty} -> isStableRec c (d+1) pr' ty
               _ -> False
         _ -> False
 

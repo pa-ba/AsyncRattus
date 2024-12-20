@@ -9,6 +9,8 @@ module WidgetRattus (
   module WidgetRattus.Primitives,
   -- * Strict data types
   module WidgetRattus.Strict,
+  -- * Time
+  module WidgetRattus.Time,
   -- * Derive class instance declarations
   module WidgetRattus.Derive,
   -- * Annotation
@@ -22,6 +24,8 @@ import WidgetRattus.Plugin
 import WidgetRattus.Strict
 import WidgetRattus.Primitives
 import WidgetRattus.Derive
+import WidgetRattus.Time
+
 
 mapO :: Box (a -> b) -> O a -> O b
 mapO f later = delay (unbox f (adv later))

@@ -44,6 +44,7 @@ library
                        WidgetRattus.Signal
                        WidgetRattus.Future
                        WidgetRattus.Strict
+                       WidgetRattus.Time
                        WidgetRattus.Plugin
                        WidgetRattus.Primitives
                        WidgetRattus.InternalPrimitives
@@ -70,7 +71,8 @@ library
                        transformers >= 0.5.6 && < 0.7,
                        template-haskell >= 2.17 && < 2.23,
                        text >= 1.2 && < 3,
-                       monomer >= 1.4 && < 2
+                       monomer >= 1.4 && < 2,
+                       time
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -W

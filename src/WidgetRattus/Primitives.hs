@@ -23,5 +23,7 @@ module WidgetRattus.Primitives
   ,delayC
   ,timer
   ,wait
+  ,Time(..)
+  ,time
   ) where
 import WidgetRattus.InternalPrimitives

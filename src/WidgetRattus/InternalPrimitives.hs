@@ -15,6 +15,9 @@ import System.Mem.Weak
 import Control.Monad
 import Unsafe.Coerce
 
+import Data.Time.Clock
+import Data.Time.Calendar.OrdinalDate
+
 -- An input channel is identified by an integer. The programmer should not know about it.
 type InputChannelIdentifier = Int
 
@@ -47,6 +50,7 @@ inputInClock (OneInput ch _) cl = channelMember ch cl
 -- computation is accessible via 'adv' and 'select'.
 
 data O a = Delay !Clock (InputValue -> a)
+
 
 -- | The return type of the 'select' primitive.
 data Select a b = Fst !a !(O b) | Snd !(O a) !b | Both !a !b
@@ -255,15 +259,33 @@ promote x = promoteInternal x
 
 -- Channels
 
-newtype C a = C {unC :: IO a} deriving (Functor, Applicative, Monad)
+newtype C a = C {unC :: InputValue -> IO a} 
+
+instance Functor C where
+  fmap f (C g) = C (\inp -> fmap f (g inp))
+
+instance Applicative C where
+  pure x = C (\ _ -> pure x)
+
+  C f <*> C g = C (\inp -> f inp <*> g inp)
+
+
+instance Monad C where
+  return = pure
+  C f >>= g = C (\inp -> f inp >>= (\ x -> unC (g x) inp))
 
 newtype Chan a = Chan InputChannelIdentifier
 
 chan :: C (Chan a)
-chan = C (Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
+chan = C (\ _ -> Chan <$> atomicModifyIORef nextFreshChannel (\ x -> (x - 1, x)))
 
 delayC :: O (C a) -> O a
-delayC (Delay c f) = Delay c (\ inp -> unsafePerformIO (unC (f inp)))
+delayC (Delay c f) = Delay c (\ inp -> advC' (f inp) inp)
+
+
+{-# NOINLINE advC' #-}
+advC' :: C a -> InputValue -> a
+advC' (C c) inp =  unsafePerformIO (c inp)
 
 wait :: Chan a -> O a
 wait (Chan ch) = Delay (singletonClock ch) (\(OneInput _ v) -> unsafeCoerce v)
@@ -278,6 +300,22 @@ nextFreshChannel = unsafePerformIO (newIORef (-1))
 -- produces a new value every #n# milliseconds.
 timer :: Int -> O ()
 timer d = Delay (singletonClock (d `max` 10)) (\ _ -> ())
+
+-- | A strict version of UTCTime
+data Time = Time
+  { -- | The day component
+    timeDay :: !Day,
+    -- | The time component
+    timeDayTime :: !DiffTime
+  }
+  deriving (Eq, Ord)
+
+instance Show Time where
+  show (Time d t) = show (UTCTime d t)
+
+time :: C Time
+time = C $ \ _ ->  do UTCTime d t <- getCurrentTime
+                      return $ Time d t
 
 
 {-# RULES

@@ -76,6 +76,12 @@ instance Displayable Text where
 instance Displayable Int where  
       display x = toText x
 
+instance Displayable Time where
+      display = toText
+
+instance Displayable NominalDiffTime where
+      display = toText 
+
 
 -- Functions for constructing Async Rattus widgets. 
 mkButton :: (Displayable a) => Sig a -> C Button
@@ -198,7 +204,7 @@ mkTimerEvent n cb = (threadDelay n >> cb (AppEvent (Chan n) ())) >> return ()
 {-# ANN runApplication AllowLazyData #-}
 runApplication :: IsWidget a => C a -> IO ()
 runApplication (C w) = do
-    w' <- w
+    w' <- w (OneInput 0 ())
     M.startApp (AppModel w' emptyClock) handler builder config
     where builder _ (AppModel w _) = mkWidgetNode w `M.styleBasic` [M.padding 3]
           handler _ _ (AppModel w cl) (AppEvent (Chan ch) d) =

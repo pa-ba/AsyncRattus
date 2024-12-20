@@ -37,7 +37,14 @@ executable converter
 
 executable timer
   hs-source-dirs:      src
-  main-is:             timer.hs
+  main-is:             Timer.hs
   default-language:    Haskell2010
   build-depends:       WidgetRattus>=0.2, base, text, containers
+  ghc-options:         -W
+
+executable stopwatch
+  hs-source-dirs:      src
+  main-is:             Stopwatch.hs
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers, time
   ghc-options:         -W
