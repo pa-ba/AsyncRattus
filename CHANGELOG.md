@@ -1,3 +1,7 @@
+# 0.2.1
+
+- More signal combinators
+
 # 0.2.0.2
 
 - Fix strictness/stable checker: It now recognises `Word8/16/32/64` and
