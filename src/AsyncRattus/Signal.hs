@@ -5,12 +5,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedLists #-}
 
 
 -- | Programming with signals.
 
 module AsyncRattus.Signal
-  ( map
+  ( Sig(..)
+  , map
   , mkInputSig
   , getInputSig
   , filterMap
@@ -23,7 +25,11 @@ module AsyncRattus.Signal
   , switch
   , switchS
   , switchAwait
+  , switchR
   , interleave
+  , mapInterleave
+  , interleaveAll
+  , update
   , mkSig
   , mkBoxSig
   , current
@@ -32,11 +38,15 @@ module AsyncRattus.Signal
   , scan
   , scanAwait
   , scanMap
-  , Sig(..)
+  , jump
+  , jumping
+  , stop
   , zipWith
   , zipWith3
   , zip
   , cond
+  , buffer
+  , bufferAwait
   , integral
   , derivative
   )
@@ -186,6 +196,33 @@ scanMap :: (Stable b) => Box (b -> a -> b) -> Box (b -> c) -> b -> Sig a -> Sig 
 scanMap f p acc (a ::: as) =  unbox p acc' ::: delay (scanMap f p acc' (adv as))
   where acc' = unbox f acc a
 
+-- | @jump (box f) xs@ first behaves like @xs@, but as soon as @f x =
+-- Just xs'@ for a (current or future) value @x@ of @xs@, it behaves
+-- like @xs'@.
+
+jump :: Box (a -> Maybe' (Sig a)) -> Sig a -> Sig a
+jump f (x ::: xs) = case unbox f x of
+                        Just' xs' -> xs'
+                        Nothing' -> x ::: delay (jump f (adv xs))
+
+
+-- | Similar to 'jump', but it can jump repeatedly. That is, @jumping
+-- (box f) xs@ first behaves like @xs@, but every time @f x = Just
+-- xs'@ for a (current or future) value @x@ of @jumping (box f) xs@,
+-- it behaves like @xs'@.
+
+jumping :: Box (a -> Maybe' (Sig a)) -> Sig a -> Sig a
+jumping f (x ::: xs) = case unbox f x of
+                         Just' (x' ::: xs') -> x' ::: delay (jumping f (adv xs'))
+                         Nothing'           -> x  ::: delay (jumping f (adv xs))
+
+-- | Stops as soon as the the predicate becomes true for the current
+-- value. That is, @stop (box p) xs@ first behaves as @xs@, but as
+-- soon as @f x = True@ for some (current or future) value @x@ of
+-- @xs@, then it behaves as @const x@.
+stop :: Box (a -> Bool) -> Sig a ->  Sig a
+stop p = jump (box (\ x -> if unbox p x then Just' (const x) else Nothing'))
+
 -- | This function allows to switch from one signal to another one
 -- dynamically. The signal defined by @switch xs ys@ first behaves
 -- like @xs@, but as soon as @ys@ produces a new value, @switch xs ys@
@@ -219,6 +256,19 @@ switchAwait xs ys = delay (case select xs ys of
                                   Snd  _    d'  -> d'
                                   Both _    d'  -> d')
 
+-- | Variant of 'switchS' that repeatedly switches. The output signal
+-- @switch xs ys@ first behaves like @xs@, but whenever @ys@ produces
+-- a value @f@, the signal switches to @f v@ where @v@ is the previous
+-- value of the output signal. 
+--
+-- 'switchS' can be considered a special case of 'switchR' that only
+-- makes a single switch. That is we have the following:
+--
+-- > switchS xs ys = switchR (delay (const (adv xs))) ys
+switchR :: Stable a => Sig a -> O (Sig (a -> Sig a)) -> Sig a
+switchR sig steps = switchS sig
+      (delay (let step ::: steps' = adv steps in \ x -> switchR (step x) steps'))
+
 -- | This function interleaves two signals producing a new value @v@
 -- whenever either input stream produces a new value @v@. In case the
 -- input signals produce a new value simultaneously, the function
@@ -236,6 +286,37 @@ interleave f xs ys = delay (case select xs ys of
                               Fst (x ::: xs') ys' -> x ::: interleave f xs' ys'
                               Snd xs' (y ::: ys') -> y ::: interleave f xs' ys'
                               Both (x ::: xs') (y ::: ys') -> unbox f x y ::: interleave f xs' ys')
+
+
+-- | This is the composition of 'mapAwait' and 'interleave'. That is,
+-- 
+-- > mapInterleave f g xs ys = mapAwait f (interleave xs ys)
+mapInterleave :: Box (a -> a) -> Box (a -> a -> a) -> O (Sig a) -> O (Sig a) -> O (Sig a)
+mapInterleave g f xs ys = delay (case select xs ys of
+                              Fst (x ::: xs') ys' -> unbox g x ::: mapInterleave g f xs' ys'
+                              Snd xs' (y ::: ys') -> unbox g y ::: mapInterleave g f xs' ys'
+                              Both (x ::: xs') (y ::: ys') -> unbox g (unbox f x y) ::: mapInterleave g f xs' ys')
+
+
+{-# ANN interleaveAll AllowRecursion #-}
+interleaveAll :: Box (a -> a -> a) -> List (O (Sig a)) -> O (Sig a)
+interleaveAll _ Nil = error "interleaveAll: List must be nonempty"
+interleaveAll _ [s] = s
+interleaveAll f (x :! xs) = interleave f x (interleaveAll f xs)
+
+
+-- | Takes two signals and updates the first signal using the
+-- functions produced by the second signal:
+--
+-- Law:
+--
+-- > (xs `update` fs) `update` gs = (xs `update` (interleave (box (.)) gs fs))
+update :: (Stable a) => Sig a -> O (Sig (a -> a)) -> Sig a
+update (x ::: xs) fs = x ::: delay 
+    (case select xs fs of
+      Fst xs' ys' -> update xs' ys'
+      Snd xs' (f ::: fs') -> update (f x ::: xs') fs'
+      Both (x' ::: xs') (f ::: fs') -> update (f x' ::: xs') fs')
 
 
 -- | This function is a variant of combines the values of two signals
@@ -277,6 +358,17 @@ cond = zipWith3 (box (\b x y -> if b then x else y))
 -- > zip = zipWith (box (:*))
 zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
+
+
+
+-- Buffer takes an initial value and a signal as input and returns a signal that
+-- is always one tick behind the input signal.
+buffer :: Stable a => a -> Sig a -> Sig a
+buffer x (y ::: ys) = x ::: delay (buffer y (adv ys))
+
+-- Like buffer but works for delayed signals
+bufferAwait :: Stable a => a -> O (Sig a) -> O (Sig a)
+bufferAwait x xs = delay (buffer x (adv xs))
 
 -- | Sampling interval (in microseconds) for the 'integral' and
 -- 'derivative' functions.
