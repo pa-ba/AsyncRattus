@@ -44,6 +44,10 @@ module AsyncRattus.Signal
   , zipWith
   , zipWith3
   , zip
+  , parallelWith
+  , parallelWithAwait
+  , parallel
+  , parallelAwait
   , cond
   , buffer
   , bufferAwait
@@ -360,6 +364,66 @@ zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
 
 
+
+-- | This is a variant of 'zipWith', but the values passed to the
+-- function may not exist if the corresponding source signal has not
+-- ticked.
+-- 
+-- Example:
+--
+-- >                            xs:  1            2          3          
+-- >                            ys:  1                       0            5
+-- >
+-- > parallelWith (box (:*)) xs ys:  (J 1 :* J 1) (J 2 :* N) (J 3 :* J 0) (N :* J 5)
+
+parallelWith :: Box (Maybe' a -> Maybe' b -> c) -> Sig a -> Sig b -> Sig c
+parallelWith f (x ::: xs) (y ::: ys) = 
+   unbox f (Just' x) (Just' y) ::: parallelWithAwait f xs ys
+
+-- | This is a variant of `parallelWith` for delayed signals.
+--
+-- Example:
+--
+-- >                       xs:    2          3          
+-- >                       ys:               0            5
+-- >
+-- > paralle (box (:*)) xs ys:    (J 2 :* N) (J 3 :* J 0) (N :* J 5)
+parallelWithAwait :: Box (Maybe' a -> Maybe' b -> c) -> O (Sig a) -> O (Sig b) -> O (Sig c)
+parallelWithAwait f xs ys = delay (
+  case select xs ys of
+     Fst (x ::: xs')   ys'        -> unbox f (Just' x)  (Nothing') ::: parallelWithAwait f xs' ys'
+     Snd xs'          (y ::: ys') -> unbox f (Nothing') (Just' y)  ::: parallelWithAwait f xs' ys'
+     Both (x ::: xs') (y ::: ys') -> unbox f (Just' x)  (Just' y)  ::: parallelWithAwait f xs' ys')
+
+-- | This is a variant of 'zip', but the signal of pairs only contain
+-- values if the corresponding source signal ticked.
+-- 
+-- Example:
+--
+-- >             xs:  1            2          3          
+-- >             ys:  1                       0            5
+-- >
+-- > parallel xs ys:  (J 1 :* J 1) (J 2 :* N) (J 3 :* J 0) (N :* J 5)
+
+parallel :: Sig a -> Sig b -> Sig (Maybe' a :* Maybe' b)
+parallel (x ::: xs) (y ::: ys) = 
+   (Just' x :* Just' y) ::: parallelAwait xs ys
+
+-- | This is a variant of `parallel` for delayed signals.
+--
+-- Example:
+--
+-- >             xs:    2          3          
+-- >             ys:               0            5
+-- >
+-- > parallel xs ys:    (J 2 :* N) (J 3 :* J 0) (N :* J 5)
+
+parallelAwait :: O (Sig a) -> O (Sig b) -> O (Sig (Maybe' a :* Maybe' b))
+parallelAwait xs ys = delay (
+  case select xs ys of
+     Fst (x ::: xs')   ys'        -> (Just' x  :* Nothing') ::: parallelAwait xs' ys'
+     Snd xs'          (y ::: ys') -> (Nothing' :* Just' y)  ::: parallelAwait xs' ys'
+     Both (x ::: xs') (y ::: ys') -> (Just' x  :* Just' y)  ::: parallelAwait xs' ys')
 
 -- Buffer takes an initial value and a signal as input and returns a signal that
 -- is always one tick behind the input signal.
