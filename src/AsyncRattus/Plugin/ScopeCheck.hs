@@ -369,7 +369,8 @@ instance Scope (HsExpr GhcTc) where
     | Just p <- isPrim v =
         case p of
           Unbox -> return True
-          _ -> printMessageCheck SevError ("Defining an alias for " <> ppr v <> " is not allowed")
+          _ -> printMessageCheck SevError ("The primitive " <> ppr v <> " must be applied directly to an argument." 
+                $$ "It cannot be assigned to a variable or passed as an argument, e.g. when using the $ operator.")
     | otherwise = case getScope v of
              Hidden reason -> printMessageCheck SevError reason
              Visible -> return True
