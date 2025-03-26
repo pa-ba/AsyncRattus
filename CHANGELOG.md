@@ -1,3 +1,10 @@
+# 0.4.1
+
+ - The constraint solver for stable types can now handle data types
+   with existential variables that have a `Stable` constraint, e.g. a
+   GADT with constructor `mkFoo :: Stable a => !a -> Foo` is now
+   recognised as stable.
+
 # 0.4
 
 - The C monad can now be discharged under the O modality via delayC.

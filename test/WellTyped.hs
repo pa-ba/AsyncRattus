@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 module Main (module Main) where
@@ -143,5 +143,29 @@ unusedAdv d = delay (adv d `seq` ())
 
 unusedAdv' :: O () -> O ()
 unusedAdv' d = delay (let _ = adv d in ())
+
+
+-- check whether the Stable constraint solver handles GADTs correctly.
+
+data Fun a where
+  Fun :: Stable s => !s -> !(Box(s -> Int -> (s :* a))) -> Fun a
+
+newtype Beh a = Beh (Sig (Fun a))
+
+zipFun :: Box (a -> b -> c) -> Fun a -> Fun b -> Fun c
+zipFun f (Fun sa fa) (Fun sb fb) = Fun (sa :* sb) 
+  (box (\ (sa' :* sb') t -> 
+          let (sa'' :* a) = unbox fa sa' t
+              (sb'' :* b) = unbox fb sb' t
+          in ((sa'' :* sb'') :* unbox f a b) ))
+                      
+
+zipWithBeh :: (Stable a, Stable b) => Box (a -> b -> c) -> Beh a -> Beh b -> Beh c
+zipWithBeh f (Beh as) (Beh bs) = Beh (run as bs) where
+  run (a ::: as) (b ::: bs) = zipFun f a b ::: delay 
+     (case select as bs of
+        Fst as' lbs -> run as' (b ::: lbs)
+        Snd las bs' -> run (a ::: las) bs'
+        Both as' bs' -> run as' bs')
 
 main = putStrLn "This file should just type check"
