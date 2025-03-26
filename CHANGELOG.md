@@ -1,4 +1,4 @@
-# 0.4.1
+# 0.4.0.1
 
  - The constraint solver for stable types can now handle data types
    with existential variables that have a `Stable` constraint, e.g. a
