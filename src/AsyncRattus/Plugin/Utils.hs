@@ -274,12 +274,24 @@ isStableRec c d pr t = do
                   and  (map check cons)
                 | otherwise -> False
                 where check con = case dataConInstSig con args of
-                        (_, _,tys) -> and (map (isStableRec c (d+1) pr') tys)
+                        (_, constraints,tys) -> 
+                          let c' = Set.union c (getStableConstraints constraints)
+                          in and (map (isStableRec c' (d+1) pr') tys)
               TupleTyCon {} -> null args
               _ -> False
         _ -> False
 
-
+-- Takes a list of constraints @cs@, and returns a set of all type
+-- variables @v@ for which the constraint @Stable v@ occurs in @cs@.
+getStableConstraints :: [Type] -> Set Var
+getStableConstraints ts = Set.fromList (mapMaybe conv ts)
+  where conv :: Type -> Maybe Var
+        conv t = case splitTyConApp_maybe t of
+                  Just (c, [arg]) -> 
+                    case getNameModule c of
+                      Just (name,mod) | name == "Stable" && isRattModule mod -> getTyVar_maybe arg
+                      _ -> Nothing
+                  _ -> Nothing
 
 isStrict :: Type -> Bool
 isStrict t = isStrictRec 0 Set.empty t

@@ -1,5 +1,12 @@
-# 0.2.1
+# 0.2.1.1
 
+ - The constraint solver for stable types can now handle data types
+   with existential variables that have a `Stable` constraint, e.g. a
+   GADT with constructor `mkFoo :: Stable a => !a -> Foo` is now
+   recognised as stable.
+
+# 0.2.1
+=======
 - More signal combinators
 
 # 0.2.0.2
