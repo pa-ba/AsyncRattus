@@ -150,6 +150,8 @@ class ScopeBind a where
   -- addition returns the the set of variables bound by it.
   checkBind :: GetCtxt => a -> CheckM (Bool,Set Var)
 
+class BoundStable a where
+  getBoundStable :: a -> Set Var
 
 -- | set the current context.
 setCtxt :: Ctxt -> (GetCtxt => a) -> a 
@@ -189,7 +191,61 @@ printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
   where printMsg (sev,loc,doc) = printMessage sev loc doc
 
 
+instance BoundStable (Pat GhcTc) where
+  getBoundStable (ConPat {pat_con_ext = ConPatTc {cpt_dicts = dicts}}) = 
+    Set.fromList (mapMaybe (isStableConstr . varType) dicts)
+  getBoundStable (LazyPat _ p) = getBoundStable p
+#if __GLASGOW_HASKELL__ >= 906
+  getBoundStable (AsPat _ _ _ p) = getBoundStable p
+#else
+  getBoundStable (AsPat _ _ p) = getBoundStable p
+#endif
+#if __GLASGOW_HASKELL__ >= 904  
+  getBoundStable (ParPat _ _ p _) = getBoundStable p
+#else
+  getBoundStable (ParPat _ p) = getBoundStable p
+#endif
+  getBoundStable (BangPat _ p) = getBoundStable p
+  getBoundStable (ListPat _ p) = getBoundStable p
+  getBoundStable (TuplePat _ p _) = getBoundStable p
+  getBoundStable (SumPat _ p _ _) = getBoundStable p
+  getBoundStable (ViewPat _ _ p) = getBoundStable p
+  getBoundStable (SigPat _ p _) = getBoundStable p
+  getBoundStable (SplicePat {}) = Set.empty
+  getBoundStable (VarPat {}) = Set.empty
+  getBoundStable (WildPat {}) = Set.empty
+  getBoundStable (LitPat {}) = Set.empty
+  getBoundStable (NPat {}) = Set.empty
+  getBoundStable (NPlusKPat {}) = Set.empty
+  getBoundStable (XPat {}) = Set.empty
+  
 
+
+instance BoundStable (HsBindLR GhcTc GhcTc) where
+  getBoundStable (PatBind {pat_lhs = lhs}) = getBoundStable lhs
+  getBoundStable _ = Set.empty
+
+instance BoundStable (HsLocalBinds GhcTc) where
+  getBoundStable (HsValBinds _ bs) = getBoundStable bs
+  getBoundStable HsIPBinds {} = Set.empty
+  getBoundStable EmptyLocalBinds{} = Set.empty
+
+instance BoundStable (HsValBindsLR GhcTc GhcTc) where
+  getBoundStable (ValBinds _ bs _) = getBoundStable bs
+  getBoundStable (XValBindsLR (NValBinds binds _)) = getBoundStable binds
+
+instance BoundStable a => BoundStable (Bag a) where
+  getBoundStable bs = foldl' (\ s r -> s `Set.union` getBoundStable r) Set.empty bs
+
+
+instance BoundStable a => BoundStable [a] where
+  getBoundStable bs = foldl' (\ s r -> s `Set.union` getBoundStable r) Set.empty bs
+
+instance BoundStable a => BoundStable (RecFlag, a) where
+  getBoundStable (_, x) =  getBoundStable x
+
+instance BoundStable a => BoundStable (GenLocated s a) where
+  getBoundStable (L _ x) =  getBoundStable x
 
 instance Scope a => Scope (GenLocated SrcSpan a) where
   check (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` check x
@@ -205,10 +261,10 @@ instance Scope a => Scope [a] where
 
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = addVars (getBV ps) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} = (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = addVars (getBV ps) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} = (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 
 instance Scope (MatchGroup GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
@@ -461,7 +517,8 @@ instance Scope (HsExpr GhcTc) where
   check (HsLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    r <- addVars vs `modifyCtxt` (check e)
+    let stVs = getBoundStable bs
+    r <- (addVars vs . addStable stVs) `modifyCtxt` (check e)
     return (r && l)
          
   check HsOverLabel{} = return True
@@ -798,6 +855,10 @@ instance NotSupported (Bool,Set Var) where
 -- | Add variables to the current context.
 addVars :: Set Var -> Ctxt -> Ctxt
 addVars vs c = c{current = vs `Set.union` current c }
+
+
+addStable :: Set Var -> Ctxt -> Ctxt
+addStable vs c = c{stableTypes = vs `Set.union` stableTypes c }
 
 -- | Print a message with the current location.
 printMessage' :: GetCtxt => Severity -> SDoc ->  CheckM ()

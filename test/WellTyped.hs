@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -fplugin=WidgetRattus.Plugin #-}
 
 module Main (module Main) where
@@ -150,7 +151,20 @@ unusedAdv' d = delay (let _ = adv d in ())
 data Fun a where
   Fun :: Stable s => !s -> !(Box(s -> Int -> (s :* a))) -> Fun a
 
+
 newtype Beh a = Beh (Sig (Fun a))
+
+funTest :: Fun a -> O () -> O (Fun a)
+funTest fun@(Fun x f) d = delay (let _ = adv d in x `seq` fun)
+
+funTest' :: Fun a -> O () -> O (Fun a)
+funTest' fun d = case fun of (!(Fun x f)) -> delay (let _ = adv d in x `seq` fun)
+
+
+funTestWorkaround :: Fun a -> O () -> O (Fun a)
+funTestWorkaround fun@(Fun x f) d = foo x fun
+  where foo :: Stable s => s -> (Fun a) -> O (Fun a)
+        foo x fun = delay (let _ = adv d in x `seq` fun)
 
 zipFun :: Box (a -> b -> c) -> Fun a -> Fun b -> Fun c
 zipFun f (Fun sa fa) (Fun sb fb) = Fun (sa :* sb) 

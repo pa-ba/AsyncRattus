@@ -2,8 +2,12 @@
 
  - The constraint solver for stable types can now handle data types
    with existential variables that have a `Stable` constraint, e.g. a
-   GADT with constructor `mkFoo :: Stable a => !a -> Foo` is now
+   GADT with constructor `MkFoo :: Stable a => !a -> Foo` is now
    recognised as stable.
+ - Scope checking of variable now accounts for pattern matching with
+   existential types. So pattern matching against the type `Foo`
+   defined above accounts for the stable constraint. For instance, a
+   function definition `fun (MkFoo x) = box x` now type checks.
 
 # 0.4
 
