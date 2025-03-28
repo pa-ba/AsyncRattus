@@ -151,6 +151,13 @@ class ScopeBind a where
   checkBind :: GetCtxt => a -> CheckM (Bool,Set Var)
 
 class BoundStable a where
+  -- | 'getBoundStable' returns all type variable that have obtained a
+  -- stable constraints (by virtue of pattern matching againts a
+  -- GADT). For example, given a constructor @MkFoo :: Stable a => !a
+  -- -> Foo@, the pattern matching in the following function
+  -- definition produces a stable constraint on the type of @x@:
+  --
+  -- > fun (MkFoo x) = box x
   getBoundStable :: a -> Set Var
 
 -- | set the current context.
