@@ -282,12 +282,21 @@ instance Scope (MatchGroup GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
   check MG {mg_alts = alts} = check alts
 
 
+instance BoundStable a => BoundStable (StmtLR GhcTc GhcTc a) where
+  getBoundStable (LastStmt _ _ _ _) =  Set.empty
+  getBoundStable (BindStmt _ p _) = getBoundStable p
+  getBoundStable (BodyStmt _ _ _ _) = Set.empty
+  getBoundStable (LetStmt _ bs) = getBoundStable bs
+  getBoundStable ParStmt{} = Set.empty
+  getBoundStable TransStmt{} = Set.empty
+  getBoundStable ApplicativeStmt{} = Set.empty
+  getBoundStable RecStmt{} = Set.empty
+
 instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
   checkBind (LastStmt _ b _ _) =  ( , Set.empty) <$> check b
   checkBind (BindStmt _ p b) = do
     let vs = getBV p
-    let c' = addVars vs ?ctxt
-    r <- setCtxt c' (check b)
+    r <- modifyCtxt (addStable (getBoundStable p) . addVars vs) (check b)
     return (r,vs)
   checkBind (BodyStmt _ b _ _) = ( , Set.empty) <$> check b
   checkBind (LetStmt _ bs) = checkBind bs
@@ -296,11 +305,11 @@ instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
   checkBind ApplicativeStmt{} = notSupported "applicative do notation"
   checkBind RecStmt{} = notSupported "recursive do notation"
 
-instance ScopeBind a => ScopeBind [a] where
+instance (BoundStable a, ScopeBind a) => ScopeBind [a] where
   checkBind [] = return (True,Set.empty)
   checkBind (x:xs) = do
     (r,vs) <- checkBind x
-    (r',vs') <- addVars vs `modifyCtxt` (checkBind xs)
+    (r',vs') <- (addStable (getBoundStable x) . addVars vs) `modifyCtxt` (checkBind xs)
     return (r && r',vs `Set.union` vs')
 
 instance ScopeBind a => ScopeBind (GenLocated SrcSpan a) where
@@ -312,7 +321,7 @@ instance ScopeBind a => ScopeBind (GenLocated (SrcSpanAnn' b) a) where
 instance Scope a => Scope (GRHS GhcTc a) where
   check (GRHS _ gs b) = do
     (r, vs) <- checkBind gs
-    r' <- addVars vs `modifyCtxt`  (check b)
+    r' <- (addStable (getBoundStable gs) . addVars vs) `modifyCtxt`  (check b)
     return (r && r')
 
 checkRec :: GetCtxt => LHsBindLR GhcTc GhcTc -> CheckM Bool
@@ -400,13 +409,13 @@ type SrcAnno = SrcSpanAnnA
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- addVars vs `modifyCtxt` (check rhs)
+    r <- (addStable (getBoundStable lbinds) . addVars vs) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- addVars vs `modifyCtxt` (check rhs)
+    r <- (addStable (getBoundStable lbinds) . addVars vs) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Show Var where
@@ -592,6 +601,19 @@ instance Scope XXExprGhcTc where
 instance Scope (HsCmdTop GhcTc) where
   check (HsCmdTop _ e) = check e
   
+
+instance BoundStable (HsExpr GhcTc) where
+  getBoundStable _ = Set.empty
+
+
+instance BoundStable (HsCmd GhcTc) where
+  getBoundStable _ = Set.empty
+
+
+instance BoundStable (SCC a) where
+  getBoundStable _ = Set.empty
+
+
 instance Scope (HsCmd GhcTc) where
   check (HsCmdArrApp _ e1 e2 _ _) = (&&) <$> check e1 <*> check e2
   check (HsCmdDo _ e) = fst <$> checkBind e
@@ -608,7 +630,7 @@ instance Scope (HsCmd GhcTc) where
   check (HsCmdLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    r <- addVars vs `modifyCtxt` (check e)
+    r <- (addStable (getBoundStable bs) . addVars vs) `modifyCtxt` (check e)
     return (r && l)
 
   check (HsCmdCase _ e1 e2) = (&&) <$> check e1 <*> check e2
@@ -654,7 +676,7 @@ instance Scope (HsBindLR GhcTc GhcTc) where
     where mod c = c { stableTypes= stableTypes c `Set.union`
                       Set.fromList (stableConstrFromWrapper' wrapper)  `Set.union`
                       Set.fromList (extractStableConstr (varType v))}
-  check PatBind{pat_lhs = lhs, pat_rhs=rhs} = addVars (getBV lhs) `modifyCtxt` check rhs
+  check PatBind{pat_lhs = lhs, pat_rhs=rhs} = (addStable (getBoundStable lhs). addVars (getBV lhs)) `modifyCtxt` check rhs
   check VarBind{var_rhs = rhs} = check rhs
   check PatSynBind {} = return True -- pattern synonyms are not supported
 

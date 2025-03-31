@@ -157,8 +157,28 @@ newtype Beh a = Beh (Sig (Fun a))
 funTest :: Fun a -> O () -> O (Fun a)
 funTest fun@(Fun x f) d = delay (let _ = adv d in x `seq` fun)
 
-funTest' :: Fun a -> O () -> O (Fun a)
-funTest' fun d = case fun of (!(Fun x f)) -> delay (let _ = adv d in x `seq` fun)
+funTest2 :: Fun a -> O () -> O (Fun a)
+funTest2 fun d = case fun of (!(Fun x f)) -> delay (let _ = adv d in x `seq` fun)
+
+funTest3 :: C (Fun a) -> O () -> C (O (Fun a))
+funTest3 fun d = do Fun x f <-  fun 
+                    fun' <- fun
+                    return (delay (let _ = adv d in x `seq` fun'))
+
+funTest4 :: Fun a -> O () -> C (O (Fun a))
+funTest4 fun@(Fun x f) d = do let (x':* v) = unbox f x 0
+                              return (delay (let _ = adv d in x' `seq` fun))
+
+
+
+funTest5 :: Fun a -> O () -> O (Fun a)
+funTest5 fun@(Fun x f) d = delay (let _ = adv d in x' `seq` fun)
+  where (x':* v) = unbox f x 0
+
+
+funTest6 :: Fun a -> O () -> O (Fun a)
+funTest6 fun@(Fun x f) d = let (x':* v) = unbox f x 0 in delay (let _ = adv d in x' `seq` fun)
+
 
 
 funTestWorkaround :: Fun a -> O () -> O (Fun a)
