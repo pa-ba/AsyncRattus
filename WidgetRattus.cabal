@@ -43,6 +43,8 @@ library
   exposed-modules:     WidgetRattus
                        WidgetRattus.Signal
                        WidgetRattus.Future
+                       WidgetRattus.Behaviour
+                       WidgetRattus.Event
                        WidgetRattus.Strict
                        WidgetRattus.Time
                        WidgetRattus.Plugin

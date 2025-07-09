@@ -248,6 +248,12 @@ data Maybe' a = Just' !a | Nothing' deriving (Show, Eq, Ord)
 
 continuous ''Maybe'
 
+instance Functor Maybe' where
+  fmap f (Just' x) = Just' (f x)
+  fmap _ Nothing'  = Nothing'
+
+
+
 -- | takes a default value, a function, and a 'Maybe'' value.  If the
 -- 'Maybe'' value is 'Nothing'', the function returns the default
 -- value.  Otherwise, it applies the function to the value inside the
