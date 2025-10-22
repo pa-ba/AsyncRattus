@@ -16,7 +16,8 @@ module WidgetRattus (
   -- * Annotation
   WidgetRattus(..),
   -- * other
-  mapO
+  mapO,
+  withTime
   )
   where
 
@@ -29,3 +30,8 @@ import WidgetRattus.Time
 
 mapO :: Box (a -> b) -> O a -> O b
 mapO f later = delay (unbox f (adv later))
+
+
+
+withTime :: O (Time -> a) -> O a
+withTime df = delayC (delay (adv df <$> time))

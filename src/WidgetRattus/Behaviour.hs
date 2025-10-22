@@ -80,10 +80,6 @@ elapsedTime = do
   startTime <- time
   return $ Beh (Fun (box (\currentTime -> diffTime currentTime startTime :* False)) ::: never)
 
-withTime :: O (Time -> a) -> O a
-withTime delayed =
-  delayC $ delay (let f = adv delayed in do f <$> time)
-
 switch :: forall a . Beh a -> O (Beh a) -> Beh a
 switch (Beh s) d = Beh (run s d) where
     run :: Sig (Fun a) -> O (Beh a) -> Sig (Fun a)

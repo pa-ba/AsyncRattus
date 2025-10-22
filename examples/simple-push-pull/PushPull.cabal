@@ -1,0 +1,15 @@
+cabal-version:       >=1.10
+
+name:                push-pull
+version:             0.1.0.0
+
+author:              Patrick Bahr
+maintainer:          paba@itu.dk
+build-type:          Simple
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     PushPull
+  default-language:    Haskell2010
+  build-depends:       WidgetRattus>=0.2, base, text, containers, time
+  ghc-options:         -W
