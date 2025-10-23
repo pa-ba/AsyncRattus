@@ -4,8 +4,8 @@
 
 module WidgetRattus.Event where
 
-import WidgetRattus.Behaviour hiding (map)
-import Data.IntMap ()
+import WidgetRattus.Behaviour
+
 import WidgetRattus
 import WidgetRattus.Signal hiding (buffer, interleave, interleaveAll, map, scan, switchR, switchS)
 import qualified WidgetRattus.Signal as Sig
@@ -26,12 +26,12 @@ mkEv' = Dense . run where
     run b = delayC (delay ((::: run b) <$> adv (unbox b)))
 
 
-map :: forall a b . Box (a -> b) -> Ev a -> Ev b
-map f (Dense sig) = Dense (run sig) where
+mapE :: forall a b . Box (a -> b) -> Ev a -> Ev b
+mapE f (Dense sig) = Dense (run sig) where
     run :: O (Sig a) -> O (Sig b)
     run sig = delay ( let x ::: xs = adv sig
                       in unbox f x ::: run xs )
-map f (Sparse sig) = Sparse (run sig) where
+mapE f (Sparse sig) = Sparse (run sig) where
     run :: O (Sig (Maybe' a)) -> O (Sig (Maybe' b))
     run sig = delay ( let x ::: xs = adv sig
                       in (unbox f <$> x) ::: run xs)
@@ -270,19 +270,19 @@ buffer x (Sparse ys) =
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
 
-{-# NOINLINE [1] map #-}
+{-# NOINLINE [1] mapE #-}
 
 {-# NOINLINE [1] filter #-}
 
 {-# RULES
 "ev.map/ev.map" forall f g xs.
-  map f (map g xs) =
-    map (box (unbox f . unbox g)) xs
+  mapE f (mapE g xs) =
+    mapE (box (unbox f . unbox g)) xs
 "ev.map/ev.filter" forall f g xs.
-  map f (filter g xs) =
+  mapE f (filter g xs) =
     filterMap (box (\x -> if unbox g x then Just' (unbox f x) else Nothing')) xs
 "ev.filter/ev.map" forall f g xs.
-  filter f (map g xs) =
+  filter f (mapE g xs) =
     filterMap (box (\x -> if (unbox f . unbox g) x then Just' $ unbox g x else Nothing')) xs
 "ev.filter/ev.filter" forall f g xs.
   filter f (filter g xs) =

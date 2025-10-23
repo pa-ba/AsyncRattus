@@ -45,8 +45,8 @@ const x = Beh (K x ::: never)
 timeBehaviour :: Beh Time
 timeBehaviour = cont (box id)
 
-map :: Box (a -> b) -> Beh a -> Beh b
-map f (Beh (x ::: xs)) = Beh (mapP f x ::: delay (unwrap $ map f (Beh (adv xs))))
+mapB :: Box (a -> b) -> Beh a -> Beh b
+mapB f (Beh (x ::: xs)) = Beh (mapP f x ::: delay (unwrap $ mapB f (Beh (adv xs))))
 
 sampleInterval :: O ()
 sampleInterval = timer 20000
@@ -311,7 +311,7 @@ instance (Continuous a) => Continuous (Beh a) where
 -- Prevent functions from being inlined too early for the rewrite
 -- rules to fire.
 
-{-# NOINLINE [1] map #-}
+{-# NOINLINE [1] mapB #-}
 
 {-# NOINLINE [1] const #-}
 
@@ -319,10 +319,10 @@ instance (Continuous a) => Continuous (Beh a) where
 
 {-# RULES
 "beh.map/beh.map" forall f g xs.
-  map f (map g xs) =
-    map (box (unbox f . unbox g)) xs
+  mapB f (mapB g xs) =
+    mapB (box (unbox f . unbox g)) xs
 "beh.const/beh.map" forall (f :: (Stable b) => Box (a -> b)) x.
-  map f (const x) =
+  mapB f (const x) =
     let x' = unbox f x in const x'
 "beh.const/beh.switch" forall x xs.
   switch (const x) xs =

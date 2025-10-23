@@ -52,6 +52,7 @@ library
                        WidgetRattus.InternalPrimitives
                        WidgetRattus.Plugin.Annotation
                        WidgetRattus.Widgets
+                       WidgetRattus.PushPull.Widgets
                                               
   other-modules:       WidgetRattus.Plugin.ScopeCheck
                        WidgetRattus.Plugin.SingleTick
