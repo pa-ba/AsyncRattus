@@ -14,26 +14,26 @@ import WidgetRattus.InternalPrimitives (Continuous (..), O (Delay), adv', advC',
 import WidgetRattus.Signal hiding (const, integral, jump, map, switch, zipWith)
 import Prelude hiding (const, map, zipWith)
 
-data Fun a where
-  K :: !a -> Fun a
-  Fun :: (Stable s) => !s -> !(Box (s -> Time -> (a :* Maybe' s))) -> Fun a
+data Pull a where
+  K :: !a -> Pull a
+  Fun :: (Stable s) => !s -> !(Box (s -> Time -> (a :* Maybe' s))) -> Pull a
 
-continuous ''Fun
+continuous ''Pull
 
-apply :: Fun a -> Time -> a
-apply (K a) _ =  a
-apply (Fun s f) t = let (a :* _) = unbox f s t in a
+at :: Pull a -> Time -> a
+at (K a) _ =  a
+at (Fun s f) t = let (a :* _) = unbox f s t in a
 
-mapF :: Box (a -> b) -> Fun a -> Fun b
-mapF f (K a) = K (unbox f a)
-mapF f (Fun s f') = Fun s (box (\s t -> let (a :* s') = unbox f' s t in (unbox f a :* s')))
+mapP :: Box (a -> b) -> Pull a -> Pull b
+mapP f (K a) = K (unbox f a)
+mapP f (Fun s f') = Fun s (box (\s t -> let (a :* s') = unbox f' s t in (unbox f a :* s')))
 
 delayCF :: O(a -> C b) -> O(a -> b)
 delayCF (Delay c f) = Delay c (\inp a -> advC' (f inp a) inp)
 
-newtype Beh a = Beh (Sig (Fun a))
+newtype Beh a = Beh (Sig (Pull a))
 
-unwrap :: Beh a -> Sig (Fun a)
+unwrap :: Beh a -> Sig (Pull a)
 unwrap (Beh a) = a
 
 cont :: Box (Time -> a) -> Beh a
@@ -46,7 +46,7 @@ timeBehaviour :: Beh Time
 timeBehaviour = cont (box id)
 
 map :: Box (a -> b) -> Beh a -> Beh b
-map f (Beh (x ::: xs)) = Beh (mapF f x ::: delay (unwrap $ map f (Beh (adv xs))))
+map f (Beh (x ::: xs)) = Beh (mapP f x ::: delay (unwrap $ map f (Beh (adv xs))))
 
 sampleInterval :: O ()
 sampleInterval = timer 20000
@@ -57,7 +57,7 @@ discretize (Beh (K x ::: xs)) = do
   return $ x ::: rest
 discretize (Beh (Fun s f ::: xs)) = discretizeFun s f xs
   where
-    discretizeFun :: (Stable s) => s -> Box (s -> Time -> (a :* Maybe' s)) -> O (Sig (Fun a)) -> C (Sig a)
+    discretizeFun :: (Stable s) => s -> Box (s -> Time -> (a :* Maybe' s)) -> O (Sig (Pull a)) -> C (Sig a)
     discretizeFun s f xs = do
       t <- time
       let (cur :* s') = unbox f s t
@@ -222,7 +222,7 @@ integral' cur (Beh (K a ::: xs)) = do
   return (Beh (curF ::: rest))
 integral' cur (Beh (Fun s f ::: xs)) = integralFun cur s f xs
   where
-    integralFun :: forall s. (Stable s) => Float -> s -> Box (s -> Time -> (Float :* Maybe' s)) -> O (Sig (Fun Float)) -> C (Beh Float)
+    integralFun :: forall s. (Stable s) => Float -> s -> Box (s -> Time -> (Float :* Maybe' s)) -> O (Sig (Pull Float)) -> C (Beh Float)
     integralFun cur s f xs =
       do
         t <- time
@@ -255,12 +255,12 @@ integral' cur (Beh (Fun s f ::: xs)) = integralFun cur s f xs
 derivative' :: Beh Float -> C (Beh Float)
 derivative' (Beh (x ::: xs)) = do
   t <- time
-  Beh <$> der (apply x t) (x ::: xs)
+  Beh <$> der (at x t) (x ::: xs)
   where
-    der :: Float -> Sig (Fun Float) -> C (Sig (Fun Float))
+    der :: Float -> Sig (Pull Float) -> C (Sig (Pull Float))
     der last (Fun s f ::: xs) = derFun last s f xs
       where
-        derFun :: forall s. (Stable s) => Float -> s -> Box (s -> Time -> (Float :* Maybe' s)) -> O (Sig (Fun Float)) -> C (Sig (Fun Float))
+        derFun :: forall s. (Stable s) => Float -> s -> Box (s -> Time -> (Float :* Maybe' s)) -> O (Sig (Pull Float)) -> C (Sig (Pull Float))
         derFun last s f xs = do
           t <- time
           let rest =

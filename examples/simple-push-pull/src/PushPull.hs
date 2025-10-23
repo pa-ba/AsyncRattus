@@ -9,9 +9,9 @@ import qualified WidgetRattus.Signal as Sig
 import Prelude hiding (map, const, zipWith, zipWith3, zip, filter)
 
 type Ev a     = O (Sig a)
-type Beh a    = Sig (Fun a)
+type Beh a    = Sig (Pull a)
 
-data Fun a  = K !a | Fun !(Box (Time -> a))
+data Pull a  = K !a | Fun !(Box (Time -> a))
 
 mapE :: Box (a -> b) -> Ev a -> Ev b
 mapE f xs = delay (let (x ::: xs') = adv xs in unbox f x ::: mapE f xs')
@@ -39,21 +39,21 @@ stepper :: a -> Ev a -> Beh a
 stepper initial ev = (K initial ::: mapE (box K) ev)
 
 mapB :: Box (a -> b) -> Beh a -> Beh b
-mapB f (x ::: xs) = mapF f x ::: delay (mapB f (adv xs))
+mapB f (x ::: xs) = mapP f x ::: delay (mapB f (adv xs))
 
-mapF :: Box (a -> b) -> Fun a -> Fun b 
-mapF f (K a)    = K (unbox f a) 
-mapF f (Fun t)  = Fun (box (unbox f . unbox t))
+mapP :: Box (a -> b) -> Pull a -> Pull b 
+mapP f (K a)    = K (unbox f a) 
+mapP f (Fun t)  = Fun (box (unbox f . unbox t))
 
-mapF2 :: (Stable a, Stable b) => Box (a -> b -> c) -> Fun a -> Fun b -> Fun c
-mapF2 f (K x)    (K y)    = K    (unbox f x y)
-mapF2 f (Fun x)  (Fun y)  = Fun  (box (\ t -> unbox f (unbox x t) (unbox y t)))
-mapF2 f (Fun x)  (K y)    = Fun  (box (\ t -> unbox f (unbox x t) y))
-mapF2 f (K x)    (Fun y)  = Fun  (box (unbox f x . unbox y))
+mapP2 :: (Stable a, Stable b) => Box (a -> b -> c) -> Pull a -> Pull b -> Pull c
+mapP2 f (K x)    (K y)    = K    (unbox f x y)
+mapP2 f (Fun x)  (Fun y)  = Fun  (box (\ t -> unbox f (unbox x t) (unbox y t)))
+mapP2 f (Fun x)  (K y)    = Fun  (box (\ t -> unbox f (unbox x t) y))
+mapP2 f (K x)    (Fun y)  = Fun  (box (unbox f x . unbox y))
 
 zipWith :: (Stable a, Stable b) => Box (a -> b -> c) -> Beh a -> Beh b -> Beh c
 zipWith f (x ::: xs) (y ::: ys) =  
-  mapF2 f x y ::: delay  (case select xs ys of 
+  mapP2 f x y ::: delay  (case select xs ys of 
                             Fst   xs'  lys  -> zipWith f xs'          (y ::: lys)
                             Snd   lxs  ys'  -> zipWith f (x ::: lxs)  ys'
                             Both  xs'  ys'  -> zipWith f xs'          ys')
@@ -64,23 +64,23 @@ switch (x ::: xs) d = x ::: delay  (case select xs d of
                                       Snd   _    d'  -> d'
                                       Both  _    d'  -> d')
 
-apply :: Fun b -> Time -> b
-apply (K x)   _  =  x
-apply (Fun f) t  = unbox f t
+at :: Pull b -> Time -> b
+at (K x)   _  =  x
+at (Fun f) t  = unbox f t
 
 switchS :: Stable a => Beh a -> O (a -> Beh a) -> Beh a 
 switchS (x ::: xs) d = x ::: withTime (delay (
   case select xs d of
     Fst   xs'  d'  -> \_ -> switchS xs' d'
-    Snd   _    f   -> \t -> f (x `apply` t)
-    Both  _    f   -> \t -> f (x `apply` t)))
+    Snd   _    f   -> \t -> f (x `at` t)
+    Both  _    f   -> \t -> f (x `at` t)))
 
 switchR :: Stable a => Beh a -> Ev (a -> Beh a) -> Beh a 
 switchR (x ::: xs) ev = x ::: withTime (delay (
   case select xs ev of
     Fst   xs'  ev'          -> \_ -> switchR xs' ev'
-    Snd   _    (f ::: ev')  -> \t -> switchR (f (x `apply` t)) ev'
-    Both  _    (f ::: ev')  -> \t -> switchR (f (x `apply` t)) ev'))
+    Snd   _    (f ::: ev')  -> \t -> switchR (f (x `at` t)) ev'
+    Both  _    (f ::: ev')  -> \t -> switchR (f (x `at` t)) ev'))
 
 filter :: Box (a -> Bool) -> Ev a -> Ev (Maybe' a)
 filter p = mapE (box (\ x -> if unbox p x then Just' x else Nothing'))
@@ -89,6 +89,6 @@ filter p = mapE (box (\ x -> if unbox p x then Just' x else Nothing'))
 sample :: Stable a => Box (a -> b -> c) -> Ev a -> Beh b -> Ev (Maybe' b)
 sample f ev (x ::: xs) = run x ev xs where
   run x ev xs = withTime $ delay (case select ev xs of 
-    Fst (e ::: ev') xs' -> \t -> Just' (unbox f e (x `apply` t)) ::: run x ev' xs'
+    Fst (e ::: ev') xs' -> \t -> Just' (unbox f e (x `at` t)) ::: run x ev' xs'
     Snd ev (x' ::: xs') -> \_ -> Nothing' ::: run x' ev' xs'
-    Both (e ::: ev') (x' ::: xs') -> \t -> Just' (unbox f e (x' `apply` t)) ::: run x' ev' xs')
+    Both (e ::: ev') (x' ::: xs') -> \t -> Just' (unbox f e (x' `at` t)) ::: run x' ev' xs')

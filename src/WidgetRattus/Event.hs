@@ -72,18 +72,18 @@ trigger f (Sparse ev) (Beh beh) = Sparse (run ev beh) where
   run as (b ::: bs) = withTime $ delay
     ( let d = select as bs
       in \ t -> case d of
-        Fst (Just' a'' ::: as') bs' -> Just' (unbox f a'' (apply b t)) ::: run as' (b ::: bs')
+        Fst (Just' a'' ::: as') bs' -> Just' (unbox f a'' (at b t)) ::: run as' (b ::: bs')
         Fst (Nothing' ::: as') bs' -> Nothing' ::: run as' (b ::: bs')
         Snd as' bs' -> Nothing' ::: run as' bs'
-        Both (Just' a'' ::: as') (b' ::: bs') -> Just' (unbox f a'' (apply b' t)) ::: run as' (b' ::: bs')
+        Both (Just' a'' ::: as') (b' ::: bs') -> Just' (unbox f a'' (at b' t)) ::: run as' (b' ::: bs')
         Both (Nothing' ::: as') (b' ::: bs') -> Nothing' ::: run as' (b' ::: bs'))
 trigger f (Dense ev) (Beh beh) = Sparse (run ev beh) where
   run as (b ::: bs) =  withTime $ delay
     ( let d = select as bs
       in \ t -> case d of
-          Fst (a' ::: as') bs' -> Just' (unbox f a' (apply b t)) ::: run as' (b ::: bs')
+          Fst (a' ::: as') bs' -> Just' (unbox f a' (at b t)) ::: run as' (b ::: bs')
           Snd as' bs' -> Nothing' ::: run as' bs'
-          Both (a' ::: as') (b' ::: bs') -> Just' (unbox f a' (apply b' t)) ::: run as' (b' ::: bs') )
+          Both (a' ::: as') (b' ::: bs') -> Just' (unbox f a' (at b' t)) ::: run as' (b' ::: bs') )
 
 interleave :: Box (a -> a -> a) -> Ev a -> Ev a -> Ev a
 interleave f (Dense xs) (Dense ys) = Dense (run xs ys) where
@@ -152,8 +152,8 @@ switchS (Beh (x ::: xs)) d = Beh (x ::: withTime (delay (
               let ticker = select xs d
               in \ t -> case ticker of
                             Fst xs' d' -> unwrap $ switchS (Beh xs') d'
-                            Snd _ f -> unwrap $ f (apply x t)
-                            Both _ f -> unwrap $ f (apply x t))))
+                            Snd _ f -> unwrap $ f (at x t)
+                            Both _ f -> unwrap $ f (at x t))))
 
 switchS' :: (Stable a) => Beh a -> O (a -> C (Beh a)) -> Beh a
 switchS' (Beh (x ::: xs)) d = Beh (x ::: delayC (delay
@@ -164,8 +164,8 @@ switchS' (Beh (x ::: xs)) d = Beh (x ::: delayC (delay
                             ( case ticker of
                                 Fst xs' d' -> do
                                   return $ switchS' (Beh xs') d'
-                                Snd _ f -> f (apply x t)
-                                Both _ f -> f (apply x t)
+                                Snd _ f -> f (at x t)
+                                Both _ f -> f (at x t)
                             )
                       unwrap <$> result
               )
@@ -182,9 +182,9 @@ switchSM (Beh (x ::: xs)) d =
                       return
                         ( case ticker of
                             Fst xs' d' -> unwrap $ switchSM (Beh xs') d'
-                            Snd _ (Just' f) -> unwrap $ f (apply x t)
+                            Snd _ (Just' f) -> unwrap $ f (at x t)
                             Snd xs' Nothing' -> x ::: xs'
-                            Both _ (Just' f) -> unwrap $ f (apply x t)
+                            Both _ (Just' f) -> unwrap $ f (at x t)
                             Both xs' Nothing' -> xs'
                         )
               )
@@ -202,9 +202,9 @@ switchSM' (Beh (x ::: xs)) d =
                       let result =
                             ( case ticker of
                                 Fst xs' d' -> do return $ switchSM' (Beh xs') d'
-                                Snd _ (Just' f) -> f (apply x t)
+                                Snd _ (Just' f) -> f (at x t)
                                 Snd xs' Nothing' -> do return $ Beh (x ::: xs')
-                                Both _ (Just' f) -> f (apply x t)
+                                Both _ (Just' f) -> f (at x t)
                                 Both xs' Nothing' -> do return $ Beh xs'
                             )
 

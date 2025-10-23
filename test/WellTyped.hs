@@ -148,45 +148,45 @@ unusedAdv' d = delay (let _ = adv d in ())
 
 -- check whether the Stable constraint solver handles GADTs correctly.
 
-data Fun a where
-  Fun :: Stable s => !s -> !(Box(s -> Int -> (s :* a))) -> Fun a
+data Pull a where
+  Fun :: Stable s => !s -> !(Box(s -> Int -> (s :* a))) -> Pull a
 
 
-newtype Beh a = Beh (Sig (Fun a))
+newtype Beh a = Beh (Sig (Pull a))
 
-funTest :: Fun a -> O () -> O (Fun a)
+funTest :: Pull a -> O () -> O (Pull a)
 funTest fun@(Fun x f) d = delay (let _ = adv d in x `seq` fun)
 
-funTest2 :: Fun a -> O () -> O (Fun a)
+funTest2 :: Pull a -> O () -> O (Pull a)
 funTest2 fun d = case fun of (!(Fun x f)) -> delay (let _ = adv d in x `seq` fun)
 
-funTest3 :: C (Fun a) -> O () -> C (O (Fun a))
+funTest3 :: C (Pull a) -> O () -> C (O (Pull a))
 funTest3 fun d = do Fun x f <-  fun 
                     fun' <- fun
                     return (delay (let _ = adv d in x `seq` fun'))
 
-funTest4 :: Fun a -> O () -> C (O (Fun a))
+funTest4 :: Pull a -> O () -> C (O (Pull a))
 funTest4 fun@(Fun x f) d = do let (x':* v) = unbox f x 0
                               return (delay (let _ = adv d in x' `seq` fun))
 
 
 
-funTest5 :: Fun a -> O () -> O (Fun a)
+funTest5 :: Pull a -> O () -> O (Pull a)
 funTest5 fun@(Fun x f) d = delay (let _ = adv d in x' `seq` fun)
   where (x':* v) = unbox f x 0
 
 
-funTest6 :: Fun a -> O () -> O (Fun a)
+funTest6 :: Pull a -> O () -> O (Pull a)
 funTest6 fun@(Fun x f) d = let (x':* v) = unbox f x 0 in delay (let _ = adv d in x' `seq` fun)
 
 
 
-funTestWorkaround :: Fun a -> O () -> O (Fun a)
+funTestWorkaround :: Pull a -> O () -> O (Pull a)
 funTestWorkaround fun@(Fun x f) d = foo x fun
-  where foo :: Stable s => s -> (Fun a) -> O (Fun a)
+  where foo :: Stable s => s -> (Pull a) -> O (Pull a)
         foo x fun = delay (let _ = adv d in x `seq` fun)
 
-zipFun :: Box (a -> b -> c) -> Fun a -> Fun b -> Fun c
+zipFun :: Box (a -> b -> c) -> Pull a -> Pull b -> Pull c
 zipFun f (Fun sa fa) (Fun sb fb) = Fun (sa :* sb) 
   (box (\ (sa' :* sb') t -> 
           let (sa'' :* a) = unbox fa sa' t

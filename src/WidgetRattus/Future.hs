@@ -15,7 +15,7 @@ module WidgetRattus.Future
   , current
   , future
   , bindF
-  , mapF
+  , mapP
   , sync
   , syncF
   , switchAwait
@@ -52,8 +52,8 @@ bindF :: F a -> Box (a -> F b) -> F b
 bindF (Now x) f = unbox f x
 bindF (Wait x) f = Wait (delay (bindF (adv x) f))
 
-mapF :: Box (a -> b) -> F a -> F b
-mapF f d = d `bindF` (box (\ x -> Now (unbox f x)))
+mapP :: Box (a -> b) -> F a -> F b
+mapP f d = d `bindF` (box (\ x -> Now (unbox f x)))
 
 
 sync :: O (F a) -> O (F b) -> O (F a :* F b)
