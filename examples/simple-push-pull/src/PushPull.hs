@@ -84,3 +84,11 @@ switchR (x ::: xs) ev = x ::: withTime (delay (
 
 filter :: Box (a -> Bool) -> Ev a -> Ev (Maybe' a)
 filter p = mapE (box (\ x -> if unbox p x then Just' x else Nothing'))
+
+
+sample :: Stable a => Box (a -> b -> c) -> Ev a -> Beh b -> Ev (Maybe' b)
+sample f ev (x ::: xs) = run x ev xs where
+  run x ev xs = withTime $ delay (case select ev xs of 
+    Fst (e ::: ev') xs' -> \t -> Just' (unbox f e (x `apply` t)) ::: run x ev' xs'
+    Snd ev (x' ::: xs') -> \_ -> Nothing' ::: run x' ev' xs'
+    Both (e ::: ev') (x' ::: xs') -> \t -> Just' (unbox f e (x' `apply` t)) ::: run x' ev' xs')
