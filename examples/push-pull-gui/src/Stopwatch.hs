@@ -19,15 +19,15 @@ elapsedTime' =
     startTime <- time
     return (\f -> cont (box (\currentTime -> f + diffTime currentTime startTime)))
 
-timerExample :: C VStack'
+timerExample :: C VStack
 timerExample = do
   -- Time
   startElapsedTime <- elapsedTime
   
   -- Buttons
-  startBtn <- mkButton' (mkConstText "Start")
+  startBtn <- mkButton (mkConstText "Start")
   let startEv = btnOnClick startBtn
-  stopBtn <- mkButton' (mkConstText "Stop")
+  stopBtn <- mkButton (mkConstText "Stop")
   let stopEv = btnOnClick stopBtn
   
   -- Start and stop events
@@ -40,16 +40,16 @@ timerExample = do
   let stopWatchSig = switchR (const 0) combinedInput
 
   -- UI
-  timeLabName <- mkLabel' (mkConstText "Current Time:")
-  swLabName <- mkLabel' (mkConstText "Elapsed Time:")
+  timeLabName <- mkLabel (mkConstText "Current Time:")
+  swLabName <- mkLabel (mkConstText "Elapsed Time:")
 
-  timeLab <- mkLabel' startElapsedTime
-  stopWatchLab <- mkLabel' stopWatchSig
+  timeLab <- mkLabel startElapsedTime
+  stopWatchLab <- mkLabel stopWatchSig
   
-  time <- mkConstHStack' (timeLabName :* timeLab)
-  sw <- mkConstHStack' (swLabName :* stopWatchLab)
-  buttons <- mkConstHStack' (startBtn :* stopBtn)
-  mkConstVStack' (time :* sw :* buttons)
+  time <- mkConstHStack (timeLabName :* timeLab)
+  sw <- mkConstHStack (swLabName :* stopWatchLab)
+  buttons <- mkConstHStack (startBtn :* stopBtn)
+  mkConstVStack (time :* sw :* buttons)
 
 main :: IO ()
-main = runApplication' timerExample
+main = runApplication timerExample

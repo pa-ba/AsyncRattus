@@ -26,17 +26,17 @@ compute (n :* Minus  :* _) (m :* op)    = (n - m) :* op :* True
 compute (_ :* Equals :* _) (m :* op)    = m :* op :* True
 compute (_ :* Reset  :* _) (m :* op)    = m :* op :* True
 
-calculatorExample :: C VStack'
+calculatorExample :: C VStack
 calculatorExample = do
   -- Buttons
-  numBtns :: List Button' <-
-    mapM (mkButton' . const) nums
+  numBtns :: List Button <-
+    mapM (mkButton . const) nums
 
   let [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9] = numBtns
-  resetBut <- mkButton' (mkConstText "C")
-  addBut <- mkButton' (mkConstText "+")
-  subBut <- mkButton' (mkConstText "-")
-  eqBut <- mkButton' (mkConstText "=")
+  resetBut <- mkButton (mkConstText "C")
+  addBut <- mkButton (mkConstText "+")
+  subBut <- mkButton (mkConstText "-")
+  eqBut <- mkButton (mkConstText "=")
 
   -- Event to construct numbers
   let numClicks :: List (Ev (Int -> Int)) =
@@ -81,16 +81,16 @@ calculatorExample = do
         zipWith (box (\(n :* _ :* b) m -> if b then n else m)) (stepper (0 :* Plus :* False) resultEv) (stepper 0 numberEv)
 
   -- UI
-  result <- mkLabel' displayBeh
-  operators <- mkConstVStack' (resetBut :* addBut :* subBut :* eqBut)
-  row1 <- mkConstHStack' (b7 :* b8 :* b9)
-  row2 <- mkConstHStack' (b4 :* b5 :* b6)
-  row3 <- mkConstHStack' (b1 :* b2 :* b3)
+  result <- mkLabel displayBeh
+  operators <- mkConstVStack (resetBut :* addBut :* subBut :* eqBut)
+  row1 <- mkConstHStack (b7 :* b8 :* b9)
+  row2 <- mkConstHStack (b4 :* b5 :* b6)
+  row3 <- mkConstHStack (b1 :* b2 :* b3)
 
-  numbers <- mkConstVStack' (row1 :* row2 :* row3 :* b0)
+  numbers <- mkConstVStack (row1 :* row2 :* row3 :* b0)
 
-  input <- mkConstHStack' (numbers :* operators)
-  mkConstVStack' (result :* input)
+  input <- mkConstHStack (numbers :* operators)
+  mkConstVStack (result :* input)
 
 main :: IO ()
-main = runApplication' calculatorExample
+main = runApplication calculatorExample

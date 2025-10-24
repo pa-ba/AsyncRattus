@@ -31,7 +31,7 @@ timeFrom = do
          in stopWith (box (\(a :* _) -> if nominalToInt a >= max then Just' (intToNominal max :* max) else Nothing')) addTime
     )
 
-timerExample :: C VStack'
+timerExample :: C VStack
 timerExample = do
   let initialMax = 5
   elapsedTime <- do
@@ -39,12 +39,12 @@ timerExample = do
     return (f initialMax 0)
 
   -- Slider
-  maxSlider <- mkSlider' initialMax (const 1) (const 100)
+  maxSlider <- mkSlider initialMax (const 1) (const 100)
   let maxBeh = sldCurr maxSlider
   let maxChangeEv = sliderOnChange maxSlider
 
   -- Reset button
-  resetBtn <- mkButton' $ mkConstText "Reset timer"
+  resetBtn <- mkButton $ mkConstText "Reset timer"
   let resetTrigger = btnOnClickEv resetBtn
 
   -- Input events
@@ -73,9 +73,9 @@ timerExample = do
   let timer = switchR elapsedTime combinedInput
 
   -- UI
-  text <- mkLabel' (mapB (box (\(t :* _) -> "Current: " <> toText (nominalToInt t))) timer)
-  maxText <- mkLabel' (mapB (box (\max -> "Max: " <> toText max)) maxBeh)
-  mkConstVStack' $ maxSlider :* maxText :* text :* resetBtn
+  text <- mkLabel (mapB (box (\(t :* _) -> "Current: " <> toText (nominalToInt t))) timer)
+  maxText <- mkLabel (mapB (box (\max -> "Max: " <> toText max)) maxBeh)
+  mkConstVStack $ maxSlider :* maxText :* text :* resetBtn
 
 main :: IO ()
-main = runApplication' timerExample
+main = runApplication timerExample

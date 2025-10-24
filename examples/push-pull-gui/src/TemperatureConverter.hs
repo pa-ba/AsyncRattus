@@ -25,11 +25,11 @@ isNumber t =
         Right (t', "") -> Just' t'
         _ -> Nothing'
 
-window :: C HStack'
+window :: C HStack
 window = do
     -- TextFields
-    tfF1 <- mkTextField' "32"
-    tfC1 <- mkTextField' "0"
+    tfF1 <- mkTextField "32"
+    tfC1 <- mkTextField "0"
 
     -- Input events
     let fEvent = filterMap (box isNumber) (textFieldOnInput tfF1)
@@ -48,13 +48,13 @@ window = do
     let tfC2 = setInputBehTF tfC1 (mapB (box toText) c)
 
     -- UI
-    fLabel <- mkLabel' $ mkConstText "Fahrenheit"
-    cLabel <- mkLabel' $ mkConstText "Celsius"
+    fLabel <- mkLabel $ mkConstText "Fahrenheit"
+    cLabel <- mkLabel $ mkConstText "Celsius"
 
-    fStack <- mkConstVStack' (tfF2 :* fLabel)
-    cStack <- mkConstVStack' (tfC2 :* cLabel)
-    mkConstHStack' (fStack :* cStack)
+    fStack <- mkConstVStack (tfF2 :* fLabel)
+    cStack <- mkConstVStack (tfC2 :* cLabel)
+    mkConstHStack (fStack :* cStack)
 
 
 main :: IO ()
-main = runApplication' window
+main = runApplication window

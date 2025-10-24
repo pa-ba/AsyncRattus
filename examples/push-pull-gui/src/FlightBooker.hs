@@ -58,13 +58,13 @@ bookingToText oneWay dep ret =
   "You have booked a " <> if oneWay then "one-way flight on " <> dep
   else "return flight from " <> dep <> " to " <> ret
 
-flightBooker :: C VStack'
+flightBooker :: C VStack
 flightBooker = do
       -- Input UI
-      flightTypeDropdown <- mkTextDropdown' (const ["One-Way", "Return-Flight"]) "One-Way"
-      departureDateField <- mkTextField' "01-01-2021"
-      returnDateField <- mkTextField' "01-02-2021"
-      bookButton <- mkButton' (mkConstText "Book")
+      flightTypeDropdown <- mkTextDropdown (const ["One-Way", "Return-Flight"]) "One-Way"
+      departureDateField <- mkTextField "01-01-2021"
+      returnDateField <- mkTextField "01-02-2021"
+      bookButton <- mkButton (mkConstText "Book")
       
       -- Flight type checker
       let isReturnFlight = mapB (box (== "Return-Flight")) (tddCurr flightTypeDropdown)
@@ -75,9 +75,9 @@ flightBooker = do
 
       let triggerPopup = scan (box (\_ _ -> True)) False (btnOnClickEv bookButton)
       
-      summaryLabel <- mkLabel' bookingSummary
+      summaryLabel <- mkLabel bookingSummary
       summaryLabel' <- mkOldWidget summaryLabel
-      summaryPopup <- mkPopup' triggerPopup (const summaryLabel')
+      summaryPopup <- mkPopup triggerPopup (const summaryLabel')
 
       -- Valid booking checker
       let departureDateFieldIsDate = mapB (box isDate) (tfContent departureDateField)
@@ -88,7 +88,7 @@ flightBooker = do
       let validBooking = zipWith (box (||)) oneWayAndDate returnFlightAndIsLater
 
       -- UI
-      mkConstVStack' (summaryPopup :* flightTypeDropdown :* departureDateField :* setEnabled returnDateField isReturnFlight :* setEnabled bookButton validBooking)
+      mkConstVStack (summaryPopup :* flightTypeDropdown :* departureDateField :* setEnabled returnDateField isReturnFlight :* setEnabled bookButton validBooking)
 
 main :: IO ()
-main = runApplication' flightBooker
+main = runApplication flightBooker

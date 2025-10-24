@@ -32,6 +32,7 @@ module WidgetRattus.Strict
     mapMaybe',
     concatMap',
     (:*)(..),
+    (:+)(..),
     Maybe'(..),
     maybe',
     fromMaybe',
@@ -52,6 +53,11 @@ import WidgetRattus.Plugin.Annotation
 import GHC.Exts (IsList(..))
 import Data.Text hiding (foldl, singleton)
 import Text.Read (readMaybe)
+
+
+infixr 3 :+
+-- | Strict sum type.
+data a :+ b = Left' !a | Right' !b deriving (Show, Eq)
 
 infixr 2 :*
 -- | Strict pair type.
