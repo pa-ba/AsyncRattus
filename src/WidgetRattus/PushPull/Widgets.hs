@@ -227,8 +227,8 @@ btnOnClickEv :: Button -> Ev ()
 btnOnClickEv b = mkEv (btnOnClick b)
 
 
-textFieldOnInput :: TextField -> Ev Text
-textFieldOnInput tf =
+tfInputEv :: TextField -> Ev Text
+tfInputEv tf =
   let ch = tfInput tf
   in mkEv (box (wait ch))
 

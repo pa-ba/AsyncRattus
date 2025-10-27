@@ -42,8 +42,8 @@ cont f = Beh (Fun () (box (\ _ t -> (unbox f t :* Just' ()))) ::: never)
 const :: a -> Beh a
 const x = Beh (K x ::: never)
 
-timeBehaviour :: Beh Time
-timeBehaviour = cont (box id)
+timeB :: Beh Time
+timeB = cont (box id)
 
 mapB :: Box (a -> b) -> Beh a -> Beh b
 mapB f (Beh (x ::: xs)) = Beh (mapP f x ::: delay (unwrap $ mapB f (Beh (adv xs))))

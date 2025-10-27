@@ -32,8 +32,8 @@ window = do
     tfC1 <- mkTextField "0"
 
     -- Input events
-    let fEvent = filterMap (box isNumber) (textFieldOnInput tfF1)
-    let cEvent = filterMap (box isNumber) (textFieldOnInput tfC1)
+    let fEvent = filterMap (box isNumber) (tfInputEv tfF1)
+    let cEvent = filterMap (box isNumber) (tfInputEv tfC1)
 
     -- ConvertEvents
     let convertFtoC = mapE (box fahrenheitToCelsius) fEvent
