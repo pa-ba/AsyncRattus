@@ -25,8 +25,8 @@ module WidgetRattus.Future
   , filterMapAwait
   , filterAwait
   , filter
-  , trigger
-  , triggerAwait
+  , sample
+  , sampleAwait
   , map
   , mapAwait
   , zipWith
@@ -146,26 +146,26 @@ filterAwait p = filterMapAwait (box (\ x -> if unbox p x then Just' x else Nothi
 filter :: Box (a -> Bool) -> SigF a -> F (SigF a)
 filter p = filterMap (box (\ x -> if unbox p x then Just' x else Nothing'))
 
-trigger :: Stable b => Box (a -> b -> c) -> SigF a -> SigF b -> SigF c
-trigger f (a :>: as) (b :>: bs) =
+sample :: Stable b => Box (a -> b -> c) -> SigF a -> SigF b -> SigF c
+sample f (a :>: as) (b :>: bs) =
   unbox f a b :>:
-  delay (uncurry' (trigger' b f) (adv (sync as bs)))
+  delay (uncurry' (sample' b f) (adv (sync as bs)))
 
-triggerAwait :: Stable b => Box (a -> b -> c) -> F (SigF a) -> SigF b -> F (SigF c)
-triggerAwait f (Now (a :>: as)) (b :>: bs)
-  = Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
-triggerAwait f (Wait as) (b :>: bs)
-  = Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
+sampleAwait :: Stable b => Box (a -> b -> c) -> F (SigF a) -> SigF b -> F (SigF c)
+sampleAwait f (Now (a :>: as)) (b :>: bs)
+  = Now (unbox f a b :>: delay (uncurry' (sample' b f) (adv (sync as bs))))
+sampleAwait f (Wait as) (b :>: bs)
+  = Wait (delay (uncurry' (sample' b f) (adv (sync as bs))))
 
-trigger' :: Stable b => b -> Box (a -> b -> c) -> F (SigF a) -> F (SigF b) -> F (SigF c)
-trigger' b f (Now (a :>: as)) (Wait bs) =
-  Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
-trigger' _ f (Now (a :>: as)) (Now (b :>: bs)) =
-  Now (unbox f a b :>: delay (uncurry' (trigger' b f) (adv (sync as bs))))
-trigger' b f (Wait as) (Wait bs) =
-  Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
-trigger' _ f (Wait as) (Now (b :>: bs)) =
-  Wait (delay (uncurry' (trigger' b f) (adv (sync as bs))))
+sample' :: Stable b => b -> Box (a -> b -> c) -> F (SigF a) -> F (SigF b) -> F (SigF c)
+sample' b f (Now (a :>: as)) (Wait bs) =
+  Now (unbox f a b :>: delay (uncurry' (sample' b f) (adv (sync as bs))))
+sample' _ f (Now (a :>: as)) (Now (b :>: bs)) =
+  Now (unbox f a b :>: delay (uncurry' (sample' b f) (adv (sync as bs))))
+sample' b f (Wait as) (Wait bs) =
+  Wait (delay (uncurry' (sample' b f) (adv (sync as bs))))
+sample' _ f (Wait as) (Now (b :>: bs)) =
+  Wait (delay (uncurry' (sample' b f) (adv (sync as bs))))
 
 
 mapAwait :: Box (a -> b) -> F (SigF a) -> F (SigF b)

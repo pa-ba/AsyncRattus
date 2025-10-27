@@ -73,11 +73,11 @@ flightBooker = do
       -- Popup
       let bookingSummary = zipWith3 (box bookingToText) isOneWayFlight (tfContent departureDateField) (tfContent returnDateField)
 
-      let triggerPopup = scan (box (\_ _ -> True)) False (btnOnClickEv bookButton)
+      let samplePopup = scan (box (\_ _ -> True)) False (btnOnClickEv bookButton)
       
       summaryLabel <- mkLabel bookingSummary
       summaryLabel' <- mkOldWidget summaryLabel
-      summaryPopup <- mkPopup triggerPopup (const summaryLabel')
+      summaryPopup <- mkPopup samplePopup (const summaryLabel')
 
       -- Valid booking checker
       let departureDateFieldIsDate = mapB (box isDate) (tfContent departureDateField)

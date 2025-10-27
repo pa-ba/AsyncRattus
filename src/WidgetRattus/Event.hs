@@ -67,8 +67,8 @@ stepper initial event =
                 Nothing' -> Beh (K initial ::: delay (unwrap (adv (aux initial (Sparse xs)))))
         )
 
-trigger :: (Stable b) => Box (a -> b -> c) -> Ev a -> Beh b -> Ev c
-trigger f (Sparse ev) (Beh beh) = Sparse (run ev beh) where
+sample :: (Stable b) => Box (a -> b -> c) -> Ev a -> Beh b -> Ev c
+sample f (Sparse ev) (Beh beh) = Sparse (run ev beh) where
   run as (b ::: bs) = withTime $ delay
     ( let d = select as bs
       in \ t -> case d of
@@ -77,7 +77,7 @@ trigger f (Sparse ev) (Beh beh) = Sparse (run ev beh) where
         Snd as' bs' -> Nothing' ::: run as' bs'
         Both (Just' a'' ::: as') (b' ::: bs') -> Just' (unbox f a'' (at b' t)) ::: run as' (b' ::: bs')
         Both (Nothing' ::: as') (b' ::: bs') -> Nothing' ::: run as' (b' ::: bs'))
-trigger f (Dense ev) (Beh beh) = Sparse (run ev beh) where
+sample f (Dense ev) (Beh beh) = Sparse (run ev beh) where
   run as (b ::: bs) =  withTime $ delay
     ( let d = select as bs
       in \ t -> case d of

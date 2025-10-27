@@ -68,7 +68,7 @@ window = do
     -- operator @op@. @n@ is the value of @numberSig@ just before
     -- clicking an operator button, and op is taken from opSig
     let operand :: Sig (Maybe' (Int :* Op))
-         = Nothing' ::: triggerAwaitM (box (\op n -> Just' (n :* op))) opSig (buffer 0 numberSig)
+         = Nothing' ::: sampleAwaitM (box (\op n -> Just' (n :* op))) opSig (buffer 0 numberSig)
 
     -- The result signal consisting of a number n that is the result
     -- of the current computation, an operator op that still needs to

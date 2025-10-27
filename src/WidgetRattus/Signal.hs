@@ -16,10 +16,10 @@ module WidgetRattus.Signal
   , switch
   , switchS
   , switchR
-  , trigger
-  , triggerAwait
-  , triggerM
-  , triggerAwaitM
+  , sample
+  , sampleAwait
+  , sampleM
+  , sampleAwaitM
   , buffer
   , bufferAwait
   , switchAwait
@@ -294,8 +294,8 @@ cond = zipWith3 (box (\b x y -> if b then x else y))
 zip :: (Stable a, Stable b) => Sig a -> Sig b -> Sig (a:*b)
 zip = zipWith (box (:*))
 
--- | This function is a variant of 'trigger' that works on a delayed
--- input signal. To this end, 'triggerAwait' takes an additional
+-- | This function is a variant of 'sample' that works on a delayed
+-- input signal. To this end, 'sampleAwait' takes an additional
 -- argument that is the initial value of output signal.
 --
 -- Example:
@@ -303,17 +303,17 @@ zip = zipWith (box (:*))
 -- >                             xs:    1     0 5 2
 -- >                             ys:  5 1 2 3     2
 -- >
--- > triggerAwait (box (+)) 0 xy ys:  0 2 2 2 3 8 4
+-- > sampleAwait (box (+)) 0 xy ys:  0 2 2 2 3 8 4
 
-triggerAwait :: (Stable b, Stable c) => Box (a -> b -> c) -> c -> O (Sig a) -> Sig b -> Sig c
-triggerAwait f c as (b ::: bs) = c :::
+sampleAwait :: (Stable b, Stable c) => Box (a -> b -> c) -> c -> O (Sig a) -> Sig b -> Sig c
+sampleAwait f c as (b ::: bs) = c :::
     delay (case select as bs of
-            Fst (a' ::: as') bs' -> triggerAwait f (unbox f a' b) as' (b ::: bs')
-            Snd as' bs' -> triggerAwait f c as' bs'
-            Both (a' ::: as') (b' ::: bs') -> triggerAwait f (unbox f a' b') as' (b' ::: bs'))
+            Fst (a' ::: as') bs' -> sampleAwait f (unbox f a' b) as' (b ::: bs')
+            Snd as' bs' -> sampleAwait f c as' bs'
+            Both (a' ::: as') (b' ::: bs') -> sampleAwait f (unbox f a' b') as' (b' ::: bs'))
 
 
--- | This function is a variant of 'triggerAwait' that only produces a
+-- | This function is a variant of 'sampleAwait' that only produces a
 -- value when the first signal ticks; otherwise it produces
 -- @Nothing'@.
 --
@@ -322,19 +322,19 @@ triggerAwait f c as (b ::: bs) = c :::
 -- >                             xs:    1     0 5 2
 -- >                             ys:  5 1 2 3     2
 -- >
--- > triggerAwaitM (box plus) xy ys:    2 N N 3 8 4 where plus x y =
+-- > sampleAwaitM (box plus) xy ys:    2 N N 3 8 4 where plus x y =
 -- Just' (x+y)
 
-triggerAwaitM :: Stable b => Box (a -> b -> Maybe' c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
-triggerAwaitM f as (b ::: bs) = 
+sampleAwaitM :: Stable b => Box (a -> b -> Maybe' c) -> O (Sig a) -> Sig b -> O (Sig (Maybe' c))
+sampleAwaitM f as (b ::: bs) = 
     delay (case select as bs of
-            Fst (a' ::: as') bs' -> unbox f a' b ::: triggerAwaitM f as' (b ::: bs')
-            Snd as' bs' -> Nothing' ::: triggerAwaitM f as' bs'
-            Both (a' ::: as') (b' ::: bs') -> unbox f a' b' ::: triggerAwaitM f as' (b' ::: bs'))
+            Fst (a' ::: as') bs' -> unbox f a' b ::: sampleAwaitM f as' (b ::: bs')
+            Snd as' bs' -> Nothing' ::: sampleAwaitM f as' bs'
+            Both (a' ::: as') (b' ::: bs') -> unbox f a' b' ::: sampleAwaitM f as' (b' ::: bs'))
 
 -- | This function is a variant of 'zipWith'. Whereas @zipWith f xs
 -- ys@ produces a new value whenever @xs@ or @ys@ produce a new value,
--- @trigger f xs ys@ only produces a new value when xs produces a new
+-- @sample f xs ys@ only produces a new value when xs produces a new
 -- value, otherwise it just repeats the previous value.
 --
 -- Example:
@@ -343,12 +343,12 @@ triggerAwaitM f as (b ::: bs) =
 -- >                      ys:  1 2 3     2
 -- >
 -- > zipWith (box (+)) xs ys:  2 3 4 3 8 4
--- > trigger (box (+)) xy ys:  2 2 2 3 8 4
+-- > sample (box (+)) xy ys:  2 2 2 3 8 4
 
-trigger :: (Stable b, Stable c) => Box (a -> b -> c) -> Sig a -> Sig b -> Sig c
-trigger f (a:::as) bs@(b ::: _) = triggerAwait f (unbox f a b) as bs
+sample :: (Stable b, Stable c) => Box (a -> b -> c) -> Sig a -> Sig b -> Sig c
+sample f (a:::as) bs@(b ::: _) = sampleAwait f (unbox f a b) as bs
 
--- | This function is a variant of 'trigger' that only produces a
+-- | This function is a variant of 'sample' that only produces a
 -- value when the first signal ticks; otherwise it produces
 -- @Nothing'@.
 --
@@ -358,12 +358,12 @@ trigger f (a:::as) bs@(b ::: _) = triggerAwait f (unbox f a b) as bs
 -- >                      ys:  1 2 3     2
 -- >
 -- > zipWith (box plus) xs ys:  2 3 4 3 8 4
--- > trigger (box plus) xy ys:  2 N N 3 8 4
+-- > sample (box plus) xy ys:  2 N N 3 8 4
 -- where
 -- > plus x y = Just' (x+y)
 
-triggerM :: Stable b => Box (a -> b -> Maybe' c) -> Sig a -> Sig b -> Sig (Maybe' c)
-triggerM f (a:::as) bs@(b ::: _) = unbox f a b ::: triggerAwaitM f as bs
+sampleM :: Stable b => Box (a -> b -> Maybe' c) -> Sig a -> Sig b -> Sig (Maybe' c)
+sampleM f (a:::as) bs@(b ::: _) = unbox f a b ::: sampleAwaitM f as bs
 
 
 -- Buffer takes an initial value and a signal as input and returns a signal that
