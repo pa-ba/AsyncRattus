@@ -76,7 +76,7 @@ flightBooker = do
       let samplePopup = scan (box (\_ _ -> True)) False (btnOnClickEv bookButton)
       
       summaryLabel <- mkLabel bookingSummary
-      summaryLabel' <- mkOldWidget summaryLabel
+      summaryLabel' <- (mkDiscrWidget (mkWidget summaryLabel))
       summaryPopup <- mkPopup samplePopup (const summaryLabel')
 
       -- Valid booking checker

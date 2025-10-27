@@ -52,29 +52,25 @@ sampleInterval :: O ()
 sampleInterval = timer 20000
 
 discretize :: Beh a -> C (Sig a)
-discretize (Beh (K x ::: xs)) = do
-  let rest = delayC $ delay (let x' = adv xs in discretize (Beh x'))
-  return $ x ::: rest
-discretize (Beh (Fun s f ::: xs)) = discretizeFun s f xs
+discretize b = discretizeT b <$> time
+
+discretizeT :: Beh a -> Time -> Sig a
+discretizeT (Beh (K x ::: xs)) _ = x ::: withTime (delay (discretizeT (Beh (adv xs))))
+discretizeT (Beh (Fun s f ::: xs)) t = discretizeFun s f xs t
   where
-    discretizeFun :: (Stable s) => s -> Box (s -> Time -> (a :* Maybe' s)) -> O (Sig (Pull a)) -> C (Sig a)
-    discretizeFun s f xs = do
-      t <- time
-      let (cur :* s') = unbox f s t
-
-      let rest =
-            case s' of
-              Just' s'' ->
-                delayC $
-                  delay
+    discretizeFun :: (Stable s) => s -> Box (s -> Time -> (a :* Maybe' s)) -> O (Sig (Pull a)) -> Time -> Sig a
+    discretizeFun s f xs t = cur ::: rest where
+      (cur :* s') = unbox f s t
+      rest = case s' of 
+               Nothing' -> withTime (delay (discretizeT (Beh (adv xs))))
+               Just' s'' -> withTime $ delay
                     ( case select xs sampleInterval of
-                        Fst x _ -> discretize (Beh x)
-                        Snd beh' _ -> discretize (Beh (Fun s'' f ::: beh'))
-                        Both x _ -> discretize (Beh x)
+                        Fst  x     _ -> discretizeT (Beh x)
+                        Snd  beh'  _ -> discretizeT (Beh (Fun s'' f ::: beh'))
+                        Both x     _ -> discretizeT (Beh x)
                     )
-              Nothing' -> delayC $ delay (let sig = adv xs in discretize (Beh sig))
+              
 
-      return (cur ::: rest)
 
 elapsedTime :: C (Beh NominalDiffTime)
 elapsedTime = do

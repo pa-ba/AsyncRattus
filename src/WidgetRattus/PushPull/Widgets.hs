@@ -10,6 +10,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 module WidgetRattus.PushPull.Widgets where
 
 import WidgetRattus.Behaviour
@@ -25,8 +26,13 @@ import qualified Prelude
 
 
 
-class (Continuous a) => IsWidget a where
-  mkOldWidget :: a -> C WR.Widget
+class (Continuous a, WR.IsWidget (DiscrWidget a)) => IsWidget a where
+  type DiscrWidget a
+  mkDiscrWidget :: a -> C (DiscrWidget a)
+
+
+  mkWidget :: a -> Widget
+  mkWidget w = Widget w (const True)
 
   setEnabled :: a -> Beh Bool -> Widget
   setEnabled = Widget
@@ -38,18 +44,22 @@ data Widget where
 
 continuous ''Widget
 instance IsWidget Widget where
-  mkOldWidget (Widget w beh) = do
+  type DiscrWidget Widget = WR.Widget
+  mkDiscrWidget (Widget w beh) = do
     beh' <- discretize beh
-    w' <- mkOldWidget w
+    w' <- mkDiscrWidget w
     return (WR.Widget w' beh')
+  
+  mkWidget w = w
+  setEnabled (Widget w _) e = Widget w e
 
 class Widgets ws where
       toWidgetList :: ws -> C (List WR.Widget)
 
 instance {-# OVERLAPPABLE #-} IsWidget w => Widgets w where
       toWidgetList w = do
-        w' <- mkOldWidget w
-        return [ w' ]
+        w' <- mkDiscrWidget w
+        return [ WR.mkWidget w' ]
 
 instance {-# OVERLAPPING #-} (Widgets w, Widgets v) => Widgets (w :* v) where
       toWidgetList (w :* v) = do
@@ -62,10 +72,9 @@ instance {-# OVERLAPPING #-} (Widgets w) => Widgets (List w) where
       toWidgetList w = do
         toWidgetList w
 
-instance {-# OVERLAPPABLE #-} (WR.IsWidget a, Continuous a) => IsWidget a where
-  mkOldWidget a = do
-    let w = WR.mkWidget a
-    return w
+-- instance {-# OVERLAPPABLE #-} (WR.IsWidget a, Continuous a) => IsWidget a where
+--   type DiscrWidget a = a
+--   mkDiscrWidget a = return a
 
 -- HStack 
 data HStack where
@@ -75,9 +84,10 @@ data HStack where
 continuous ''HStack
 
 instance IsWidget HStack where
-      mkOldWidget (HStack ws) = do
-        ws' <- discretize ws
-        return $ WR.mkWidget (WR.HStack ws')
+  type DiscrWidget HStack = WR.HStack
+  mkDiscrWidget (HStack ws) = do
+    ws' <- discretize ws
+    return (WR.HStack ws')
 
 mkHStack :: WR.IsWidget a => Beh(List a) -> C HStack
 mkHStack wl = do
@@ -94,9 +104,10 @@ data VStack where
 
 continuous ''VStack
 instance IsWidget VStack where
-  mkOldWidget (VStack ws) = do
+  type DiscrWidget VStack = WR.VStack
+  mkDiscrWidget (VStack ws) = do
     ws' <- discretize ws
-    return $ WR.mkWidget (WR.VStack ws')
+    return (WR.VStack ws')
 
 mkVStack :: WR.IsWidget a => Beh(List a) -> C VStack
 mkVStack wl = do
@@ -114,10 +125,11 @@ data TextDropdown =
 
 continuous ''TextDropdown
 instance IsWidget TextDropdown where
-  mkOldWidget (TextDropdown cur ev list) = do
+  type DiscrWidget TextDropdown = WR.TextDropdown
+  mkDiscrWidget (TextDropdown cur ev list) = do
     cur' <- discretize cur
     list' <- discretize list
-    return $ WR.mkWidget (WR.TextDropdown cur' ev list')
+    return (WR.TextDropdown cur' ev list')
 
 mkTextDropdown :: Beh (List Text) -> Text -> C TextDropdown
 mkTextDropdown opts initial = do
@@ -132,10 +144,11 @@ data Popup =
 
 continuous ''Popup
 instance IsWidget Popup where
-      mkOldWidget (Popup curr ch child) = do
+      type DiscrWidget Popup = WR.Popup
+      mkDiscrWidget (Popup curr ch child) = do
         curr' <- discretize curr
         child' <- discretize child
-        return $ WR.mkWidget (WR.Popup curr' ch child')
+        return (WR.Popup curr' ch child')
 
 mkPopup :: Ev Bool -> Beh WR.Widget -> C Popup
 mkPopup initialVisibility w = do
@@ -151,11 +164,12 @@ data Slider =
 
 continuous ''Slider
 instance IsWidget Slider where
-  mkOldWidget (Slider curr ev min max) = do
+  type DiscrWidget Slider = WR.Slider
+  mkDiscrWidget (Slider curr ev min max) = do
     curr' <- discretize curr
     min' <- discretize min
     max' <- discretize max
-    return $ WR.mkWidget (WR.Slider curr' ev min' max')
+    return (WR.Slider curr' ev min' max')
 
 mkSlider :: Int -> Beh Int -> Beh Int -> C Slider
 mkSlider start min max = do
@@ -170,9 +184,10 @@ data Button where
 
 continuous ''Button
 instance IsWidget Button where
-  mkOldWidget (Button click b) = do
+  type DiscrWidget Button = WR.Button
+  mkDiscrWidget (Button click b) = do
     w <- discretize b
-    return $ WR.mkWidget (WR.Button w click)
+    return (WR.Button w click)
 
 mkButton :: (Displayable a) => Beh a -> C Button
 mkButton t = do
@@ -186,9 +201,10 @@ data Label where
 
 continuous ''Label
 instance IsWidget Label where
-  mkOldWidget (Label t) = do
+  type DiscrWidget Label = WR.Label
+  mkDiscrWidget (Label t) = do
     t' <- discretize t
-    return $ WR.mkWidget (WR.Label t')
+    return (WR.Label t')
 
 mkLabel :: (Displayable a) => Beh a -> C Label
 mkLabel t = do
@@ -200,9 +216,10 @@ data TextField = TextField {tfContent :: !(Beh Text), tfInput :: !(Chan Text)}
 
 continuous ''TextField
 instance IsWidget TextField where
-  mkOldWidget (TextField b inp) = do
+  type DiscrWidget TextField = WR.TextField
+  mkDiscrWidget (TextField b inp) = do
     txt <- discretize b
-    return $ WR.mkWidget (WR.TextField txt inp)
+    return (WR.TextField txt inp)
 
 mkTextField :: Text -> C TextField
 mkTextField txt = do
@@ -248,5 +265,5 @@ runApplication :: IsWidget a => C a -> IO()
 runApplication w =
   WR.runApplication ( do
         w' <- w
-        mkOldWidget w'
+        mkDiscrWidget w'
     )
