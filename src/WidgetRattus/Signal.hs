@@ -28,6 +28,7 @@ module WidgetRattus.Signal
   , interleaveAll
   , mkSig
   , mkSig'
+  , chanSig
   , current
   , future
   , const
@@ -81,6 +82,9 @@ map f (x ::: xs) = unbox f x ::: delay (map f (adv xs))
 -- | A version of @map@ for delayed signals.
 mapAwait :: Box (a -> b) -> O (Sig a) -> O (Sig b)
 mapAwait f d = delay (map f (adv d))
+
+chanSig :: Chan a -> O (Sig a)
+chanSig c = delay (adv (wait c) ::: chanSig c)
 
 -- | Turns a boxed delayed computation into a delayed signal.
 mkSig :: Box (O a) -> O (Sig a)
@@ -370,6 +374,7 @@ sampleM f (a:::as) bs@(b ::: _) = unbox f a b ::: sampleAwaitM f as bs
 -- is always one tick behind the input signal.
 buffer :: Stable a => a -> Sig a -> Sig a
 buffer x (y ::: ys) = x ::: delay (buffer y (adv ys))
+
 
 -- Like buffer but works for delayed signals
 bufferAwait :: Stable a => a -> O (Sig a) -> O (Sig a)

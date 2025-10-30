@@ -24,10 +24,10 @@ currentTime = do
 
 
 
-elapsedTime :: C (NominalDiffTime -> Sig NominalDiffTime)
+elapsedTime :: C (DTime -> Sig DTime)
 elapsedTime =  do t <- time
                   return (\ s -> run s t)
-     where run :: NominalDiffTime -> Time -> Sig NominalDiffTime
+     where run :: DTime -> Time -> Sig DTime
            run start t = 
                start ::: delayC (delay (
                     let _ = adv sampleInterval 
@@ -39,19 +39,19 @@ window = do
     startBtn <- mkButton (const ("Start" :: Text))
     stopBtn <- mkButton (const ("Stop" :: Text))
     let startDelay = btnOnClick startBtn
-    let startSig :: O (Sig (NominalDiffTime -> Sig NominalDiffTime)) 
+    let startSig :: O (Sig (DTime -> Sig DTime)) 
          = mkSig' (box (delay (let _ = adv (unbox startDelay) in elapsedTime)))
 
     let stopDelay = btnOnClick stopBtn
-    let stopSig :: O (Sig (NominalDiffTime -> Sig NominalDiffTime)) 
+    let stopSig :: O (Sig (DTime -> Sig DTime)) 
          = mkSig (box (delay (let _ = adv (unbox stopDelay) in const)))
 
     
-    let inputSig :: O (Sig (NominalDiffTime -> Sig NominalDiffTime))
+    let inputSig :: O (Sig (DTime -> Sig DTime))
          = interleave (box (\ x _ -> x)) startSig stopSig
 
 
-    let stopWatchSig :: Sig NominalDiffTime
+    let stopWatchSig :: Sig DTime
          = switchR (const 0) inputSig
 
     timeLabName <- mkLabel (const ("Current Time:" :: Text))

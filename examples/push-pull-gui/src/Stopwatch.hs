@@ -13,7 +13,7 @@ import WidgetRattus
 import WidgetRattus.PushPull.Widgets
 import Prelude hiding (const, filter, getLine, map, null, putStrLn, zip, zipWith)
 
-elapsedTime' :: C (NominalDiffTime -> Beh NominalDiffTime)
+elapsedTime' :: C (DTime -> Beh DTime)
 elapsedTime' =
   do
     startTime <- time
@@ -31,9 +31,9 @@ timerExample = do
   let stopEv = btnOnClick stopBtn
   
   -- Start and stop events
-  let startTime :: Ev (NominalDiffTime -> Beh NominalDiffTime) =
+  let startTime :: Ev (DTime -> Beh DTime) =
         mkEv' (box (delay (let _ = adv (unbox startEv) in elapsedTime')))
-  let stopTime :: Ev (NominalDiffTime -> Beh NominalDiffTime) =
+  let stopTime :: Ev (DTime -> Beh DTime) =
         mkEv (box (delay (let _ = adv (unbox stopEv) in const)))
 
   let combinedInput = interleave (box (\x _ -> x)) startTime stopTime

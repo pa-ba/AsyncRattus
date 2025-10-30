@@ -72,7 +72,7 @@ discretizeT (Beh (Fun s f ::: xs)) t = discretizeFun s f xs t
               
 
 
-elapsedTime :: C (Beh NominalDiffTime)
+elapsedTime :: C (Beh DTime)
 elapsedTime = do
   startTime <- time
   return $ Beh (Fun () (box (\s currentTime -> diffTime currentTime startTime :* Just' s)) ::: never)
@@ -190,10 +190,6 @@ stopWith p (Beh b) = Beh (run b)
             )
         )
         ::: delay (run (adv xs))
-
-
-(<->) :: Time -> Time -> Float
-t' <-> t = fromRational (toRational (diffTime t' t))
 
 integral ::  Float  -> Beh Float -> C (Beh Float)
 integral cur (Beh xs) = Beh <$> int xs cur <$> time where

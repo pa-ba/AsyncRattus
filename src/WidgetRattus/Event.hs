@@ -26,6 +26,18 @@ mkEv' = Dense . run where
     run b = delayC (delay ((::: run b) <$> adv (unbox b)))
 
 
+mapEC :: forall a b . Box (a -> C b) -> Ev a -> Ev b
+mapEC f (Dense sig) = Dense (run sig) where
+    run :: O (Sig a) -> O (Sig b)
+    run sig = delayC ( delay ( do let x ::: xs = adv sig
+                                  x' <- unbox f x 
+                                  return (x' ::: run xs) ))
+mapEC f (Sparse sig) = Sparse (run sig) where
+    run :: O (Sig (Maybe' a)) -> O (Sig (Maybe' b))
+    run sig = delayC (delay (do case adv sig of
+                                  Nothing' ::: xs -> return (Nothing' ::: run xs)
+                                  Just' x ::: xs -> (\ x' -> Just' x' ::: run xs) <$> unbox f x))
+
 mapE :: forall a b . Box (a -> b) -> Ev a -> Ev b
 mapE f (Dense sig) = Dense (run sig) where
     run :: O (Sig a) -> O (Sig b)
@@ -35,21 +47,6 @@ mapE f (Sparse sig) = Sparse (run sig) where
     run :: O (Sig (Maybe' a)) -> O (Sig (Maybe' b))
     run sig = delay ( let x ::: xs = adv sig
                       in (unbox f <$> x) ::: run xs)
-
-removeC :: Ev (C a) -> Ev a
-removeC (Dense sig) =
-  Dense
-    ( delayC
-        ( delay
-            ( let x ::: xs = adv sig
-                  (Dense rest) = removeC (Dense xs)
-               in ( do
-                      x' <- x
-                      return (x' ::: rest)
-                  )
-            )
-        )
-    )
 
 stepper :: (Stable a) => a -> Ev a -> Beh a
 stepper initial event =
@@ -227,19 +224,19 @@ switchR beh (Sparse steps) =
         )
     )
 
-switchR' :: (Stable a) => Beh a -> Ev (a -> C (Beh a)) -> Beh a
-switchR' beh (Dense steps) =
+switchRC :: (Stable a) => Beh a -> Ev (a -> C (Beh a)) -> Beh a
+switchRC beh (Dense steps) =
   switchS'
     beh
     ( delay
         ( let step ::: steps' = adv steps
            in ( \x -> do
                   x' <- step x
-                  return $ switchR' x' (Dense steps')
+                  return $ switchRC x' (Dense steps')
               )
         )
     )
-switchR' beh (Sparse steps) =
+switchRC beh (Sparse steps) =
   switchSM'
     beh
     ( delay
@@ -249,7 +246,7 @@ switchR' beh (Sparse steps) =
                   Just'
                     ( \x -> do
                         x' <- a x
-                        return $ switchR' x' (Sparse steps')
+                        return $ switchRC x' (Sparse steps')
                     )
                 Nothing' -> Nothing'
         )
