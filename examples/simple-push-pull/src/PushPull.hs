@@ -35,8 +35,8 @@ cont f = Fun f ::: never
 const :: a -> Beh a
 const x = K x ::: never
 
-stepper :: a -> Ev a -> Beh a 
-stepper initial ev = (K initial ::: mapE (box K) ev)
+discr :: a -> Ev a -> Beh a 
+discr initial ev = (K initial ::: mapE (box K) ev)
 
 mapB :: Box (a -> b) -> Beh a -> Beh b
 mapB f (x ::: xs) = mapP f x ::: delay (mapB f (adv xs))

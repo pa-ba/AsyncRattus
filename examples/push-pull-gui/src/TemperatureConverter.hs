@@ -40,8 +40,8 @@ window = do
     let convertCtoF = mapE (box celsiusToFahrenheit) cEvent
 
     -- Result Behaviours
-    let c = stepper 0 (interleave (box (\x _ -> x)) cEvent convertFtoC)
-    let f = stepper 32 (interleave (box (\x _ -> x)) fEvent convertCtoF)
+    let c = discr 0 (interleave (box (\x _ -> x)) cEvent convertFtoC)
+    let f = discr 32 (interleave (box (\x _ -> x)) fEvent convertCtoF)
 
     -- Bind input to TextFields
     let tfF2 = setInputBehTF tfF1 (mapB (box toText) f)

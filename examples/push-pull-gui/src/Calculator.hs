@@ -67,7 +67,7 @@ calculatorExample = do
   -- operator @op@. @n@ is the value of @numberEv@ just before
   -- clicking an operator button, and op is taken from opEv
   let operand :: Ev (Int :* Op) =
-        sample (box (\op n -> (n :* op))) opEv (stepper 0 (buffer 0 numberEv))
+        sample (box (\op n -> (n :* op))) opEv (discr 0 (buffer 0 numberEv))
 
   -- The result event consisting of a number n that is the result
   -- of the current computation, an operator op that still needs to
@@ -78,7 +78,7 @@ calculatorExample = do
 
   -- -- The behaviour that should be displayed
   let displayBeh :: Beh Int =
-        zipWith (box (\(n :* _ :* b) m -> if b then n else m)) (stepper (0 :* Plus :* False) resultEv) (stepper 0 numberEv)
+        zipWith (box (\(n :* _ :* b) m -> if b then n else m)) (discr (0 :* Plus :* False) resultEv) (discr 0 numberEv)
 
   -- UI
   result <- mkLabel displayBeh

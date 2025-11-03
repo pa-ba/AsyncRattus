@@ -48,8 +48,8 @@ mapE f (Sparse sig) = Sparse (run sig) where
     run sig = delay ( let x ::: xs = adv sig
                       in (unbox f <$> x) ::: run xs)
 
-stepper :: (Stable a) => a -> Ev a -> Beh a
-stepper initial event =
+discr :: (Stable a) => a -> Ev a -> Beh a
+discr initial event =
   Beh (K initial ::: delay (unwrap (adv (aux initial event))))
   where
     aux :: (Stable a) => a -> Ev a -> O (Beh a)

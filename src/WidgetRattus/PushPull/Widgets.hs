@@ -134,7 +134,7 @@ instance IsWidget TextDropdown where
 mkTextDropdown :: Beh (List Text) -> Text -> C TextDropdown
 mkTextDropdown opts initial = do
   c <- chan
-  let beh = stepper initial $ mkEv (box (wait c))
+  let beh = discr initial $ mkEv (box (wait c))
   return $ TextDropdown beh c opts
 
 
@@ -154,7 +154,7 @@ mkPopup :: Ev Bool -> Beh WR.Widget -> C Popup
 mkPopup initialVisibility w = do
       c <- chan
       let changeEvent = mkEv (box (wait c))
-      let visibility = stepper False $ interleave (box Prelude.const) initialVisibility changeEvent
+      let visibility = discr False $ interleave (box Prelude.const) initialVisibility changeEvent
       return Popup{popCurr = visibility, popEvent = c, popChild = w}
 
 
@@ -174,7 +174,7 @@ instance IsWidget Slider where
 mkSlider :: Int -> Beh Int -> Beh Int -> C Slider
 mkSlider start min max = do
   c <- chan
-  let curr = stepper start $ mkEv (box (wait c))
+  let curr = discr start $ mkEv (box (wait c))
   return $ Slider curr c min max
 
 

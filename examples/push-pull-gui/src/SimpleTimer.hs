@@ -19,7 +19,7 @@ window = do
   now <- time
   let resetEv      :: Ev ()     = btnOnClickEv resetBtn
   let startTimeEv  :: Ev Time   = sample (box (\ _ t -> t)) resetEv timeB
-  let startTime    :: Beh Time  = stepper now startTimeEv
+  let startTime    :: Beh Time  = discr now startTimeEv
 
   let timer  = zipWith (box (<->)) timeB startTime
   let txt    = mapB (box (\t -> "Current: " <> toText (floor t))) timer
