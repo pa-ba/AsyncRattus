@@ -253,8 +253,8 @@ setInputBehTF :: TextField -> Beh Text -> TextField
 setInputBehTF tf b =
   tf{tfContent = b}
 
-sliderOnChange :: Slider -> Ev Int
-sliderOnChange s =
+sliderEv :: Slider -> Ev Int
+sliderEv s =
   let ch = sldEvent s
   in mkEv (box (wait ch))
 

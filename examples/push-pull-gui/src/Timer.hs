@@ -16,17 +16,14 @@ import WidgetRattus
 import WidgetRattus.PushPull.Widgets
 import Prelude hiding (const, filter, getLine, map, null, putStrLn, zip, zipWith)
 
-toSec :: DTime -> Int
-toSec x = floor $ toRational x
-
 fromSec :: Int -> DTime
 fromSec x = fromInteger (toInteger x)
 
-stopTimer :: Int -> (DTime :* Int) -> Maybe' (DTime :* Int)
-stopTimer max (a :* _) | toSec a >= max = Just' (fromSec max :* max)
+stopTimer :: DTime -> (DTime :* DTime) -> Maybe' (DTime :* DTime)
+stopTimer max (a :* _) | a >= max = Just' (max :* max)
                        | otherwise      =  Nothing'
 
-timeFrom :: DTime -> Int -> C (Beh (DTime :* Int))
+timeFrom :: DTime -> DTime -> C (Beh (DTime :* DTime))
 timeFrom d max = do
   dt <- elapsedTime
   let addTime = mapB (box (\t -> t + d :* max)) dt
@@ -39,25 +36,25 @@ timerGUI :: C VStack
 timerGUI = do
   -- Slider
   maxSlider <- mkSlider initialMax (const 1) (const 100)
-  let maxBeh = sldCurr maxSlider
-  let maxChangeEv = sliderOnChange maxSlider
+  let maxBeh :: Beh Int = sldCurr maxSlider
+  let maxChangeEv :: Ev DTime = mapE (box fromSec) (sliderEv maxSlider)
   -- Reset button
   resetBtn <- mkButton $ mkConstText "Reset timer"
   let resetTrigger = btnOnClickEv resetBtn
   -- Input events
-  let resetEv :: Ev (DTime :* Int -> C (Beh (DTime :* Int))) =
+  let resetEv :: Ev (DTime :* DTime -> C (Beh (DTime :* DTime))) =
         mapE (box (\_ (_ :* max) -> timeFrom 0 max)) resetTrigger
 
-  let maxEv :: Ev (DTime :* Int -> C (Beh (DTime :* Int))) =
+  let maxEv :: Ev (DTime :* DTime -> C (Beh (DTime :* DTime))) =
         mapE (box (\newMax (cur :* _) -> timeFrom cur newMax)) maxChangeEv
 
-  let combinedInput :: Ev (DTime :* Int -> C (Beh (DTime :* Int)))
+  let combinedInput :: Ev (DTime :* DTime -> C (Beh (DTime :* DTime)))
        = interleave (box (\_ m -> m)) resetEv maxEv
 
-  elapsedTime :: Beh (DTime :* Int) <- timeFrom 0 initialMax
-  let timer :: Beh (DTime :* Int) = switchRC elapsedTime combinedInput
+  elapsedTime :: Beh (DTime :* DTime) <- timeFrom 0 (fromSec initialMax)
+  let timer :: Beh (DTime :* DTime) = switchRC elapsedTime combinedInput
   -- Output 
-  text <- mkLabel (mapB (box (\(t :* _) -> "Current: " <> toText (toSec t))) timer)
+  text <- mkLabel (mapB (box (\(t :* _) -> "Current: " <> toText t)) timer)
   maxText <- mkLabel (mapB (box (\max -> "Max: " <> toText max)) maxBeh)
   mkConstVStack $ maxSlider :* maxText :* text :* resetBtn
 
