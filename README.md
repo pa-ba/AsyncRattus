@@ -1,19 +1,35 @@
 # Introduction
 
-This library implements the Widget Rattus programming language as an
-embedded DSL. To this end the library provides a GHC plugin that
-checks the stricter typing rules of Widget Rattus.
-            
-Widget Rattus is an experimental functional reactive programming (FRP)
-language for GUI programming that uses modal types to express temporal
-dependencies. In return, the language will guarantee that programs are
-productive (in each computation step, the program makes progress),
-causal (output depends only on current and earlier input), and have no
-space leaks (programs do not implicitly retain memory over time).
+This library implements the [Async
+Rattus](http://dx.doi.org/10.1007/978-3-031-52038-9_2) programming
+language as an embedded DSL. To this end, the library provides a GHC
+plugin that checks the stricter typing rules of Async Rattus. In
+addition, the library also provides a GUI framework, called [Widget
+Rattus](http://dx.doi.org/10.1007/978-3-031-99751-8_5).
 
-Widget Rattus is an extension of Async Rattus to support GUI
-programming. A more detailed introduction to the Async Rattus language
-can be found in this [paper](docs/paper.pdf).
+This branch of the library additionally contains an experimental
+implementation of [push-pull
+FRP](https://doi.org/10.1145/1596638.1596643) in Async Rattus. The
+Widget Rattus GUI library is ported to this push-pull FRP approach,
+see module
+[WidgetRattus.PushPull.Widgets](src/WidgetRattus/PushPull/Widgets.hs).
+
+# Examples
+
+This repository also contains examples that use the the push-pull FRP
+GUI library in [examples/simple-push-pull](examples/push-pull-gui/):
+- [Calculator](examples/push-pull-gui/src/Calculator.hs)
+- [Counter](examples/push-pull-gui/src/Counter.hs)
+- [FlightBooker](examples/push-pull-gui/src/FlightBooker.hs)
+- [Stopwatch](examples/push-pull-gui/src/Stopwatch.hs)
+- [TemperatureConverter](examples/push-pull-gui/src/TemperatureConverter.hs)
+- [Timer](examples/push-pull-gui/src/Timer.hs)
+- [SimpleTimer](examples/push-pull-gui/src/SimpleTimer.hs)
+
+The examples folder also contains a simple implementation of push-pull
+FRP in Async Rattus (from section 3.2 of the accompanying paper) in
+[examples/simple-push-pull](examples/simple-push-pull/src/PushPull.hs).
+
 
 # Usage
 
@@ -23,10 +39,11 @@ it, issue the following command:
 	cabal install
 	
 
-The `examples` folder contains example projects written in Widget
-Rattus. These can be used as a template to start Widget Rattus
-projects. For instance, [gui.cabal](examples/gui/gui.cabal) implements
-a number of small GUI applications, which you can run as follows:
+The `examples` folder contains example projects written in Async
+Rattus. In particular, the push-pull example GUIs can be run as
+follows:
 
-	cd examples/gui
+	cd examples/push-pull-gui
 	cabal run timer
+	cabal run calculator
+	...
