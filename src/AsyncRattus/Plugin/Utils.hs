@@ -62,6 +62,9 @@ import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Char
+#if __GLASGOW_HASKELL__ >= 910
+import Data.List (stripPrefix)
+#endif
 import Data.Maybe
 
 
@@ -185,7 +188,23 @@ getNameModule :: NamedThing a => a -> Maybe (FastString, FastString)
 getNameModule v = do
   let name = getName v
   mod <- nameModule_maybe name
-  return (getOccFS name,moduleNameFS (moduleName mod))
+  return (getOccFS name, baseModuleName (moduleNameFS (moduleName mod)))
+
+
+-- | Since GHC 9.10 most modules of the @base@ library have been moved
+-- into the @ghc-internal@ package, where they are called
+-- @GHC.Internal.X@ instead of @GHC.X@ (e.g. @IORef@ is now defined in
+-- @GHC.Internal.IORef@). This function maps such module names back to
+-- their pre-9.10 names so that the rest of the plugin can recognise
+-- them independently of the GHC version.
+baseModuleName :: FastString -> FastString
+#if __GLASGOW_HASKELL__ >= 910
+baseModuleName mod = case stripPrefix "GHC.Internal." (unpackFS mod) of
+  Just rest -> mkFastString ("GHC." ++ rest)
+  Nothing -> mod
+#else
+baseModuleName = id
+#endif
 
 
 -- | The set of stable built-in types.

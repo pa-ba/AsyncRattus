@@ -165,11 +165,20 @@ modifyCtxt f a =
 
 
 
-getLocAnn' :: SrcSpanAnn' b -> SrcSpan
+-- | The annotation component of a located piece of syntax. GHC 9.10
+-- dropped the @SrcSpanAnn'@ wrapper and instead keeps the source span
+-- in the 'EpAnn' annotation itself.
+#if __GLASGOW_HASKELL__ >= 910
+type LocAnn = EpAnn
+#else
+type LocAnn = SrcSpanAnn'
+#endif
+
+getLocAnn' :: LocAnn b -> SrcSpan
 getLocAnn' = locA
 
 
-updateLoc :: SrcSpanAnn' b -> (GetCtxt => a) -> (GetCtxt => a)
+updateLoc :: LocAnn b -> (GetCtxt => a) -> (GetCtxt => a)
 updateLoc src = modifyCtxt (\c -> c {srcLoc = getLocAnn' src})
 
 
@@ -194,7 +203,7 @@ printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
 instance Scope a => Scope (GenLocated SrcSpan a) where
   check (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` check x
 
-instance Scope a => Scope (GenLocated (SrcSpanAnn' b) a) where
+instance Scope a => Scope (GenLocated (LocAnn b) a) where
   check (L l x) =  updateLoc l $ check x
   
 instance Scope a => Scope (Bag a) where
@@ -243,7 +252,7 @@ instance ScopeBind a => ScopeBind [a] where
 instance ScopeBind a => ScopeBind (GenLocated SrcSpan a) where
   checkBind (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` checkBind x
 
-instance ScopeBind a => ScopeBind (GenLocated (SrcSpanAnn' b) a) where
+instance ScopeBind a => ScopeBind (GenLocated (LocAnn b) a) where
   checkBind (L l x) =  updateLoc l $ checkBind x
 
 instance Scope a => Scope (GRHS GhcTc a) where
@@ -438,7 +447,13 @@ instance Scope (HsExpr GhcTc) where
       Select -> printMessageCheck SevError ("select must be fully applied")
     _ -> liftM2 (&&) (check e1)  (check e2)
   check HsUnboundVar{}  = return True
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsPar _ e) = check e
+  check HsRecSel{} = return True
+  check HsTypedBracket{} = notSupported "MetaHaskell"
+  check HsUntypedBracket{} = notSupported "MetaHaskell"
+  check HsEmbTy{} = return True
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsPar _ _ e _) = check e
   check (HsLamCase _ _ mg) = check mg
   check HsRecSel{} = return True
@@ -455,7 +470,9 @@ instance Scope (HsExpr GhcTc) where
   check HsRnBracketOut{} = notSupported "MetaHaskell"
   check HsTcBracketOut{} = notSupported "MetaHaskell"
 #endif
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsLet _ bs e) = do
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsLet _ _ bs _ e) = do
 #else
   check (HsLet _ bs e) = do
@@ -469,7 +486,11 @@ instance Scope (HsExpr GhcTc) where
   check HsOverLit{} = return True  
   check HsLit{} = return True
   check (OpApp _ e1 e2 e3) = and <$> mapM check [e1,e2,e3]
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsLam _ _ mg) = check mg
+#else
   check (HsLam _ mg) = check mg
+#endif
   check (HsCase _ e1 e2) = (&&) <$> check e1 <*> check e2
   check (SectionL _ e1 e2) = (&&) <$> check e1 <*> check e2
   check (SectionR _ e1 e2) = (&&) <$> check e1 <*> check e2
@@ -493,7 +514,10 @@ instance Scope (HsExpr GhcTc) where
   check (HsStatic _ e) = check e
   check (HsDo _ _ e) = fst <$> checkBind e
   check (XExpr e) = check e
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsAppType _ e _) = check e
+  check (ExprWithTySig _ e _) = check e
+#elif __GLASGOW_HASKELL__ >= 906
   check (HsAppType _ e _ _) = check e
   check (ExprWithTySig _ e _) = check e
 #else
@@ -518,7 +542,11 @@ instance Scope (LHsRecUpdFields GhcTc) where
 
 instance Scope XXExprGhcTc where
   check (WrapExpr (HsWrap _ e)) = check e
+#if __GLASGOW_HASKELL__ >= 910
+  check (ExpandedThingTc _ e) = check e
+#else
   check (ExpansionExpr (HsExpanded _ e)) = check e
+#endif
 #if __GLASGOW_HASKELL__ >= 904
   check ConLikeTc{} = return True
   check (HsTick _ e) = check e
@@ -533,12 +561,17 @@ instance Scope (HsCmd GhcTc) where
   check (HsCmdDo _ e) = fst <$> checkBind e
   check (HsCmdArrForm _ e1 _ _ e2) = (&&) <$> check e1 <*> check e2
   check (HsCmdApp _ e1 e2) = (&&) <$> check e1 <*> check e2
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsCmdLam _ _ e) = check e
+  check (HsCmdPar _ e) = check e
+  check (HsCmdLet _ bs e) = do
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsCmdLam _ e) = check e
-#if __GLASGOW_HASKELL__ >= 904
   check (HsCmdPar _ _ e _) = check e
   check (HsCmdLamCase _ _ e) = check e  
   check (HsCmdLet _ _ bs _ e) = do
 #else
+  check (HsCmdLam _ e) = check e
   check (HsCmdPar _ e) = check e
   check (HsCmdLamCase _ e) = check e
   check (HsCmdLet _ bs e) = do
@@ -760,23 +793,33 @@ isPrimExpr :: GetCtxt => LHsExpr GhcTc -> Maybe (Prim,Var)
 isPrimExpr (L _ e) = isPrimExpr' e where
   isPrimExpr' :: GetCtxt => HsExpr GhcTc -> Maybe (Prim,Var)
   isPrimExpr' (HsVar _ (L _ v)) = fmap (,v) (isPrim v)
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  isPrimExpr' (HsAppType _ e _) = isPrimExpr e
+#elif __GLASGOW_HASKELL__ >= 906
   isPrimExpr' (HsAppType _ e _ _) = isPrimExpr e
 #else
   isPrimExpr' (HsAppType _ e _) = isPrimExpr e
 #endif
 
   isPrimExpr' (XExpr (WrapExpr (HsWrap _ e))) = isPrimExpr' e
+#if __GLASGOW_HASKELL__ >= 910
+  isPrimExpr' (XExpr (ExpandedThingTc _ e)) = isPrimExpr' e
+#else
   isPrimExpr' (XExpr (ExpansionExpr (HsExpanded _ e))) = isPrimExpr' e
+#endif
   isPrimExpr' (HsPragE _ _ e) = isPrimExpr e
 #if __GLASGOW_HASKELL__ < 904
   isPrimExpr' (HsTick _ _ e) = isPrimExpr e
   isPrimExpr' (HsBinTick _ _ _ e) = isPrimExpr e
   isPrimExpr' (HsPar _ e) = isPrimExpr e
-#else
+#elif __GLASGOW_HASKELL__ < 910
   isPrimExpr' (XExpr (HsTick _ e)) = isPrimExpr e
   isPrimExpr' (XExpr (HsBinTick _ _ e)) = isPrimExpr e
   isPrimExpr' (HsPar _ _ e _) = isPrimExpr e
+#else
+  isPrimExpr' (XExpr (HsTick _ e)) = isPrimExpr e
+  isPrimExpr' (XExpr (HsBinTick _ _ e)) = isPrimExpr e
+  isPrimExpr' (HsPar _ e) = isPrimExpr e
 #endif
 
   isPrimExpr' _ = Nothing

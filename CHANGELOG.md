@@ -1,3 +1,7 @@
+# 0.???
+
+ - Support GHC 9.10.
+
 # 0.2.1.1
 
  - The constraint solver for stable types can now handle data types

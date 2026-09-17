@@ -119,7 +119,9 @@ instance HasBV XXPatGhcTc where
 instance HasBV (Pat GhcTc) where
   getBV (VarPat _ (L _ v)) = Set.singleton v
   getBV (LazyPat _ p) = getBV p
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (AsPat _ (L _ v) p) = Set.insert v (getBV p)
+#elif __GLASGOW_HASKELL__ >= 906
   getBV (AsPat _ (L _ v) _ p) = Set.insert v (getBV p)
 #else
   getBV (AsPat _ (L _ v) p) = Set.insert v (getBV p)
@@ -148,13 +150,19 @@ instance HasBV (Pat GhcTc) where
   getBV (XPat p) = getBV p
   getBV (WildPat {}) = Set.empty
   getBV (LitPat {}) = Set.empty
-#if __GLASGOW_HASKELL__ >= 904  
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (ParPat _ p) = getBV p
+#elif __GLASGOW_HASKELL__ >= 904  
   getBV (ParPat _ _ p _) = getBV p
 #else
   getBV (ParPat _ p) = getBV p
 #endif
   getBV (ConPat {pat_args = con}) = getConBV con
   getBV (SigPat _ p _) = getBV p
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (EmbTyPat _ _) = Set.empty
+  getBV (InvisPat _ _) = Set.empty
+#endif
 
 #if __GLASGOW_HASKELL__ < 904
 instance HasBV NoExtCon where
@@ -275,20 +283,24 @@ instance HasFV (HsCmd GhcTc) where
   getFV (HsCmdArrApp _ e1 e2 _ _) = getFV e1 `Set.union` getFV e2
   getFV (HsCmdArrForm _ e _ _ cmd) = getFV e `Set.union` getFV cmd
   getFV (HsCmdApp _ e1 e2) = getFV e1 `Set.union` getFV e2
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsCmdLam _ _ mg) = getFV mg
+#else
   getFV (HsCmdLam _ l) = getFV l
+#endif
   getFV (HsCmdCase _ _ mg) = getFV mg
   getFV (HsCmdIf _ _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
   getFV (HsCmdDo _ cmd) = getFV cmd
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsCmdPar _ cmd) = getFV cmd
+  getFV (HsCmdLet _ bs _) = getFV bs
+#elif __GLASGOW_HASKELL__ >= 904
   getFV (HsCmdPar _ _ cmd _) = getFV cmd
   getFV (HsCmdLet _ _ bs _ _) = getFV bs
+  getFV (HsCmdLamCase _ _ mg) = getFV mg
 #else
   getFV (HsCmdPar _ cmd) = getFV cmd
   getFV (HsCmdLet _ bs _) = getFV bs
-#endif
-#if __GLASGOW_HASKELL__ >= 904
-  getFV (HsCmdLamCase _ _ mg) = getFV mg
-#else
   getFV (HsCmdLamCase _ mg) = getFV mg
 #endif
   getFV (XCmd e) = getFV e
@@ -314,7 +326,12 @@ instance HasFV (HsExpr GhcTc) where
   getFV HsIPVar {} = Set.empty
   getFV HsOverLit {} = Set.empty
   getFV HsLit {} = Set.empty
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsLam _ _ mg) = getFV mg
+  getFV (HsEmbTy _ _) = Set.empty
+#else
   getFV (HsLam _ mg) = getFV mg
+#endif
   getFV (HsApp _ e1 e2) = getFV e1 `Set.union` getFV e2      
   getFV (OpApp _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
   getFV (NegApp _ e _) = getFV e
@@ -340,7 +357,13 @@ instance HasFV (HsExpr GhcTc) where
   getFV (HsProc _ _ e) = getFV e
   getFV (HsStatic _ e) = getFV e
   getFV (XExpr e) = getFV e
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsPar _ e) = getFV e
+  getFV (HsLet _ bs e) = getFV bs `Set.union` getFV e
+  getFV HsRecSel {} = Set.empty
+  getFV (HsTypedBracket _ e) = getFV e
+  getFV (HsUntypedBracket _ e) = getFV e
+#elif __GLASGOW_HASKELL__ >= 904
   getFV (HsPar _ _ e _) = getFV e  
   getFV (HsLamCase _ _ mg) = getFV mg
   getFV (HsLet _ _ bs _ e) = getFV bs `Set.union` getFV e
@@ -360,7 +383,10 @@ instance HasFV (HsExpr GhcTc) where
   getFV HsTcBracketOut {} = Set.empty
 #endif
 
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsAppType _ e _) = getFV e
+  getFV (ExprWithTySig _ e _) = getFV e
+#elif __GLASGOW_HASKELL__ >= 906
   getFV (HsAppType _ e _ _) = getFV e
   getFV (ExprWithTySig _ e _) = getFV e  
 #else
@@ -373,7 +399,11 @@ instance HasFV (HsExpr GhcTc) where
 
 instance HasFV XXExprGhcTc where
   getFV (WrapExpr e) = getFV e
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (ExpandedThingTc _ e) = getFV e
+#else
   getFV (ExpansionExpr (HsExpanded _e1 e2)) = getFV e2
+#endif
 #if __GLASGOW_HASKELL__ >= 904  
   getFV (HsTick _ e) = getFV e
   getFV (HsBinTick _ _ e) = getFV e

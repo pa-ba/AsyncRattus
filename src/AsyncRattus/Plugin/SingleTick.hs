@@ -17,7 +17,10 @@ import AsyncRattus.Plugin.Utils
 import Prelude hiding ((<>))
 import Control.Monad.Trans.Writer.Strict
 import Control.Monad.Trans.Class
-import Data.List
+-- since base 4.20 (GHC 9.10) foldl' is exported by Prelude
+#if __GLASGOW_HASKELL__ < 910
+import Data.List (foldl')
+#endif
 
 -- | Transform the given expression from the multi-tick calculus into
 -- the single tick calculus form.
