@@ -34,6 +34,9 @@ import GHC.Hs.Extension
 import GHC.Hs.Expr
 import GHC.Hs.Pat
 import GHC.Hs.Binds
+#if __GLASGOW_HASKELL__ >= 912
+import GHC.Hs.Type (HsArrowOf (..))
+#endif
 
 import Data.Graph
 import qualified Data.Set as Set
@@ -239,7 +242,11 @@ instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
   checkBind (LetStmt _ bs) = checkBind bs
   checkBind ParStmt{} = notSupported "monad comprehensions"
   checkBind TransStmt{} = notSupported "monad comprehensions"
+#if __GLASGOW_HASKELL__ >= 912
+  checkBind (XStmtLR ApplicativeStmt{}) = notSupported "applicative do notation"
+#else
   checkBind ApplicativeStmt{} = notSupported "applicative do notation"
+#endif
   checkBind RecStmt{} = notSupported "recursive do notation"
 
 instance ScopeBind a => ScopeBind [a] where
@@ -276,7 +283,7 @@ checkPatBind' AbsBinds {abs_binds = binds} =
 #else
 checkPatBind' (XHsBindsLR AbsBinds {abs_binds = binds}) = 
 #endif
-  liftM and (mapM checkPatBind (bagToList binds))
+  liftM and (mapM checkPatBind (bindsToList binds))
 
 checkPatBind' _ = return True
 
@@ -330,10 +337,10 @@ getAllBV (L _ b) = getAllBV' b where
 
 
 -- Check nested bindings
-instance ScopeBind (RecFlag, Bag (GenLocated SrcSpanAnnA (HsBindLR GhcTc GhcTc))) where
-  checkBind (NonRecursive, bs)  = checkBind $ bagToList bs
+instance ScopeBind (RecFlag, Binds (GenLocated SrcSpanAnnA (HsBindLR GhcTc GhcTc))) where
+  checkBind (NonRecursive, bs)  = checkBind $ bindsToList bs
   checkBind (Recursive, bs) = checkRecursiveBinds bs' (foldMap getAllBV bs')
-    where bs' = bagToList bs
+    where bs' = bindsToList bs
 
 
 instance ScopeBind (HsLocalBindsLR GhcTc GhcTc) where
@@ -447,7 +454,17 @@ instance Scope (HsExpr GhcTc) where
       Select -> printMessageCheck SevError ("select must be fully applied")
     _ -> liftM2 (&&) (check e1)  (check e2)
   check HsUnboundVar{}  = return True
-#if __GLASGOW_HASKELL__ >= 910
+#if __GLASGOW_HASKELL__ >= 912
+  check (HsPar _ e) = check e
+  check HsTypedBracket{} = notSupported "MetaHaskell"
+  check HsUntypedBracket{} = notSupported "MetaHaskell"
+  check HsEmbTy{} = return True
+  -- type syntax that may occur in term position
+  check (HsForAll _ _ e) = check e
+  check (HsQual _ ctxt e) = (&&) <$> check ctxt <*> check e
+  check (HsFunArr _ arr e1 e2) =
+    and <$> sequence [check arr, check e1, check e2]
+#elif __GLASGOW_HASKELL__ >= 910
   check (HsPar _ e) = check e
   check HsRecSel{} = return True
   check HsTypedBracket{} = notSupported "MetaHaskell"
@@ -541,7 +558,12 @@ instance Scope (LHsRecUpdFields GhcTc) where
 
 
 instance Scope XXExprGhcTc where
+#if __GLASGOW_HASKELL__ >= 912
+  check (WrapExpr _ e) = check e
+  check HsRecSelTc{} = return True
+#else
   check (WrapExpr (HsWrap _ e)) = check e
+#endif
 #if __GLASGOW_HASKELL__ >= 910
   check (ExpandedThingTc _ e) = check e
 #else
@@ -559,7 +581,11 @@ instance Scope (HsCmdTop GhcTc) where
 instance Scope (HsCmd GhcTc) where
   check (HsCmdArrApp _ e1 e2 _ _) = (&&) <$> check e1 <*> check e2
   check (HsCmdDo _ e) = fst <$> checkBind e
+#if __GLASGOW_HASKELL__ >= 912
+  check (HsCmdArrForm _ e1 _ e2) = (&&) <$> check e1 <*> check e2
+#else
   check (HsCmdArrForm _ e1 _ _ e2) = (&&) <$> check e1 <*> check e2
+#endif
   check (HsCmdApp _ e1 e2) = (&&) <$> check e1 <*> check e2
 #if __GLASGOW_HASKELL__ >= 910
   check (HsCmdLam _ _ e) = check e
@@ -607,6 +633,12 @@ instance Scope b => Scope (HsRecField' a b) where
 instance Scope (HsTupArg GhcTc) where
   check (Present _ e) = check e
   check Missing{} = return True
+
+#if __GLASGOW_HASKELL__ >= 912
+instance Scope (HsArrowOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  check (HsExplicitMult _ e) = check e
+  check _ = return True
+#endif
 
 instance Scope (HsBindLR GhcTc GhcTc) where
 #if __GLASGOW_HASKELL__ >= 904
@@ -801,7 +833,11 @@ isPrimExpr (L _ e) = isPrimExpr' e where
   isPrimExpr' (HsAppType _ e _) = isPrimExpr e
 #endif
 
+#if __GLASGOW_HASKELL__ >= 912
+  isPrimExpr' (XExpr (WrapExpr _ e)) = isPrimExpr' e
+#else
   isPrimExpr' (XExpr (WrapExpr (HsWrap _ e))) = isPrimExpr' e
+#endif
 #if __GLASGOW_HASKELL__ >= 910
   isPrimExpr' (XExpr (ExpandedThingTc _ e)) = isPrimExpr' e
 #else

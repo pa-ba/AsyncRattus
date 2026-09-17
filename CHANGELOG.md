@@ -1,6 +1,6 @@
 # 0.???
 
- - Support GHC 9.10.
+ - Support GHC 9.10 and 9.12.
 
 # 0.2.1.1
 
