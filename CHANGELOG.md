@@ -3,6 +3,16 @@
  - Support GHC 9.10, 9.12, and 9.14.
  - Fix the multiplicity of the binder that the plugin generates for
    `delay`.
+ - Newtypes are now recognised as stable if their underlying type is
+   stable.
+ - The strictness checker no longer warns about the lazy arguments of
+   `fromString`, `fromList`/`fromListN` and `Data.Text.pack`. These
+   functions consume their argument immediately, so it cannot cause a
+   space leak.
+ - `Item l`, the type family of the `IsList` class, is now recognised
+   as strict whenever `l` is.
+ - New strict sum type `:+` in `AsyncRattus.Strict`.
+ - New `Functor` instance for `Maybe'`.
 
 # 0.2.1.1
 

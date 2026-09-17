@@ -27,7 +27,7 @@ checkStrictData ss (Cast e _) = checkStrictData ss e
 checkStrictData ss (Tick (SourceNote span _) e) = 
   checkStrictData (ss{srcSpan = fromRealSrcSpan span}) e
 checkStrictData ss (App e1 e2)
-  | isPushCallStack e1 = return ()
+  | ignoreArgument e1 = return ()
   | otherwise = do 
     when (not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
         && not (isStrict (exprType e2)) && not (isDeepseqForce e2) && not (isLit e2)
@@ -55,6 +55,30 @@ isPushCallStack (Var v) =
     _ -> False
 isPushCallStack (App x _) = isPushCallStack x
 isPushCallStack _ = False
+
+-- | Check whether the given expression is in head position of an
+-- application whose arguments should not be checked for
+-- strictness. This covers the desugaring of @OverloadedLists@
+-- ('fromList', 'fromListN') and @OverloadedStrings@ ('fromString'),
+-- the construction of 'Data.Text.Text' literals, and the call stack
+-- plumbing for 'GHC.Stack.HasCallStack'. In each of these cases the
+-- lazy argument is immediately consumed by a function that we know
+-- does not retain it, so it cannot cause a space leak.
+--
+-- Note that the module names below are the ones after normalisation
+-- by 'baseModuleName', which maps the @GHC.Internal.*@ modules that
+-- GHC 9.10 and later use back to their pre-9.10 names.
+ignoreArgument :: CoreExpr -> Bool
+ignoreArgument (Var v) =
+  case getNameModule v of
+    Just (name, mod) ->
+      ((mod == "GHC.Exts" || mod == "GHC.IsList") && (name == "fromList" || name == "fromListN")) ||
+      ((mod == "Data.String" || mod == "GHC.Data.String") && name == "fromString") ||
+      (mod == "GHC.Stack.Types" && name == "pushCallStack") ||
+      ((mod == "Data.Text" || mod == "Data.Text.Internal") && name == "pack")
+    _ -> False
+ignoreArgument (App x _) = ignoreArgument x
+ignoreArgument _ = False
 
 isDeepseqForce :: CoreExpr -> Bool
 isDeepseqForce (App (App (App (Var v) _) _) _) =

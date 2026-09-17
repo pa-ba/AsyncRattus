@@ -141,9 +141,11 @@ origNameCache = do
 getNamedThingFromModuleAndOccName :: String -> OccName -> CoreM TyThing
 getNamedThingFromModuleAndOccName moduleName occName = do
   origNameCache <- origNameCache
-  let [mod] = filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache)
-  let name = fromJust $ lookupOrigNameCache origNameCache mod occName
-  lookupThing name
+  case filter ((moduleName ==) . unpackFS . getModuleFS) (moduleEnvKeys origNameCache) of
+    mod : _ -> lookupThing $ fromJust $ lookupOrigNameCache origNameCache mod occName
+    [] -> error ("internal error: cannot find module " ++ moduleName ++ " in the name cache; "
+                 ++ "the modules in the name cache are: "
+                 ++ show (map (unpackFS . getModuleFS) (moduleEnvKeys origNameCache)))
 
 getVarFromModule :: String -> String -> CoreM Var
 getVarFromModule moduleName = fmap tyThingId . getNamedThingFromModuleAndOccName moduleName . mkOccName Occurrence.varName
@@ -305,6 +307,7 @@ isStableRec c d pr t = do
                           let c' = Set.union c (getStableConstraints constraints)
                           in and (map (isStableRec c' (d+1) pr') tys)
               TupleTyCon {} -> null args
+              NewTyCon {nt_rhs = ty} -> isStableRec c (d+1) pr' ty
               _ -> False
         _ -> False
 
@@ -346,6 +349,11 @@ isStrictRec d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
+          -- 'Item' is the type family of the 'IsList' class. If it
+          -- has not been reduced (because the list type is still a
+          -- type variable), we approximate it by its argument.
+          | (mod == "GHC.IsList" || mod == "GHC.Exts") && name == "Item" ->
+            all (isStrictRec (d+1) pr') args
           | isIntegerModule mod && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           | mod == "GHC.IORef" && name == "IORef" -> True

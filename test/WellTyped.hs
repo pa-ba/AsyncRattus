@@ -1,5 +1,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS -fplugin=AsyncRattus.Plugin #-}
 
 module Main (module Main) where
@@ -8,6 +10,8 @@ import AsyncRattus
 import AsyncRattus.Signal
 import Data.Set as Set
 import Data.Text
+import qualified Data.String as Str
+import qualified GHC.Exts as Exts
 
 boxedInt :: Box Int
 boxedInt = box 8
@@ -167,5 +171,58 @@ zipWithBeh f (Beh as) (Beh bs) = Beh (run as bs) where
         Fst as' lbs -> run as' (b ::: lbs)
         Snd las bs' -> run (a ::: las) bs'
         Both as' bs' -> run as' bs')
+
+-- check that newtypes over stable types are recognised as stable
+
+newtype Count = Count Int
+
+newtypeStable :: Count -> O () -> O Count
+newtypeStable x d = delay (let _ = adv d in x)
+
+
+-- check the strict sum type
+
+strictSum :: Int :+ Bool -> Int
+strictSum (Left' n) = n
+strictSum (Right' b) = if b then 1 else 0
+
+strictSumStable :: Int :+ Bool -> O () -> O (Int :+ Bool)
+strictSumStable x d = delay (let _ = adv d in x)
+
+
+-- check the Functor instance of Maybe'
+
+incMaybe' :: Maybe' Int -> Maybe' Int
+incMaybe' = fmap (+1)
+
+
+-- The definitions below must not produce a "may lead to memory leaks"
+-- warning: the lazy arguments of fromString, fromList/fromListN and
+-- Data.Text.pack are consumed immediately and are not retained. Note
+-- that the arguments must not be literals, since those are already
+-- exempt from the check.
+
+-- fromListN, as inserted by OverloadedLists
+intSet :: Set Int
+intSet = [1,2,3]
+
+-- fromList, the method of the IsList class
+setFromList :: [Int] -> Set Int
+setFromList xs = Exts.fromList xs
+
+-- fromString, the method of the IsString class
+textFromString :: String -> Text
+textFromString s = Str.fromString s
+
+-- Data.Text.pack
+packedText :: String -> Text
+packedText s = pack s
+
+
+-- 'Item l' must be recognised as strict whenever 'l' is.
+
+itemStrict :: IsList l => l -> Item l -> List (Item l)
+itemStrict _ x = x :! Nil
+
 
 main = putStrLn "This file should just type check"

@@ -32,6 +32,7 @@ module AsyncRattus.Strict
     mapMaybe',
     concatMap',
     (:*)(..),
+    (:+)(..),
     Maybe'(..),
     maybe',
     fromMaybe',
@@ -45,6 +46,10 @@ module AsyncRattus.Strict
 import Prelude hiding (map)
 import Data.VectorSpace
 import GHC.Exts (IsList(..))
+
+infixr 3 :+
+-- | Strict sum type.
+data a :+ b = Left' !a | Right' !b deriving (Show, Eq)
 
 infixr 2 :*
 -- | Strict pair type.
@@ -234,6 +239,10 @@ instance Show a => Show (List a) where
 
 -- | Strict variant of 'Maybe'.
 data Maybe' a = Just' !a | Nothing' deriving (Show, Eq, Ord)
+
+instance Functor Maybe' where
+  fmap f (Just' x) = Just' (f x)
+  fmap _ Nothing'  = Nothing'
 
 -- | takes a default value, a function, and a 'Maybe'' value.  If the
 -- 'Maybe'' value is 'Nothing'', the function returns the default
