@@ -31,6 +31,7 @@ import GHC.Parser.Annotation
 #endif
 
 
+import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Graph
@@ -117,7 +118,11 @@ getRecFieldRhs = hfbRHS
 getRecFieldRhs = hsRecFieldArg
 #endif
 
+#if __GLASGOW_HASKELL__ >= 914
+getConBV (PrefixCon ps) = getBV ps
+#else
 getConBV (PrefixCon _ ps) = getBV ps
+#endif
 getConBV (InfixCon p p') = getBV p `Set.union` getBV p'
 getConBV (RecCon (HsRecFields {rec_flds = fs})) = foldl run Set.empty fs
       where run s (L _ f) = getBV (getRecFieldRhs f) `Set.union` s
@@ -159,9 +164,12 @@ instance HasBV (Pat GhcTc) where
       HsUntypedSplice _ _ v _ ->  Set.singleton v
       HsQuasiQuote _ p p' _ _ -> Set.fromList [p,p']
       _ -> Set.empty
-#else
+#elif __GLASGOW_HASKELL__ < 914
       HsUntypedSpliceExpr _ e -> getFV e
       HsQuasiQuote _ v _  -> Set.singleton v
+#else
+      HsUntypedSpliceExpr _ e -> getFV e
+      HsQuasiQuote _ (L _ v) _  -> Set.singleton v
 #endif
 
   getBV (NPlusKPat _ (L _ v) _ _ _ _) = Set.singleton v
@@ -200,6 +208,11 @@ instance HasFV a => HasFV (GenLocated b a) where
   getFV (L _ e) = getFV e
   
 instance HasFV a => HasFV [a] where
+  getFV es = foldMap getFV es
+
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance HasFV a => HasFV (NonEmpty a) where
   getFV es = foldMap getFV es
 
 instance HasFV a => HasFV (Bag a) where
@@ -348,7 +361,11 @@ instance HasFV (HsCmdTop GhcTc) where
 
 instance HasFV (HsExpr GhcTc) where
   getFV (HsVar _ v) = getFV v
+#if __GLASGOW_HASKELL__ >= 914
+  getFV HsHole {} = Set.empty
+#else
   getFV HsUnboundVar {} = Set.empty
+#endif
   getFV HsOverLabel {} = Set.empty
   getFV HsIPVar {} = Set.empty
   getFV HsOverLit {} = Set.empty
@@ -456,7 +473,11 @@ instance HasFV XXExprGhcTc where
 instance HasFV (e GhcTc) => HasFV (HsWrap e) where
   getFV (HsWrap _ e) = getFV e
 
-#if __GLASGOW_HASKELL__ >= 912
+#if __GLASGOW_HASKELL__ >= 914
+instance HasFV (HsMultAnnOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  getFV (HsExplicitMult _ e) = getFV e
+  getFV _ = Set.empty
+#elif __GLASGOW_HASKELL__ >= 912
 instance HasFV (HsArrowOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
   getFV (HsExplicitMult _ e) = getFV e
   getFV _ = Set.empty

@@ -16,7 +16,7 @@ A more detailed introduction to the language can be found in this
 
 # Usage
 
-This library has been tested with GHC versions 9.2 to 9.12. To install
+This library has been tested with GHC versions 9.2 to 9.14. To install
 it, issue the following command:
 
 	cabal install

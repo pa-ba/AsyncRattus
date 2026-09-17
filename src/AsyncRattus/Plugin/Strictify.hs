@@ -30,7 +30,11 @@ checkStrictData ss (App e1 e2)
   | isPushCallStack e1 = return ()
   | otherwise = do 
     when (not (isType e2) && tcIsLiftedTypeKind(typeKind (exprType e2))
-        && not (isStrict (exprType e2)) && not (isDeepseqForce e2) && not (isLit e2))
+        && not (isStrict (exprType e2)) && not (isDeepseqForce e2) && not (isLit e2)
+        -- since GHC 9.14 the HasCallStack dictionary is built by
+        -- applying the IP constructor to a 'pushCallStack' call, so the
+        -- call stack plumbing turns up in argument position as well
+        && not (isPushCallStack e2))
           (printMessage SevWarning (srcSpan ss)
                (text "The use of lazy type " <> ppr (exprType e2) <> " may lead to memory leaks. Use Control.DeepSeq.force on lazy types."))
     checkStrictData ss e1

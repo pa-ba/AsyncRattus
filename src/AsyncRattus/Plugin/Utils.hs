@@ -207,6 +207,14 @@ baseModuleName = id
 #endif
 
 
+-- | Check whether the given module is the one that defines 'Integer'.
+-- Up to GHC 9.12 that is @GHC.Num.Integer@ from the @ghc-bignum@
+-- package. Since GHC 9.14 it lives in @ghc-internal@, which
+-- 'baseModuleName' maps to @GHC.Bignum.Integer@.
+isIntegerModule :: FastString -> Bool
+isIntegerModule mod = mod == "GHC.Num.Integer" || mod == "GHC.Bignum.Integer"
+
+
 -- | The set of stable built-in types.
 ghcStableTypes :: Set FastString
 ghcStableTypes = Set.fromList ["Word", "Word8", "Word16","Word32", "Word64","Int","Int8","Int16","Int32","Int64","Bool","Float","Double","Char", "IO"]
@@ -276,7 +284,7 @@ isStableRec c d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
-          | mod == "GHC.Num.Integer" && name == "Integer" -> True
+          | isIntegerModule mod && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           -- If it's a Rattus type constructor check if it's a box
           | isRattModule mod && name == "Box" -> True
@@ -338,7 +346,7 @@ isStrictRec d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
-          | mod == "GHC.Num.Integer" && name == "Integer" -> True
+          | isIntegerModule mod && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           | mod == "GHC.IORef" && name == "IORef" -> True
           | mod == "GHC.MVar" && name == "MVar" -> True
@@ -389,7 +397,7 @@ typeClassFunction v =
     _ -> False
 
 mkSysLocalFromVar :: MonadUnique m => FastString -> Var -> m Id
-mkSysLocalFromVar lit v = mkSysLocalM lit (varMult v) (varType v)
+mkSysLocalFromVar lit v = mkSysLocalM lit (idMult v) (varType v)
  
 mkSysLocalFromExpr :: MonadUnique m => FastString -> CoreExpr -> m Id
 mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)

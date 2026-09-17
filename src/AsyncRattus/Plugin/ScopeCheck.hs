@@ -34,7 +34,9 @@ import GHC.Hs.Extension
 import GHC.Hs.Expr
 import GHC.Hs.Pat
 import GHC.Hs.Binds
-#if __GLASGOW_HASKELL__ >= 912
+#if __GLASGOW_HASKELL__ >= 914
+import GHC.Hs.Type (HsMultAnnOf (..))
+#elif __GLASGOW_HASKELL__ >= 912
 import GHC.Hs.Type (HsArrowOf (..))
 #endif
 
@@ -213,6 +215,11 @@ instance Scope a => Scope (Bag a) where
   check bs = fmap and (mapM check (bagToList bs))
 
 instance Scope a => Scope [a] where
+  check ls = fmap and (mapM check ls)
+
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance Scope a => Scope (NonEmpty a) where
   check ls = fmap and (mapM check ls)
 
 
@@ -453,7 +460,11 @@ instance Scope (HsExpr GhcTc) where
                             <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
       Select -> printMessageCheck SevError ("select must be fully applied")
     _ -> liftM2 (&&) (check e1)  (check e2)
+#if __GLASGOW_HASKELL__ >= 914
+  check HsHole{} = return True
+#else
   check HsUnboundVar{}  = return True
+#endif
 #if __GLASGOW_HASKELL__ >= 912
   check (HsPar _ e) = check e
   check HsTypedBracket{} = notSupported "MetaHaskell"
@@ -634,7 +645,11 @@ instance Scope (HsTupArg GhcTc) where
   check (Present _ e) = check e
   check Missing{} = return True
 
-#if __GLASGOW_HASKELL__ >= 912
+#if __GLASGOW_HASKELL__ >= 914
+instance Scope (HsMultAnnOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  check (HsExplicitMult _ e) = check e
+  check _ = return True
+#elif __GLASGOW_HASKELL__ >= 912
 instance Scope (HsArrowOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
   check (HsExplicitMult _ e) = check e
   check _ = return True
