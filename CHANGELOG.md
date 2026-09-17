@@ -3,6 +3,9 @@
  - Support GHC 9.10, 9.12, and 9.14.
  - Fix the multiplicity of the binder that the plugin generates for
    `delay`.
+ - Scope checking now accounts for pattern matching with existential
+   types. Given a constructor `MkFoo :: Stable a => !a -> Foo`, the
+   definition `fun (MkFoo x) = box x` now type checks.
  - Newtypes are now recognised as stable if their underlying type is
    stable.
  - The strictness checker no longer warns about the lazy arguments of

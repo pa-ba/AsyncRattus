@@ -172,6 +172,48 @@ zipWithBeh f (Beh as) (Beh bs) = Beh (run as bs) where
         Snd las bs' -> run (a ::: las) bs'
         Both as' bs' -> run as' bs')
 
+-- Check that scope checking accounts for the Stable constraint that
+-- pattern matching on an existential/GADT constructor brings into
+-- scope. In each case the existentially bound x must remain in scope
+-- under the delay.
+
+-- match in a function definition
+funTest :: Fun a -> O () -> O (Fun a)
+funTest fun@(Fun x _) d = delay (let _ = adv d in x `seq` fun)
+
+-- match in a case expression
+funTest2 :: Fun a -> O () -> O (Fun a)
+funTest2 fun = case fun of Fun x _ -> \ d -> delay (let _ = adv d in x `seq` fun)
+
+-- the stable constraint must reach a where-bound pattern binding
+funTest5 :: Fun a -> O () -> O (Fun a)
+funTest5 fun@(Fun x f) d = delay (let _ = adv d in x' `seq` fun)
+  where (x' :* _) = unbox f x 0
+
+-- ... and a let-bound pattern binding
+funTest6 :: Fun a -> O () -> O (Fun a)
+funTest6 fun@(Fun x f) d =
+  let (x' :* _) = unbox f x 0 in delay (let _ = adv d in x' `seq` fun)
+
+-- ... and a pattern guard
+funTestGuard :: Fun a -> O () -> O (Fun a)
+funTestGuard fun d
+  | Fun x _ <- fun = delay (let _ = adv d in x `seq` fun)
+
+-- ... and a bind statement in do notation
+{-# ANN funTestBind AllowLazyData #-}
+funTestBind :: Maybe (Fun a) -> O () -> Maybe (O (Fun a))
+funTestBind fun d = do Fun x _ <- fun
+                       fun' <- fun
+                       return (delay (let _ = adv d in x `seq` fun'))
+
+-- this workaround was previously needed to get the above to compile
+funTestWorkaround :: Fun a -> O () -> O (Fun a)
+funTestWorkaround fun@(Fun x _) d = foo x fun
+  where foo :: Stable s => s -> Fun a -> O (Fun a)
+        foo y g = delay (let _ = adv d in y `seq` g)
+
+
 -- check that newtypes over stable types are recognised as stable
 
 newtype Count = Count Int

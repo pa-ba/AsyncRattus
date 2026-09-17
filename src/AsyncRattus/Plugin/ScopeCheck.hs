@@ -155,6 +155,18 @@ class ScopeBind a where
   -- addition returns the the set of variables bound by it.
   checkBind :: GetCtxt => a -> CheckM (Bool,Set Var)
 
+-- | This class is used to collect the 'Stable' constraints that a
+-- piece of syntax brings into scope by pattern matching.
+class BoundStable a where
+  -- | 'getBoundStable' returns all type variables that have obtained a
+  -- 'Stable' constraint (by virtue of pattern matching against a
+  -- GADT). For example, given a constructor @MkFoo :: Stable a => !a
+  -- -> Foo@, the pattern matching in the following function
+  -- definition produces a stable constraint on the type of @x@:
+  --
+  -- > fun (MkFoo x) = box x
+  getBoundStable :: a -> Set Var
+
 
 -- | set the current context.
 setCtxt :: Ctxt -> (GetCtxt => a) -> a 
@@ -205,6 +217,109 @@ printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
 
 
 
+instance BoundStable a => BoundStable [a] where
+  getBoundStable = foldMap getBoundStable
+
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance BoundStable a => BoundStable (NonEmpty a) where
+  getBoundStable = foldMap getBoundStable
+
+instance BoundStable a => BoundStable (Bag a) where
+  getBoundStable = foldMap getBoundStable
+
+instance BoundStable a => BoundStable (GenLocated l a) where
+  getBoundStable (L _ x) = getBoundStable x
+
+instance BoundStable a => BoundStable (RecFlag, a) where
+  getBoundStable (_, x) = getBoundStable x
+
+instance BoundStable (SCC a) where
+  getBoundStable _ = Set.empty
+
+-- Expressions and commands do not bind stable constraints themselves;
+-- the constraints are brought into scope by the patterns around them.
+instance BoundStable (HsExpr GhcTc) where
+  getBoundStable _ = Set.empty
+
+instance BoundStable (HsCmd GhcTc) where
+  getBoundStable _ = Set.empty
+
+#if __GLASGOW_HASKELL__ < 904
+instance BoundStable CoPat where
+  getBoundStable CoPat {co_pat_inner = p} = getBoundStable p
+#else
+instance BoundStable XXPatGhcTc where
+  getBoundStable CoPat {co_pat_inner = p} = getBoundStable p
+  getBoundStable (ExpansionPat _ p) = getBoundStable p
+#endif
+
+instance BoundStable (Pat GhcTc) where
+  getBoundStable (ConPat {pat_con_ext = ConPatTc {cpt_dicts = dicts}}) =
+    Set.fromList (mapMaybe (isStableConstr . varType) dicts)
+  getBoundStable (LazyPat _ p) = getBoundStable p
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (AsPat _ _ p) = getBoundStable p
+#elif __GLASGOW_HASKELL__ >= 906
+  getBoundStable (AsPat _ _ _ p) = getBoundStable p
+#else
+  getBoundStable (AsPat _ _ p) = getBoundStable p
+#endif
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (ParPat _ p) = getBoundStable p
+#elif __GLASGOW_HASKELL__ >= 904
+  getBoundStable (ParPat _ _ p _) = getBoundStable p
+#else
+  getBoundStable (ParPat _ p) = getBoundStable p
+#endif
+  getBoundStable (BangPat _ p) = getBoundStable p
+  getBoundStable (ListPat _ p) = getBoundStable p
+#if __GLASGOW_HASKELL__ >= 912
+  getBoundStable (OrPat _ ps) = foldMap getBoundStable ps
+#endif
+  getBoundStable (TuplePat _ p _) = getBoundStable p
+  getBoundStable (SumPat _ p _ _) = getBoundStable p
+  getBoundStable (ViewPat _ _ p) = getBoundStable p
+  getBoundStable (SigPat _ p _) = getBoundStable p
+  getBoundStable (XPat p) = getBoundStable p
+  getBoundStable (SplicePat {}) = Set.empty
+  getBoundStable (VarPat {}) = Set.empty
+  getBoundStable (WildPat {}) = Set.empty
+  getBoundStable (LitPat {}) = Set.empty
+  getBoundStable (NPat {}) = Set.empty
+  getBoundStable (NPlusKPat {}) = Set.empty
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (EmbTyPat _ _) = Set.empty
+  getBoundStable (InvisPat _ _) = Set.empty
+#endif
+
+instance BoundStable (HsBindLR GhcTc GhcTc) where
+  getBoundStable (PatBind {pat_lhs = lhs}) = getBoundStable lhs
+  getBoundStable _ = Set.empty
+
+instance BoundStable (HsLocalBindsLR GhcTc GhcTc) where
+  getBoundStable (HsValBinds _ bs) = getBoundStable bs
+  getBoundStable HsIPBinds {} = Set.empty
+  getBoundStable EmptyLocalBinds {} = Set.empty
+
+instance BoundStable (HsValBindsLR GhcTc GhcTc) where
+  getBoundStable (ValBinds _ bs _) = getBoundStable bs
+  getBoundStable (XValBindsLR (NValBinds binds _)) = getBoundStable binds
+
+instance BoundStable a => BoundStable (StmtLR GhcTc GhcTc a) where
+  getBoundStable (BindStmt _ p _) = getBoundStable p
+  getBoundStable (LetStmt _ bs) = getBoundStable bs
+  getBoundStable LastStmt {} = Set.empty
+  getBoundStable BodyStmt {} = Set.empty
+  getBoundStable ParStmt {} = Set.empty
+  getBoundStable TransStmt {} = Set.empty
+#if __GLASGOW_HASKELL__ >= 912
+  getBoundStable (XStmtLR ApplicativeStmt {}) = Set.empty
+#else
+  getBoundStable ApplicativeStmt {} = Set.empty
+#endif
+  getBoundStable RecStmt {} = Set.empty
+
 instance Scope a => Scope (GenLocated SrcSpan a) where
   check (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` check x
 
@@ -224,10 +339,12 @@ instance Scope a => Scope (NonEmpty a) where
 
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = addVars (getBV ps) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} =
+    (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = addVars (getBV ps) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} =
+    (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 
 instance Scope (MatchGroup GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
@@ -242,7 +359,7 @@ instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
   checkBind (LastStmt _ b _ _) =  ( , Set.empty) <$> check b
   checkBind (BindStmt _ p b) = do
     let vs = getBV p
-    let c' = addVars vs ?ctxt
+    let c' = (addVars vs . addStable (getBoundStable p)) ?ctxt
     r <- setCtxt c' (check b)
     return (r,vs)
   checkBind (BodyStmt _ b _ _) = ( , Set.empty) <$> check b
@@ -256,11 +373,11 @@ instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
 #endif
   checkBind RecStmt{} = notSupported "recursive do notation"
 
-instance ScopeBind a => ScopeBind [a] where
+instance (BoundStable a, ScopeBind a) => ScopeBind [a] where
   checkBind [] = return (True,Set.empty)
   checkBind (x:xs) = do
     (r,vs) <- checkBind x
-    (r',vs') <- addVars vs `modifyCtxt` (checkBind xs)
+    (r',vs') <- (addVars vs . addStable (getBoundStable x)) `modifyCtxt` (checkBind xs)
     return (r && r',vs `Set.union` vs')
 
 instance ScopeBind a => ScopeBind (GenLocated SrcSpan a) where
@@ -272,7 +389,7 @@ instance ScopeBind a => ScopeBind (GenLocated (LocAnn b) a) where
 instance Scope a => Scope (GRHS GhcTc a) where
   check (GRHS _ gs b) = do
     (r, vs) <- checkBind gs
-    r' <- addVars vs `modifyCtxt`  (check b)
+    r' <- (addVars vs . addStable (getBoundStable gs)) `modifyCtxt`  (check b)
     return (r && r')
 
 checkRec :: GetCtxt => LHsBindLR GhcTc GhcTc -> CheckM Bool
@@ -360,13 +477,13 @@ type SrcAnno = SrcSpanAnnA
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- addVars vs `modifyCtxt` (check rhs)
+    r <- (addVars vs . addStable (getBoundStable lbinds)) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- addVars vs `modifyCtxt` (check rhs)
+    r <- (addVars vs . addStable (getBoundStable lbinds)) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Show Var where
@@ -506,7 +623,7 @@ instance Scope (HsExpr GhcTc) where
   check (HsLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    r <- addVars vs `modifyCtxt` (check e)
+    r <- (addVars vs . addStable (getBoundStable bs)) `modifyCtxt` (check e)
     return (r && l)
          
   check HsOverLabel{} = return True
@@ -614,7 +731,7 @@ instance Scope (HsCmd GhcTc) where
   check (HsCmdLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    r <- addVars vs `modifyCtxt` (check e)
+    r <- (addVars vs . addStable (getBoundStable bs)) `modifyCtxt` (check e)
     return (r && l)
 
   check (HsCmdCase _ e1 e2) = (&&) <$> check e1 <*> check e2
@@ -670,7 +787,8 @@ instance Scope (HsBindLR GhcTc GhcTc) where
     where mod c = c { stableTypes= stableTypes c `Set.union`
                       Set.fromList (stableConstrFromWrapper' wrapper)  `Set.union`
                       Set.fromList (extractStableConstr (varType v))}
-  check PatBind{pat_lhs = lhs, pat_rhs=rhs} = addVars (getBV lhs) `modifyCtxt` check rhs
+  check PatBind{pat_lhs = lhs, pat_rhs=rhs} =
+    (addVars (getBV lhs) . addStable (getBoundStable lhs)) `modifyCtxt` check rhs
   check VarBind{var_rhs = rhs} = check rhs
   check PatSynBind {} = return True -- pattern synonyms are not supported
 
@@ -892,6 +1010,11 @@ instance NotSupported (Bool,Set Var) where
 -- | Add variables to the current context.
 addVars :: Set Var -> Ctxt -> Ctxt
 addVars vs c = c{current = vs `Set.union` current c }
+
+-- | Add the given type variables to the set of type variables that
+-- are known to be stable.
+addStable :: Set Var -> Ctxt -> Ctxt
+addStable vs c = c{stableTypes = vs `Set.union` stableTypes c }
 
 -- | Print a message with the current location.
 printMessage' :: GetCtxt => Severity -> SDoc ->  CheckM ()
