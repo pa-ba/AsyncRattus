@@ -51,7 +51,7 @@ import Data.VectorSpace
 import WidgetRattus.Derive
 import WidgetRattus.Plugin.Annotation
 import GHC.Exts (IsList(..))
-import Data.Text hiding (foldl, singleton)
+import Data.Text (Text, pack, unpack, splitOn)
 import Text.Read (readMaybe)
 
 

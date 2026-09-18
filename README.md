@@ -33,11 +33,20 @@ FRP in Async Rattus (from section 3.2 of the accompanying paper) in
 
 # Usage
 
-This library has been tested with GHC versions 9.2 to 9.6. To install
+This library has been tested with GHC versions 9.2 to 9.14. To install
 it, issue the following command:
 
 	cabal install
 	
+The GUI library is built on top of
+[monomer](https://hackage.haskell.org/package/monomer). Monomer and
+some of its dependencies have upper bounds on `containers` that
+exclude the versions that ship with GHC 9.10 and later. This
+repository's `cabal.project` files lift these bounds. If you use GHC
+9.10 or later in your own project, add the following to its
+`cabal.project` file:
+
+	allow-newer: monomer:containers, nanovg:containers, OpenGLRaw:containers
 
 The `examples` folder contains example projects written in Async
 Rattus. In particular, the push-pull example GUIs can be run as

@@ -51,7 +51,7 @@ transformPrim ctx expr@(App e e') = case isPrimExpr expr of
     bigDelayVar <- bigDelay
     inputValueV <- inputValueVar
     let inputValueType = mkTyConTy inputValueV 
-    inpVar <- mkSysLocalM (fsLit "inpV") inputValueType inputValueType
+    inpVar <- mkSysLocalM (fsLit "inpV") manyDataConTy inputValueType
     let ctx' = ctx {fresh = Just inpVar}
     (newExpr, maybePrimInfo) <- transform' ctx' e'
     let primInfo = fromJust maybePrimInfo

@@ -1,2 +1,10 @@
 packages: ./
           ../../
+
+-- monomer and some of its dependencies have upper bounds on
+-- containers that exclude the versions that ship with GHC 9.10 and
+-- later. Since WidgetRattus depends on the ghc library, containers is
+-- fixed to the version that ships with the compiler.
+allow-newer: monomer:containers,
+             nanovg:containers,
+             OpenGLRaw:containers

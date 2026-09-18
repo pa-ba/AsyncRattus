@@ -34,6 +34,11 @@ import GHC.Hs.Extension
 import GHC.Hs.Expr
 import GHC.Hs.Pat
 import GHC.Hs.Binds
+#if __GLASGOW_HASKELL__ >= 914
+import GHC.Hs.Type (HsMultAnnOf (..))
+#elif __GLASGOW_HASKELL__ >= 912
+import GHC.Hs.Type (HsArrowOf (..))
+#endif
 
 import Data.Graph
 import qualified Data.Set as Set
@@ -150,15 +155,18 @@ class ScopeBind a where
   -- addition returns the the set of variables bound by it.
   checkBind :: GetCtxt => a -> CheckM (Bool,Set Var)
 
+-- | This class is used to collect the 'Stable' constraints that a
+-- piece of syntax brings into scope by pattern matching.
 class BoundStable a where
-  -- | 'getBoundStable' returns all type variable that have obtained a
-  -- stable constraints (by virtue of pattern matching againts a
+  -- | 'getBoundStable' returns all type variables that have obtained a
+  -- 'Stable' constraint (by virtue of pattern matching against a
   -- GADT). For example, given a constructor @MkFoo :: Stable a => !a
   -- -> Foo@, the pattern matching in the following function
   -- definition produces a stable constraint on the type of @x@:
   --
   -- > fun (MkFoo x) = box x
   getBoundStable :: a -> Set Var
+
 
 -- | set the current context.
 setCtxt :: Ctxt -> (GetCtxt => a) -> a 
@@ -174,11 +182,20 @@ modifyCtxt f a =
 
 
 
-getLocAnn' :: SrcSpanAnn' b -> SrcSpan
+-- | The annotation component of a located piece of syntax. GHC 9.10
+-- dropped the @SrcSpanAnn'@ wrapper and instead keeps the source span
+-- in the 'EpAnn' annotation itself.
+#if __GLASGOW_HASKELL__ >= 910
+type LocAnn = EpAnn
+#else
+type LocAnn = SrcSpanAnn'
+#endif
+
+getLocAnn' :: LocAnn b -> SrcSpan
 getLocAnn' = locA
 
 
-updateLoc :: SrcSpanAnn' b -> (GetCtxt => a) -> (GetCtxt => a)
+updateLoc :: LocAnn b -> (GetCtxt => a) -> (GetCtxt => a)
 updateLoc src = modifyCtxt (\c -> c {srcLoc = getLocAnn' src})
 
 
@@ -198,66 +215,115 @@ printAccErrMsgs msgs = mapM_ printMsg (sortOn (\(_,l,_)->l) msgs)
   where printMsg (sev,loc,doc) = printMessage sev loc doc
 
 
+
+
+instance BoundStable a => BoundStable [a] where
+  getBoundStable = foldMap getBoundStable
+
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance BoundStable a => BoundStable (NonEmpty a) where
+  getBoundStable = foldMap getBoundStable
+
+instance BoundStable a => BoundStable (Bag a) where
+  getBoundStable = foldMap getBoundStable
+
+instance BoundStable a => BoundStable (GenLocated l a) where
+  getBoundStable (L _ x) = getBoundStable x
+
+instance BoundStable a => BoundStable (RecFlag, a) where
+  getBoundStable (_, x) = getBoundStable x
+
+instance BoundStable (SCC a) where
+  getBoundStable _ = Set.empty
+
+-- Expressions and commands do not bind stable constraints themselves;
+-- the constraints are brought into scope by the patterns around them.
+instance BoundStable (HsExpr GhcTc) where
+  getBoundStable _ = Set.empty
+
+instance BoundStable (HsCmd GhcTc) where
+  getBoundStable _ = Set.empty
+
+#if __GLASGOW_HASKELL__ < 904
+instance BoundStable CoPat where
+  getBoundStable CoPat {co_pat_inner = p} = getBoundStable p
+#else
+instance BoundStable XXPatGhcTc where
+  getBoundStable CoPat {co_pat_inner = p} = getBoundStable p
+  getBoundStable (ExpansionPat _ p) = getBoundStable p
+#endif
+
 instance BoundStable (Pat GhcTc) where
-  getBoundStable (ConPat {pat_con_ext = ConPatTc {cpt_dicts = dicts}}) = 
+  getBoundStable (ConPat {pat_con_ext = ConPatTc {cpt_dicts = dicts}}) =
     Set.fromList (mapMaybe (isStableConstr . varType) dicts)
   getBoundStable (LazyPat _ p) = getBoundStable p
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (AsPat _ _ p) = getBoundStable p
+#elif __GLASGOW_HASKELL__ >= 906
   getBoundStable (AsPat _ _ _ p) = getBoundStable p
 #else
   getBoundStable (AsPat _ _ p) = getBoundStable p
 #endif
-#if __GLASGOW_HASKELL__ >= 904  
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (ParPat _ p) = getBoundStable p
+#elif __GLASGOW_HASKELL__ >= 904
   getBoundStable (ParPat _ _ p _) = getBoundStable p
 #else
   getBoundStable (ParPat _ p) = getBoundStable p
 #endif
   getBoundStable (BangPat _ p) = getBoundStable p
   getBoundStable (ListPat _ p) = getBoundStable p
+#if __GLASGOW_HASKELL__ >= 912
+  getBoundStable (OrPat _ ps) = foldMap getBoundStable ps
+#endif
   getBoundStable (TuplePat _ p _) = getBoundStable p
   getBoundStable (SumPat _ p _ _) = getBoundStable p
   getBoundStable (ViewPat _ _ p) = getBoundStable p
   getBoundStable (SigPat _ p _) = getBoundStable p
+  getBoundStable (XPat p) = getBoundStable p
   getBoundStable (SplicePat {}) = Set.empty
   getBoundStable (VarPat {}) = Set.empty
   getBoundStable (WildPat {}) = Set.empty
   getBoundStable (LitPat {}) = Set.empty
   getBoundStable (NPat {}) = Set.empty
   getBoundStable (NPlusKPat {}) = Set.empty
-  getBoundStable (XPat {}) = Set.empty
-  
-
+#if __GLASGOW_HASKELL__ >= 910
+  getBoundStable (EmbTyPat _ _) = Set.empty
+  getBoundStable (InvisPat _ _) = Set.empty
+#endif
 
 instance BoundStable (HsBindLR GhcTc GhcTc) where
   getBoundStable (PatBind {pat_lhs = lhs}) = getBoundStable lhs
   getBoundStable _ = Set.empty
 
-instance BoundStable (HsLocalBinds GhcTc) where
+instance BoundStable (HsLocalBindsLR GhcTc GhcTc) where
   getBoundStable (HsValBinds _ bs) = getBoundStable bs
   getBoundStable HsIPBinds {} = Set.empty
-  getBoundStable EmptyLocalBinds{} = Set.empty
+  getBoundStable EmptyLocalBinds {} = Set.empty
 
 instance BoundStable (HsValBindsLR GhcTc GhcTc) where
   getBoundStable (ValBinds _ bs _) = getBoundStable bs
   getBoundStable (XValBindsLR (NValBinds binds _)) = getBoundStable binds
 
-instance BoundStable a => BoundStable (Bag a) where
-  getBoundStable bs = foldl' (\ s r -> s `Set.union` getBoundStable r) Set.empty bs
-
-
-instance BoundStable a => BoundStable [a] where
-  getBoundStable bs = foldl' (\ s r -> s `Set.union` getBoundStable r) Set.empty bs
-
-instance BoundStable a => BoundStable (RecFlag, a) where
-  getBoundStable (_, x) =  getBoundStable x
-
-instance BoundStable a => BoundStable (GenLocated s a) where
-  getBoundStable (L _ x) =  getBoundStable x
+instance BoundStable a => BoundStable (StmtLR GhcTc GhcTc a) where
+  getBoundStable (BindStmt _ p _) = getBoundStable p
+  getBoundStable (LetStmt _ bs) = getBoundStable bs
+  getBoundStable LastStmt {} = Set.empty
+  getBoundStable BodyStmt {} = Set.empty
+  getBoundStable ParStmt {} = Set.empty
+  getBoundStable TransStmt {} = Set.empty
+#if __GLASGOW_HASKELL__ >= 912
+  getBoundStable (XStmtLR ApplicativeStmt {}) = Set.empty
+#else
+  getBoundStable ApplicativeStmt {} = Set.empty
+#endif
+  getBoundStable RecStmt {} = Set.empty
 
 instance Scope a => Scope (GenLocated SrcSpan a) where
   check (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` check x
 
-instance Scope a => Scope (GenLocated (SrcSpanAnn' b) a) where
+instance Scope a => Scope (GenLocated (LocAnn b) a) where
   check (L l x) =  updateLoc l $ check x
   
 instance Scope a => Scope (Bag a) where
@@ -266,12 +332,19 @@ instance Scope a => Scope (Bag a) where
 instance Scope a => Scope [a] where
   check ls = fmap and (mapM check ls)
 
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance Scope a => Scope (NonEmpty a) where
+  check ls = fmap and (mapM check ls)
+
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} =
+    (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 instance Scope (Match GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
-  check Match{m_pats=ps,m_grhss=rhs} = (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
+  check Match{m_pats=ps,m_grhss=rhs} =
+    (addVars (getBV ps) . addStable (getBoundStable ps)) `modifyCtxt` check rhs
 
 
 instance Scope (MatchGroup GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
@@ -282,46 +355,41 @@ instance Scope (MatchGroup GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
   check MG {mg_alts = alts} = check alts
 
 
-instance BoundStable a => BoundStable (StmtLR GhcTc GhcTc a) where
-  getBoundStable (LastStmt _ _ _ _) =  Set.empty
-  getBoundStable (BindStmt _ p _) = getBoundStable p
-  getBoundStable (BodyStmt _ _ _ _) = Set.empty
-  getBoundStable (LetStmt _ bs) = getBoundStable bs
-  getBoundStable ParStmt{} = Set.empty
-  getBoundStable TransStmt{} = Set.empty
-  getBoundStable ApplicativeStmt{} = Set.empty
-  getBoundStable RecStmt{} = Set.empty
-
 instance Scope a => ScopeBind (StmtLR GhcTc GhcTc a) where
   checkBind (LastStmt _ b _ _) =  ( , Set.empty) <$> check b
   checkBind (BindStmt _ p b) = do
     let vs = getBV p
-    r <- modifyCtxt (addStable (getBoundStable p) . addVars vs) (check b)
+    let c' = (addVars vs . addStable (getBoundStable p)) ?ctxt
+    r <- setCtxt c' (check b)
     return (r,vs)
   checkBind (BodyStmt _ b _ _) = ( , Set.empty) <$> check b
   checkBind (LetStmt _ bs) = checkBind bs
   checkBind ParStmt{} = notSupported "monad comprehensions"
   checkBind TransStmt{} = notSupported "monad comprehensions"
+#if __GLASGOW_HASKELL__ >= 912
+  checkBind (XStmtLR ApplicativeStmt{}) = notSupported "applicative do notation"
+#else
   checkBind ApplicativeStmt{} = notSupported "applicative do notation"
+#endif
   checkBind RecStmt{} = notSupported "recursive do notation"
 
 instance (BoundStable a, ScopeBind a) => ScopeBind [a] where
   checkBind [] = return (True,Set.empty)
   checkBind (x:xs) = do
     (r,vs) <- checkBind x
-    (r',vs') <- (addStable (getBoundStable x) . addVars vs) `modifyCtxt` (checkBind xs)
+    (r',vs') <- (addVars vs . addStable (getBoundStable x)) `modifyCtxt` (checkBind xs)
     return (r && r',vs `Set.union` vs')
 
 instance ScopeBind a => ScopeBind (GenLocated SrcSpan a) where
   checkBind (L l x) =  (\c -> c {srcLoc = l}) `modifyCtxt` checkBind x
 
-instance ScopeBind a => ScopeBind (GenLocated (SrcSpanAnn' b) a) where
+instance ScopeBind a => ScopeBind (GenLocated (LocAnn b) a) where
   checkBind (L l x) =  updateLoc l $ checkBind x
 
 instance Scope a => Scope (GRHS GhcTc a) where
   check (GRHS _ gs b) = do
     (r, vs) <- checkBind gs
-    r' <- (addStable (getBoundStable gs) . addVars vs) `modifyCtxt`  (check b)
+    r' <- (addVars vs . addStable (getBoundStable gs)) `modifyCtxt`  (check b)
     return (r && r')
 
 checkRec :: GetCtxt => LHsBindLR GhcTc GhcTc -> CheckM Bool
@@ -339,7 +407,7 @@ checkPatBind' AbsBinds {abs_binds = binds} =
 #else
 checkPatBind' (XHsBindsLR AbsBinds {abs_binds = binds}) = 
 #endif
-  liftM and (mapM checkPatBind (bagToList binds))
+  liftM and (mapM checkPatBind (bindsToList binds))
 
 checkPatBind' _ = return True
 
@@ -393,10 +461,10 @@ getAllBV (L _ b) = getAllBV' b where
 
 
 -- Check nested bindings
-instance ScopeBind (RecFlag, Bag (GenLocated SrcSpanAnnA (HsBindLR GhcTc GhcTc))) where
-  checkBind (NonRecursive, bs)  = checkBind $ bagToList bs
+instance ScopeBind (RecFlag, Binds (GenLocated SrcSpanAnnA (HsBindLR GhcTc GhcTc))) where
+  checkBind (NonRecursive, bs)  = checkBind $ bindsToList bs
   checkBind (Recursive, bs) = checkRecursiveBinds bs' (foldMap getAllBV bs')
-    where bs' = bagToList bs
+    where bs' = bindsToList bs
 
 
 instance ScopeBind (HsLocalBindsLR GhcTc GhcTc) where
@@ -409,13 +477,13 @@ type SrcAnno = SrcSpanAnnA
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsExpr GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- (addStable (getBoundStable lbinds) . addVars vs) `modifyCtxt` (check rhs)
+    r <- (addVars vs . addStable (getBoundStable lbinds)) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Scope (GRHSs GhcTc (GenLocated SrcAnno (HsCmd GhcTc))) where
   check GRHSs{grhssGRHSs = rhs, grhssLocalBinds = lbinds} = do
     (l,vs) <- checkBind lbinds
-    r <- (addStable (getBoundStable lbinds) . addVars vs) `modifyCtxt` (check rhs)
+    r <- (addVars vs . addStable (getBoundStable lbinds)) `modifyCtxt` (check rhs)
     return (r && l)
 
 instance Show Var where
@@ -509,8 +577,28 @@ instance Scope (HsExpr GhcTc) where
                             <> " There is a delay, but its scope is interrupted by " <> tickHidden hr <> ".")
       Select -> printMessageCheck SevError ("select must be fully applied")
     _ -> liftM2 (&&) (check e1)  (check e2)
+#if __GLASGOW_HASKELL__ >= 914
+  check HsHole{} = return True
+#else
   check HsUnboundVar{}  = return True
-#if __GLASGOW_HASKELL__ >= 904
+#endif
+#if __GLASGOW_HASKELL__ >= 912
+  check (HsPar _ e) = check e
+  check HsTypedBracket{} = notSupported "MetaHaskell"
+  check HsUntypedBracket{} = notSupported "MetaHaskell"
+  check HsEmbTy{} = return True
+  -- type syntax that may occur in term position
+  check (HsForAll _ _ e) = check e
+  check (HsQual _ ctxt e) = (&&) <$> check ctxt <*> check e
+  check (HsFunArr _ arr e1 e2) =
+    and <$> sequence [check arr, check e1, check e2]
+#elif __GLASGOW_HASKELL__ >= 910
+  check (HsPar _ e) = check e
+  check HsRecSel{} = return True
+  check HsTypedBracket{} = notSupported "MetaHaskell"
+  check HsUntypedBracket{} = notSupported "MetaHaskell"
+  check HsEmbTy{} = return True
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsPar _ _ e _) = check e
   check (HsLamCase _ _ mg) = check mg
   check HsRecSel{} = return True
@@ -527,14 +615,15 @@ instance Scope (HsExpr GhcTc) where
   check HsRnBracketOut{} = notSupported "MetaHaskell"
   check HsTcBracketOut{} = notSupported "MetaHaskell"
 #endif
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsLet _ bs e) = do
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsLet _ _ bs _ e) = do
 #else
   check (HsLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    let stVs = getBoundStable bs
-    r <- (addVars vs . addStable stVs) `modifyCtxt` (check e)
+    r <- (addVars vs . addStable (getBoundStable bs)) `modifyCtxt` (check e)
     return (r && l)
          
   check HsOverLabel{} = return True
@@ -542,7 +631,11 @@ instance Scope (HsExpr GhcTc) where
   check HsOverLit{} = return True  
   check HsLit{} = return True
   check (OpApp _ e1 e2 e3) = and <$> mapM check [e1,e2,e3]
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsLam _ _ mg) = check mg
+#else
   check (HsLam _ mg) = check mg
+#endif
   check (HsCase _ e1 e2) = (&&) <$> check e1 <*> check e2
   check (SectionL _ e1 e2) = (&&) <$> check e1 <*> check e2
   check (SectionR _ e1 e2) = (&&) <$> check e1 <*> check e2
@@ -566,7 +659,10 @@ instance Scope (HsExpr GhcTc) where
   check (HsStatic _ e) = check e
   check (HsDo _ _ e) = fst <$> checkBind e
   check (XExpr e) = check e
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsAppType _ e _) = check e
+  check (ExprWithTySig _ e _) = check e
+#elif __GLASGOW_HASKELL__ >= 906
   check (HsAppType _ e _ _) = check e
   check (ExprWithTySig _ e _) = check e
 #else
@@ -590,8 +686,17 @@ instance Scope (LHsRecUpdFields GhcTc) where
 
 
 instance Scope XXExprGhcTc where
+#if __GLASGOW_HASKELL__ >= 912
+  check (WrapExpr _ e) = check e
+  check HsRecSelTc{} = return True
+#else
   check (WrapExpr (HsWrap _ e)) = check e
+#endif
+#if __GLASGOW_HASKELL__ >= 910
+  check (ExpandedThingTc _ e) = check e
+#else
   check (ExpansionExpr (HsExpanded _ e)) = check e
+#endif
 #if __GLASGOW_HASKELL__ >= 904
   check ConLikeTc{} = return True
   check (HsTick _ e) = check e
@@ -601,36 +706,32 @@ instance Scope XXExprGhcTc where
 instance Scope (HsCmdTop GhcTc) where
   check (HsCmdTop _ e) = check e
   
-
-instance BoundStable (HsExpr GhcTc) where
-  getBoundStable _ = Set.empty
-
-
-instance BoundStable (HsCmd GhcTc) where
-  getBoundStable _ = Set.empty
-
-
-instance BoundStable (SCC a) where
-  getBoundStable _ = Set.empty
-
-
 instance Scope (HsCmd GhcTc) where
   check (HsCmdArrApp _ e1 e2 _ _) = (&&) <$> check e1 <*> check e2
   check (HsCmdDo _ e) = fst <$> checkBind e
+#if __GLASGOW_HASKELL__ >= 912
+  check (HsCmdArrForm _ e1 _ e2) = (&&) <$> check e1 <*> check e2
+#else
   check (HsCmdArrForm _ e1 _ _ e2) = (&&) <$> check e1 <*> check e2
+#endif
   check (HsCmdApp _ e1 e2) = (&&) <$> check e1 <*> check e2
+#if __GLASGOW_HASKELL__ >= 910
+  check (HsCmdLam _ _ e) = check e
+  check (HsCmdPar _ e) = check e
+  check (HsCmdLet _ bs e) = do
+#elif __GLASGOW_HASKELL__ >= 904
   check (HsCmdLam _ e) = check e
-#if __GLASGOW_HASKELL__ >= 904
   check (HsCmdPar _ _ e _) = check e
   check (HsCmdLamCase _ _ e) = check e  
   check (HsCmdLet _ _ bs _ e) = do
 #else
+  check (HsCmdLam _ e) = check e
   check (HsCmdPar _ e) = check e
   check (HsCmdLamCase _ e) = check e
   check (HsCmdLet _ bs e) = do
 #endif
     (l,vs) <- checkBind bs
-    r <- (addStable (getBoundStable bs) . addVars vs) `modifyCtxt` (check e)
+    r <- (addVars vs . addStable (getBoundStable bs)) `modifyCtxt` (check e)
     return (r && l)
 
   check (HsCmdCase _ e1 e2) = (&&) <$> check e1 <*> check e2
@@ -661,6 +762,16 @@ instance Scope (HsTupArg GhcTc) where
   check (Present _ e) = check e
   check Missing{} = return True
 
+#if __GLASGOW_HASKELL__ >= 914
+instance Scope (HsMultAnnOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  check (HsExplicitMult _ e) = check e
+  check _ = return True
+#elif __GLASGOW_HASKELL__ >= 912
+instance Scope (HsArrowOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  check (HsExplicitMult _ e) = check e
+  check _ = return True
+#endif
+
 instance Scope (HsBindLR GhcTc GhcTc) where
 #if __GLASGOW_HASKELL__ >= 904
   check (XHsBindsLR AbsBinds {abs_binds = binds, abs_ev_vars  = ev})
@@ -676,7 +787,8 @@ instance Scope (HsBindLR GhcTc GhcTc) where
     where mod c = c { stableTypes= stableTypes c `Set.union`
                       Set.fromList (stableConstrFromWrapper' wrapper)  `Set.union`
                       Set.fromList (extractStableConstr (varType v))}
-  check PatBind{pat_lhs = lhs, pat_rhs=rhs} = (addStable (getBoundStable lhs). addVars (getBV lhs)) `modifyCtxt` check rhs
+  check PatBind{pat_lhs = lhs, pat_rhs=rhs} =
+    (addVars (getBV lhs) . addStable (getBoundStable lhs)) `modifyCtxt` check rhs
   check VarBind{var_rhs = rhs} = check rhs
   check PatSynBind {} = return True -- pattern synonyms are not supported
 
@@ -846,23 +958,37 @@ isPrimExpr :: GetCtxt => LHsExpr GhcTc -> Maybe (Prim,Var)
 isPrimExpr (L _ e) = isPrimExpr' e where
   isPrimExpr' :: GetCtxt => HsExpr GhcTc -> Maybe (Prim,Var)
   isPrimExpr' (HsVar _ (L _ v)) = fmap (,v) (isPrim v)
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  isPrimExpr' (HsAppType _ e _) = isPrimExpr e
+#elif __GLASGOW_HASKELL__ >= 906
   isPrimExpr' (HsAppType _ e _ _) = isPrimExpr e
 #else
   isPrimExpr' (HsAppType _ e _) = isPrimExpr e
 #endif
 
+#if __GLASGOW_HASKELL__ >= 912
+  isPrimExpr' (XExpr (WrapExpr _ e)) = isPrimExpr' e
+#else
   isPrimExpr' (XExpr (WrapExpr (HsWrap _ e))) = isPrimExpr' e
+#endif
+#if __GLASGOW_HASKELL__ >= 910
+  isPrimExpr' (XExpr (ExpandedThingTc _ e)) = isPrimExpr' e
+#else
   isPrimExpr' (XExpr (ExpansionExpr (HsExpanded _ e))) = isPrimExpr' e
+#endif
   isPrimExpr' (HsPragE _ _ e) = isPrimExpr e
 #if __GLASGOW_HASKELL__ < 904
   isPrimExpr' (HsTick _ _ e) = isPrimExpr e
   isPrimExpr' (HsBinTick _ _ _ e) = isPrimExpr e
   isPrimExpr' (HsPar _ e) = isPrimExpr e
-#else
+#elif __GLASGOW_HASKELL__ < 910
   isPrimExpr' (XExpr (HsTick _ e)) = isPrimExpr e
   isPrimExpr' (XExpr (HsBinTick _ _ e)) = isPrimExpr e
   isPrimExpr' (HsPar _ _ e _) = isPrimExpr e
+#else
+  isPrimExpr' (XExpr (HsTick _ e)) = isPrimExpr e
+  isPrimExpr' (XExpr (HsBinTick _ _ e)) = isPrimExpr e
+  isPrimExpr' (HsPar _ e) = isPrimExpr e
 #endif
 
   isPrimExpr' _ = Nothing
@@ -885,7 +1011,8 @@ instance NotSupported (Bool,Set Var) where
 addVars :: Set Var -> Ctxt -> Ctxt
 addVars vs c = c{current = vs `Set.union` current c }
 
-
+-- | Add the given type variables to the set of type variables that
+-- are known to be stable.
 addStable :: Set Var -> Ctxt -> Ctxt
 addStable vs c = c{stableTypes = vs `Set.union` stableTypes c }
 

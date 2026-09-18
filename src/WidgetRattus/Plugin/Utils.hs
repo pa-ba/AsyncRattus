@@ -62,6 +62,9 @@ import Prelude hiding ((<>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Char
+#if __GLASGOW_HASKELL__ >= 910
+import Data.List (stripPrefix)
+#endif
 import Data.Maybe
 
 
@@ -185,7 +188,31 @@ getNameModule :: NamedThing a => a -> Maybe (FastString, FastString)
 getNameModule v = do
   let name = getName v
   mod <- nameModule_maybe name
-  return (getOccFS name,moduleNameFS (moduleName mod))
+  return (getOccFS name, baseModuleName (moduleNameFS (moduleName mod)))
+
+
+-- | Since GHC 9.10 most modules of the @base@ library have been moved
+-- into the @ghc-internal@ package, where they are called
+-- @GHC.Internal.X@ instead of @GHC.X@ (e.g. @IORef@ is now defined in
+-- @GHC.Internal.IORef@). This function maps such module names back to
+-- their pre-9.10 names so that the rest of the plugin can recognise
+-- them independently of the GHC version.
+baseModuleName :: FastString -> FastString
+#if __GLASGOW_HASKELL__ >= 910
+baseModuleName mod = case stripPrefix "GHC.Internal." (unpackFS mod) of
+  Just rest -> mkFastString ("GHC." ++ rest)
+  Nothing -> mod
+#else
+baseModuleName = id
+#endif
+
+
+-- | Check whether the given module is the one that defines 'Integer'.
+-- Up to GHC 9.12 that is @GHC.Num.Integer@ from the @ghc-bignum@
+-- package. Since GHC 9.14 it lives in @ghc-internal@, which
+-- 'baseModuleName' maps to @GHC.Bignum.Integer@.
+isIntegerModule :: FastString -> Bool
+isIntegerModule mod = mod == "GHC.Num.Integer" || mod == "GHC.Bignum.Integer"
 
 
 -- | The set of stable built-in types.
@@ -257,7 +284,7 @@ isStableRec c d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
-          | mod == "GHC.Num.Integer" && name == "Integer" -> True
+          | isIntegerModule mod && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           -- If it's a Rattus type constructor check if it's a box
           | isRattModule mod && (name == "Box" || name == "Chan") -> True
@@ -320,8 +347,12 @@ isStrictRec d pr t = do
       case getNameModule con of
         Nothing -> False
         Just (name,mod)
-          | (mod == "GHC.Internal.IsList" || mod == "GHC.IsList" || mod == "GHC.Exts") && name == "Item" -> all (isStrictRec (d+1) pr') args
-          | mod == "GHC.Num.Integer" && name == "Integer" -> True
+          -- 'Item' is the type family of the 'IsList' class. If it
+          -- has not been reduced (because the list type is still a
+          -- type variable), we approximate it by its argument.
+          | (mod == "GHC.IsList" || mod == "GHC.Exts") && name == "Item" ->
+            all (isStrictRec (d+1) pr') args
+          | isIntegerModule mod && name == "Integer" -> True
           | mod == "Data.Text.Internal" && name == "Text" -> True
           | mod == "GHC.IORef" && name == "IORef" -> True
           | mod == "GHC.MVar" && name == "MVar" -> True
@@ -372,7 +403,7 @@ typeClassFunction v =
     _ -> False
 
 mkSysLocalFromVar :: MonadUnique m => FastString -> Var -> m Id
-mkSysLocalFromVar lit v = mkSysLocalM lit (varMult v) (varType v)
+mkSysLocalFromVar lit v = mkSysLocalM lit (idMult v) (varType v)
  
 mkSysLocalFromExpr :: MonadUnique m => FastString -> CoreExpr -> m Id
 mkSysLocalFromExpr lit e = mkSysLocalM lit oneDataConTy (exprType e)

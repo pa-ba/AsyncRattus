@@ -1,3 +1,12 @@
+# 0.???
+
+ - Support GHC 9.10, 9.12, and 9.14.
+ - Fix the multiplicity of the binder that the plugin generates for
+   `delay`.
+ - Scope checking now also accounts for `Stable` constraints brought
+   into scope by patterns that the type checker wraps in a coercion,
+   e.g. when matching on a constructor of a data family instance.
+
 # 0.4.0.1
 
  - The constraint solver for stable types can now handle data types

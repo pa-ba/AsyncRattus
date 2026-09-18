@@ -9,7 +9,8 @@
 -- (mutual) recursive. To this end, this module also provides
 -- functions to compute, bound variables and variable occurrences.
 
-module WidgetRattus.Plugin.Dependency (dependency, HasBV (..),printBinds) where
+module WidgetRattus.Plugin.Dependency
+  (dependency, HasBV (..), printBinds, Binds, bindsToList) where
 
 
 import GHC.Plugins
@@ -30,6 +31,7 @@ import GHC.Parser.Annotation
 #endif
 
 
+import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Graph
@@ -39,11 +41,25 @@ import Prelude hiding ((<>))
 
 
 
--- | Compute the dependencies of a bag of bindings, returning a list
--- of the strongly-connected components.
-dependency :: Bag (LHsBindLR GhcTc GhcTc) -> [SCC (LHsBindLR GhcTc GhcTc, Set Var)]
+-- | The collection of bindings that GHC uses in 'LHsBinds'. Up to GHC
+-- 9.10 this is a 'Bag', from GHC 9.12 onwards it is a plain list.
+#if __GLASGOW_HASKELL__ >= 912
+type Binds = []
+
+bindsToList :: Binds a -> [a]
+bindsToList = id
+#else
+type Binds = Bag
+
+bindsToList :: Binds a -> [a]
+bindsToList = bagToList
+#endif
+
+-- | Compute the dependencies of a collection of bindings, returning a
+-- list of the strongly-connected components.
+dependency :: Binds (LHsBindLR GhcTc GhcTc) -> [SCC (LHsBindLR GhcTc GhcTc, Set Var)]
 dependency binds = map AcyclicSCC noDeps ++ catMaybes (map filterJust (stronglyConnComp (concat deps)))
-  where (deps,noDeps) = partitionEithers $ map mkDep $ bagToList binds
+  where (deps,noDeps) = partitionEithers $ map mkDep $ bindsToList binds
         mkDep :: GenLocated l (HsBindLR GhcTc GhcTc) ->
                  Either [(Maybe (GenLocated l (HsBindLR GhcTc GhcTc), Set Var), Name, [Name])]
                  (GenLocated l (HsBindLR GhcTc GhcTc), Set Var)
@@ -102,7 +118,11 @@ getRecFieldRhs = hfbRHS
 getRecFieldRhs = hsRecFieldArg
 #endif
 
+#if __GLASGOW_HASKELL__ >= 914
+getConBV (PrefixCon ps) = getBV ps
+#else
 getConBV (PrefixCon _ ps) = getBV ps
+#endif
 getConBV (InfixCon p p') = getBV p `Set.union` getBV p'
 getConBV (RecCon (HsRecFields {rec_flds = fs})) = foldl run Set.empty fs
       where run s (L _ f) = getBV (getRecFieldRhs f) `Set.union` s
@@ -119,13 +139,19 @@ instance HasBV XXPatGhcTc where
 instance HasBV (Pat GhcTc) where
   getBV (VarPat _ (L _ v)) = Set.singleton v
   getBV (LazyPat _ p) = getBV p
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (AsPat _ (L _ v) p) = Set.insert v (getBV p)
+#elif __GLASGOW_HASKELL__ >= 906
   getBV (AsPat _ (L _ v) _ p) = Set.insert v (getBV p)
 #else
   getBV (AsPat _ (L _ v) p) = Set.insert v (getBV p)
 #endif
   getBV (BangPat _ p) = getBV p
   getBV (ListPat _ ps) = getBV ps
+#if __GLASGOW_HASKELL__ >= 912
+  -- or-patterns cannot bind variables, but we traverse them anyway
+  getBV (OrPat _ ps) = foldMap getBV ps
+#endif
   getBV (TuplePat _ ps _) = getBV ps
   getBV (SumPat _ p _ _) = getBV p
   getBV (ViewPat _ _ p) = getBV p
@@ -138,9 +164,12 @@ instance HasBV (Pat GhcTc) where
       HsUntypedSplice _ _ v _ ->  Set.singleton v
       HsQuasiQuote _ p p' _ _ -> Set.fromList [p,p']
       _ -> Set.empty
-#else
+#elif __GLASGOW_HASKELL__ < 914
       HsUntypedSpliceExpr _ e -> getFV e
       HsQuasiQuote _ v _  -> Set.singleton v
+#else
+      HsUntypedSpliceExpr _ e -> getFV e
+      HsQuasiQuote _ (L _ v) _  -> Set.singleton v
 #endif
 
   getBV (NPlusKPat _ (L _ v) _ _ _ _) = Set.singleton v
@@ -148,13 +177,19 @@ instance HasBV (Pat GhcTc) where
   getBV (XPat p) = getBV p
   getBV (WildPat {}) = Set.empty
   getBV (LitPat {}) = Set.empty
-#if __GLASGOW_HASKELL__ >= 904  
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (ParPat _ p) = getBV p
+#elif __GLASGOW_HASKELL__ >= 904  
   getBV (ParPat _ _ p _) = getBV p
 #else
   getBV (ParPat _ p) = getBV p
 #endif
   getBV (ConPat {pat_args = con}) = getConBV con
   getBV (SigPat _ p _) = getBV p
+#if __GLASGOW_HASKELL__ >= 910
+  getBV (EmbTyPat _ _) = Set.empty
+  getBV (InvisPat _ _) = Set.empty
+#endif
 
 #if __GLASGOW_HASKELL__ < 904
 instance HasBV NoExtCon where
@@ -173,6 +208,11 @@ instance HasFV a => HasFV (GenLocated b a) where
   getFV (L _ e) = getFV e
   
 instance HasFV a => HasFV [a] where
+  getFV es = foldMap getFV es
+
+-- GHC 9.14 turned a number of syntax lists (e.g. the guarded RHSs of
+-- a binding) into non-empty lists.
+instance HasFV a => HasFV (NonEmpty a) where
   getFV es = foldMap getFV es
 
 instance HasFV a => HasFV (Bag a) where
@@ -238,7 +278,11 @@ instance HasFV (ParStmtBlock GhcTc GhcTc) where
 instance HasFV a => HasFV (StmtLR GhcTc GhcTc a) where
   getFV (LastStmt _ e _ _) = getFV e
   getFV (BindStmt _ _ e) = getFV e
+#if __GLASGOW_HASKELL__ >= 912
+  getFV (XStmtLR (ApplicativeStmt _ args _)) = foldMap (getFV . snd) args
+#else
   getFV (ApplicativeStmt _ args _) = foldMap (getFV . snd) args
+#endif
   getFV (BodyStmt _ e _ _) = getFV e
   getFV (LetStmt _ bs) = getFV bs
   getFV (ParStmt _ stms e _) = getFV stms `Set.union` getFV e
@@ -273,22 +317,30 @@ instance HasFV (HsBracket GhcTc) where
 
 instance HasFV (HsCmd GhcTc) where
   getFV (HsCmdArrApp _ e1 e2 _ _) = getFV e1 `Set.union` getFV e2
+#if __GLASGOW_HASKELL__ >= 912
+  getFV (HsCmdArrForm _ e _ cmd) = getFV e `Set.union` getFV cmd
+#else
   getFV (HsCmdArrForm _ e _ _ cmd) = getFV e `Set.union` getFV cmd
+#endif
   getFV (HsCmdApp _ e1 e2) = getFV e1 `Set.union` getFV e2
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsCmdLam _ _ mg) = getFV mg
+#else
   getFV (HsCmdLam _ l) = getFV l
+#endif
   getFV (HsCmdCase _ _ mg) = getFV mg
   getFV (HsCmdIf _ _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
   getFV (HsCmdDo _ cmd) = getFV cmd
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsCmdPar _ cmd) = getFV cmd
+  getFV (HsCmdLet _ bs _) = getFV bs
+#elif __GLASGOW_HASKELL__ >= 904
   getFV (HsCmdPar _ _ cmd _) = getFV cmd
   getFV (HsCmdLet _ _ bs _ _) = getFV bs
+  getFV (HsCmdLamCase _ _ mg) = getFV mg
 #else
   getFV (HsCmdPar _ cmd) = getFV cmd
   getFV (HsCmdLet _ bs _) = getFV bs
-#endif
-#if __GLASGOW_HASKELL__ >= 904
-  getFV (HsCmdLamCase _ _ mg) = getFV mg
-#else
   getFV (HsCmdLamCase _ mg) = getFV mg
 #endif
   getFV (XCmd e) = getFV e
@@ -309,12 +361,21 @@ instance HasFV (HsCmdTop GhcTc) where
 
 instance HasFV (HsExpr GhcTc) where
   getFV (HsVar _ v) = getFV v
+#if __GLASGOW_HASKELL__ >= 914
+  getFV HsHole {} = Set.empty
+#else
   getFV HsUnboundVar {} = Set.empty
+#endif
   getFV HsOverLabel {} = Set.empty
   getFV HsIPVar {} = Set.empty
   getFV HsOverLit {} = Set.empty
   getFV HsLit {} = Set.empty
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsLam _ _ mg) = getFV mg
+  getFV (HsEmbTy _ _) = Set.empty
+#else
   getFV (HsLam _ mg) = getFV mg
+#endif
   getFV (HsApp _ e1 e2) = getFV e1 `Set.union` getFV e2      
   getFV (OpApp _ e1 e2 e3) = getFV e1 `Set.union` getFV e2 `Set.union` getFV e3
   getFV (NegApp _ e _) = getFV e
@@ -340,7 +401,23 @@ instance HasFV (HsExpr GhcTc) where
   getFV (HsProc _ _ e) = getFV e
   getFV (HsStatic _ e) = getFV e
   getFV (XExpr e) = getFV e
-#if __GLASGOW_HASKELL__ >= 904
+#if __GLASGOW_HASKELL__ >= 912
+  getFV (HsPar _ e) = getFV e
+  getFV (HsLet _ bs e) = getFV bs `Set.union` getFV e
+  getFV (HsTypedBracket _ e) = getFV e
+  getFV (HsUntypedBracket _ e) = getFV e
+  -- type syntax that may occur in term position
+  getFV (HsForAll _ _ e) = getFV e
+  getFV (HsQual _ ctxt e) = getFV ctxt `Set.union` getFV e
+  getFV (HsFunArr _ arr e1 e2) =
+    getFV arr `Set.union` getFV e1 `Set.union` getFV e2
+#elif __GLASGOW_HASKELL__ >= 910
+  getFV (HsPar _ e) = getFV e
+  getFV (HsLet _ bs e) = getFV bs `Set.union` getFV e
+  getFV HsRecSel {} = Set.empty
+  getFV (HsTypedBracket _ e) = getFV e
+  getFV (HsUntypedBracket _ e) = getFV e
+#elif __GLASGOW_HASKELL__ >= 904
   getFV (HsPar _ _ e _) = getFV e  
   getFV (HsLamCase _ _ mg) = getFV mg
   getFV (HsLet _ _ bs _ e) = getFV bs `Set.union` getFV e
@@ -360,7 +437,10 @@ instance HasFV (HsExpr GhcTc) where
   getFV HsTcBracketOut {} = Set.empty
 #endif
 
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (HsAppType _ e _) = getFV e
+  getFV (ExprWithTySig _ e _) = getFV e
+#elif __GLASGOW_HASKELL__ >= 906
   getFV (HsAppType _ e _ _) = getFV e
   getFV (ExprWithTySig _ e _) = getFV e  
 #else
@@ -372,8 +452,17 @@ instance HasFV (HsExpr GhcTc) where
 
 
 instance HasFV XXExprGhcTc where
+#if __GLASGOW_HASKELL__ >= 912
+  getFV (WrapExpr _ e) = getFV e
+  getFV HsRecSelTc {} = Set.empty
+#else
   getFV (WrapExpr e) = getFV e
+#endif
+#if __GLASGOW_HASKELL__ >= 910
+  getFV (ExpandedThingTc _ e) = getFV e
+#else
   getFV (ExpansionExpr (HsExpanded _e1 e2)) = getFV e2
+#endif
 #if __GLASGOW_HASKELL__ >= 904  
   getFV (HsTick _ e) = getFV e
   getFV (HsBinTick _ _ e) = getFV e
@@ -383,3 +472,13 @@ instance HasFV XXExprGhcTc where
 
 instance HasFV (e GhcTc) => HasFV (HsWrap e) where
   getFV (HsWrap _ e) = getFV e
+
+#if __GLASGOW_HASKELL__ >= 914
+instance HasFV (HsMultAnnOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  getFV (HsExplicitMult _ e) = getFV e
+  getFV _ = Set.empty
+#elif __GLASGOW_HASKELL__ >= 912
+instance HasFV (HsArrowOf (GenLocated SrcSpanAnnA (HsExpr GhcTc)) GhcTc) where
+  getFV (HsExplicitMult _ e) = getFV e
+  getFV _ = Set.empty
+#endif

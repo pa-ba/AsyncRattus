@@ -16,8 +16,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        cabal: ["3.12.1.0"]
-        ghc: ["9.2", "9.4" , "9.6"]
+        cabal: ["3.16.1.0"]
+        ghc: ["9.2", "9.4" , "9.6" , "9.8", "9.10", "9.12", "9.14"]
     runs-on: ${{ matrix.os }}
     env:
       CONFIG: "--enable-tests"
