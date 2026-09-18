@@ -6,6 +6,9 @@
  - Scope checking now also accounts for `Stable` constraints brought
    into scope by patterns that the type checker wraps in a coercion,
    e.g. when matching on a constructor of a data family instance.
+ - New signal combinators `parallel` and `parallelWith`, and their
+   variants `parallelAwait` and `parallelWithAwait` for delayed
+   signals. 
 
 # 0.4.0.1
 
