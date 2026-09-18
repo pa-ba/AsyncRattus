@@ -1,6 +1,16 @@
-# 0.???
+# 0.5
 
- - Support GHC 9.10, 9.12, and 9.14.
+ - Include push-pull-style behaviours and events (modules
+   `WidgetRattus.Behaviour` and `WidgetRattus.Event`) along with a
+   variant of the widget library based on behaviours and events
+   (module `WidgetRattus.PushPull.Widgets`).
+ - Rename `trigger`, `triggerM`, `triggerAwait`, and `triggerAwaitM`
+   in `WidgetRattus.Signal` to `sample`, `sampleM`, `sampleAwait`,
+   and `sampleAwaitM`, respectively, and `trigger` and `triggerAwait`
+   in `WidgetRattus.Future` to `sample` and `sampleAwait`.
+ - Support GHC 9.10, 9.12, and 9.14. With GHC 9.10 and later, monomer
+   and some of its dependencies need `allow-newer` for `containers`
+   (see README).
  - Fix the multiplicity of the binder that the plugin generates for
    `delay`.
  - Scope checking now also accounts for `Stable` constraints brought
@@ -8,7 +18,15 @@
    e.g. when matching on a constructor of a data family instance.
  - New signal combinators `parallel` and `parallelWith`, and their
    variants `parallelAwait` and `parallelWithAwait` for delayed
-   signals. 
+   signals.
+ - New function `chanSig` in `WidgetRattus.Signal`, which turns a
+   channel into a delayed signal.
+ - New function `withTime` in `WidgetRattus`, which gives a delayed
+   computation access to the time at which it ticks.
+ - New type synonym `DTime` and operator `<->` in `WidgetRattus.Time`
+   for time differences.
+ - New strict sum type `:+` in `WidgetRattus.Strict`.
+ - New `Functor` instance for `Maybe'`.
 
 # 0.4.0.1
 
