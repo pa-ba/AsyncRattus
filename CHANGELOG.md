@@ -1,4 +1,4 @@
-# 0.???
+# 0.2.2
 
  - Support GHC 9.10, 9.12, and 9.14.
  - Fix the multiplicity of the binder that the plugin generates for
